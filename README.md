@@ -1,2 +1,3 @@
 # RescueAnt
-Graduation project for automatically scraping animal rescue shelter data, in order to create a database for rescuing injured animals.
+This web scraping tool is being developed as part of a bachelor thesis project.
+It aims to automatically find rescue station data for the website of WildTanic e.V..
