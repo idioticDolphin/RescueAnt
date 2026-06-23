@@ -1,0 +1,8 @@
+[build-system]
+# TODO
+
+[project]
+name = "rescue-ant"
+dependencies = [
+    "playwright"
+]
