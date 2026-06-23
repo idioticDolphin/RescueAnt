@@ -4,5 +4,6 @@
 [project]
 name = "rescue-ant"
 dependencies = [
-    "playwright"
+    "playwright",
+    "llama-cpp-python"
 ]
