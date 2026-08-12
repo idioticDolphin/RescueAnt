@@ -6,6 +6,7 @@ from model.objects.config import Config
 import model.tools.llm_service as llm_service
 import json
 
+_session_config = None
 
 def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.config"):
     with open(path) as f:
@@ -17,7 +18,7 @@ def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.con
         config[0]: config[1] for config in configs
     }
 
-def load_config(configs:dict=None) -> Config:
+def _load_config(configs:dict=None):
     if configs is None:
         configs = _read_config()
     categories = []
@@ -63,17 +64,22 @@ def load_config(configs:dict=None) -> Config:
                 Category(
                     name=category,
                     is_relevant=is_relevant_category,
-                    analysis_model_id=llm_service.return_model(model_path, max_tokens),
+                    analysis_model_id=llm_service.return_model_id(model_path, max_tokens),
                     process_links=check_linked_urls,
                     fields=category_fields
                 )
             )
-
-        return Config(
+        global _session_config
+        _session_config = Config(
             categories=categories,
             category_prompt=category_prompt,
-            category_model_id=llm_service.return_model(category_model_path, category_max_tokens)
+            category_model_id=llm_service.return_model_id(category_model_path, category_max_tokens)
         )
 
     except Exception:
         raise ConfigError
+
+def get_config(): # Singleton-like getter
+    if _session_config is None:
+        _load_config()
+    return _session_config
