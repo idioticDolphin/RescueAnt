@@ -64,7 +64,7 @@ def _load_config(configs:dict=None):
                 Category(
                     name=category,
                     is_relevant=is_relevant_category,
-                    analysis_model_id=llm_service.return_model_id(model_path, max_tokens),
+                    analysis_model_id=llm_service.get_model_id(model_path, max_tokens),
                     process_links=check_linked_urls,
                     fields=category_fields
                 )
@@ -73,7 +73,7 @@ def _load_config(configs:dict=None):
         _session_config = Config(
             categories=categories,
             category_prompt=category_prompt,
-            category_model_id=llm_service.return_model_id(category_model_path, category_max_tokens)
+            category_model_id=llm_service.get_model_id(category_model_path, category_max_tokens)
         )
 
     except Exception:
