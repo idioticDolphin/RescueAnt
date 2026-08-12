@@ -1,6 +1,5 @@
 from datetime import datetime
 from pydantic import BaseModel
-
 from model.objects.category import Category
 
 
