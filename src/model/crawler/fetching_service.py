@@ -48,7 +48,7 @@ async def _wait_politely(url):
             await asyncio.sleep(remaining)
     _last_request_time[domain] = time.monotonic()
 
-async def get_content(url, browser=None): # TODO: refactor to this
+async def get_content(url, browser=None):
     """
     Fetch and cache page content for a single URL.
     :param url: page to fetch
