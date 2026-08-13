@@ -18,4 +18,4 @@ def get_model(id: int):
 
 def init_model(model_path, max_tokens):
     global _initialized_models
-    _initialized_models.append(Llama(model_path))
+    _initialized_models.append(Llama(model_path)) # TODO: Figure out changing the context window

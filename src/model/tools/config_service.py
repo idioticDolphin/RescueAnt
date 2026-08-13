@@ -23,6 +23,7 @@ def _load_config(configs:dict=None):
         configs = _read_config()
     categories = []
     try:
+        politeness = int(configs["politeness"])
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -73,7 +74,8 @@ def _load_config(configs:dict=None):
         _session_config = Config(
             categories=categories,
             category_prompt=category_prompt,
-            category_model_id=llm_service.get_model_id(category_model_path, category_max_tokens)
+            category_model_id=llm_service.get_model_id(category_model_path, category_max_tokens),
+            politeness=politeness
         )
 
     except Exception:
