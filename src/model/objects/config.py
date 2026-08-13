@@ -7,3 +7,13 @@ class Config(BaseModel):
     categories: list[Category]
     category_prompt: str
     category_model_id: int
+    politeness: int
+
+    def get_categories(self):
+        return self.categories
+    def get_category_prompt(self):
+        return self.category_prompt
+    def get_category_model_id(self):
+        return self.category_model_id
+    def get_politeness(self):
+        return self.politeness
