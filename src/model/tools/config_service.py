@@ -27,6 +27,7 @@ def _load_config(configs:dict=None):
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
+        category_context = int(configs["category_context"])
         category_model_path = configs["category_model_path"]
         max_chars = 40
         fields = None
@@ -50,6 +51,8 @@ def _load_config(configs:dict=None):
             print(f"model_path: {model_path}")
             max_tokens = int(configs[f"max_tokens[{category}]"])
             print(f"max_tokens: {max_tokens}")
+            context = configs[f"context[{category}]"]
+            print(f"context: {context}")
             check_linked_urls = configs[f"check_linked_urls[{category}]"]=="True"
             print(f"check_linked_urls: {"yes" if check_linked_urls else "no"}")
             if f"fields[{category}]" in configs.keys():
@@ -65,17 +68,20 @@ def _load_config(configs:dict=None):
                 Category(
                     name=category,
                     is_relevant=is_relevant_category,
-                    analysis_model_id=llm_service.get_model_id(model_path, max_tokens),
+                    analysis_model_id=llm_service.get_model_id(model_path, context),
                     process_links=check_linked_urls,
-                    fields=category_fields
+                    fields=category_fields,
+                    analysis_max_tokens=max_tokens
                 )
             )
         global _session_config
         _session_config = Config(
             categories=categories,
             category_prompt=category_prompt,
-            category_model_id=llm_service.get_model_id(category_model_path, category_max_tokens),
-            politeness=politeness
+            category_model_id=llm_service.get_model_id(category_model_path, category_context),
+            politeness=politeness,
+            category_max_tokens=category_max_tokens,
+            category_context=category_context
         )
 
     except Exception:

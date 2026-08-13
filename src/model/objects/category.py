@@ -6,5 +6,6 @@ class Category(BaseModel):
     is_relevant: bool
     analysis_model_id: int = None
     analysis_prompt: str = None
+    analysis_max_tokens: int = None
     fields: dict = None
     process_links: bool = None

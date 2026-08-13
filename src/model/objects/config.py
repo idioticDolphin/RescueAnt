@@ -6,6 +6,8 @@ from model.objects.category import Category
 class Config(BaseModel):
     categories: list[Category]
     category_prompt: str
+    category_max_tokens: int
+    category_context: int
     category_model_id: int
     politeness: int
 
