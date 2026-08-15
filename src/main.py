@@ -1,5 +1,7 @@
 import model.analyzer.category_service as category_service
-category_service.categorize_website("""
+import model.analyzer.extraction_service as extraction_service
+
+html = """
 <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -11,4 +13,7 @@ category_service.categorize_website("""
     <h1>This is a web page of the animal rescue station Tierliebe Marburg.</h1>
     <p>We take in dogs only.</p>
     <p>Reach us at Liebigstraße 4, or via <a href=mailto:tierliebe-marburg@aol.com>mail</a>.</p>
-    </body>""")
+    </body>"""
+category = category_service.categorize_website(html)
+print(f"Category has fields:\n{category.fields}")
+extracted = extraction_service.extract_information(html, category, "tierliebe-marburg.de")
