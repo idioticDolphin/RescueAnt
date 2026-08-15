@@ -24,6 +24,8 @@ def _load_config(configs:dict=None):
     categories = []
     try:
         politeness = int(configs["politeness"])
+        skip_tags = configs["skip_tags"].split(",")
+        skip_tags = [s.strip() for s in skip_tags]
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -81,13 +83,14 @@ def _load_config(configs:dict=None):
             category_model_id=llm_service.get_model_id(category_model_path, category_context),
             politeness=politeness,
             category_max_tokens=category_max_tokens,
-            category_context=category_context
+            category_context=category_context,
+            skip_tags=skip_tags
         )
 
     except Exception:
         raise ConfigError
 
-def get_config(): # Singleton-like getter
+def get_config() -> Config: # Singleton-like getter
     if _session_config is None:
         _load_config()
     return _session_config

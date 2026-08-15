@@ -10,6 +10,7 @@ class Config(BaseModel):
     category_context: int
     category_model_id: int
     politeness: int
+    skip_tags: list[str]
 
     def get_categories(self):
         return self.categories
@@ -19,3 +20,5 @@ class Config(BaseModel):
         return self.category_model_id
     def get_politeness(self):
         return self.politeness
+    def get_skip_tags(self):
+        return self.skip_tags
