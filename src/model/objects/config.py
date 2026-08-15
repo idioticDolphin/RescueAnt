@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from llama_cpp import Llama
 from model.objects.category import Category
+from model.exceptions import *
 
 
 class Config(BaseModel):
@@ -22,3 +23,8 @@ class Config(BaseModel):
         return self.politeness
     def get_skip_tags(self):
         return self.skip_tags
+    def get_category(self, category_name: str):
+        for category in self.categories:
+            if category.name == category_name:
+                return category
+        else: raise CategoryNotFoundError(category_name)
