@@ -27,10 +27,10 @@ def _load_config(configs:dict=None):
         skip_tags = configs["skip_tags"].split(",")
         skip_tags = [s.strip() for s in skip_tags]
 
-        category_prompt = configs["category_prompt"]
+        category_prompt = configs["category_prompt"].strip().strip('"').strip("'")
         category_max_tokens = int(configs["category_max_tokens"])
         category_context = int(configs["category_context"])
-        category_model_path = configs["category_model_path"]
+        category_model_path = configs["category_model_path"].strip().strip('"').strip("'")
         max_chars = 40
         fields = None
         if "fields" in configs.keys():
@@ -47,13 +47,13 @@ def _load_config(configs:dict=None):
                     continue
                 raise
 
-            prompt = configs[f"prompt[{category}]"]
+            prompt = configs[f"prompt[{category}]"].strip().strip('"').strip("'")
             print(f"prompt: {prompt[:max_chars]}{'...' if len(prompt) > max_chars else ''}")
-            model_path = configs[f"model_path[{category}]"]
+            model_path = configs[f"model_path[{category}]"].strip().strip('"').strip("'")
             print(f"model_path: {model_path}")
             max_tokens = int(configs[f"max_tokens[{category}]"])
             print(f"max_tokens: {max_tokens}")
-            context = configs[f"context[{category}]"]
+            context = int(configs[f"context[{category}]"])
             print(f"context: {context}")
             check_linked_urls = configs[f"check_linked_urls[{category}]"]=="True"
             print(f"check_linked_urls: {"yes" if check_linked_urls else "no"}")
@@ -71,9 +71,10 @@ def _load_config(configs:dict=None):
                     name=category,
                     is_relevant=is_relevant_category,
                     analysis_model_id=llm_service.get_model_id(model_path, context),
+                    analysis_prompt=prompt,
                     process_links=check_linked_urls,
                     fields=category_fields,
-                    analysis_max_tokens=max_tokens
+                    analysis_max_tokens=max_tokens,
                 )
             )
         global _session_config
