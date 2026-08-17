@@ -149,6 +149,8 @@ database = "crawl.db";
 
 politeness = 5;
 skip_tags = "script", "style";
+redo_all_fetches = False;
+redo_failed_fetches = True;
 
 categories = STATION|IRRELEVANT;
 category_prompt = "Categorize.";
@@ -237,3 +239,186 @@ def test_load_config_raises_config_error_on_missing_key(monkeypatch, tmp_path):
     configs = config_service._read_config(config_file)
     with pytest.raises(ConfigError):
         config_service.load_config(configs)
+
+
+def test_load_config_raises_config_error_on_malformed_relevancy_value(monkeypatch, tmp_path, sample_config_text):
+    text = sample_config_text.replace("relevancy[IRRELEVANT] = False;", "relevancy[IRRELEVANT] = MAYBE;")
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    with pytest.raises(ConfigError):
+        config_service.load_config(configs)
+
+
+def test_load_config_raises_config_error_when_relevant_category_has_no_fields(monkeypatch, tmp_path, sample_config_text):
+    text = sample_config_text.replace(
+        'fields = {"name": "string", "accepted_animals": "list[animal_type]"};', ""
+    )
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    with pytest.raises(ConfigError):
+        config_service.load_config(configs)
+
+
+def test_load_config_uses_per_category_fields_override(monkeypatch, tmp_path, sample_config_text):
+    text = sample_config_text.replace(
+        "check_linked_urls[STATION] = True;",
+        'check_linked_urls[STATION] = True;\nfields[STATION] = {"custom_field": "string"};',
+    )
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    config_service.load_config(configs)
+    station = config_service.get_config().get_category("STATION")
+
+    assert "custom_field" in station.fields["properties"]
+    assert "accepted_animals" not in station.fields["properties"]
+
+
+def test_load_config_builds_google_search_provider_when_discovery_enabled(monkeypatch, tmp_path, sample_config_text):
+    text = sample_config_text.replace(
+        "politeness = 5;",
+        'politeness = 5;\n'
+        'discover_urls = True;\n'
+        'search_provider = "Google";\n'
+        'search_query_file = "search_queries.csv";\n'
+        'search_api_key = "key123";\n'
+        'search_engine_id = "cx123";\n'
+        'search_timeout = 5.0;\n'
+        'results_per_query = 5;\n'
+        'query_politeness = 0.5;\n',
+    )
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    config_service.load_config(configs)
+    result = config_service.get_config()
+
+    assert result.discover_urls is True
+    assert result.results_per_query == 5
+    assert result.query_politeness == 0.5
+    from model.objects.searchprovider import GoogleCustomSearchProvider
+    assert isinstance(result.search_provider, GoogleCustomSearchProvider)
+    assert result.search_provider.api_key == "key123"
+
+
+def test_load_config_builds_configurable_json_provider_for_non_google_provider(monkeypatch, tmp_path, sample_config_text):
+    text = sample_config_text.replace(
+        "politeness = 5;",
+        'politeness = 5;\n'
+        'discover_urls = True;\n'
+        'search_provider = "SearXNG";\n'
+        'search_query_file = "search_queries.csv";\n'
+        'search_base_url = "http://localhost:8080/search";\n'
+        'query_parameters = "q";\n'
+        'search_result_path = "results";\n'
+        'search_url_field = "url";\n'
+        'search_extra_params = {"format": "json"};\n'
+        'search_headers = {};\n'
+        'search_timeout = 5.0;\n'
+        'results_per_query = 5;\n'
+        'query_politeness = 0.5;\n',
+    )
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    config_service.load_config(configs)
+    result = config_service.get_config()
+
+    from model.objects.searchprovider import ConfigurableJsonSearchProvider
+    assert isinstance(result.search_provider, ConfigurableJsonSearchProvider)
+    assert result.search_provider.base_url == "http://localhost:8080/search"
+    assert result.search_provider.result_path == ["results"]
+
+
+def test_load_config_falls_back_gracefully_when_discovery_config_incomplete(monkeypatch, tmp_path, sample_config_text):
+    # discover_urls = True but none of the required search_* keys are present -
+    # this must not blow up the whole config load, just disable discovery.
+    text = sample_config_text.replace("politeness = 5;", 'politeness = 5;\ndiscover_urls = True;\n')
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    config_service.load_config(configs)
+    result = config_service.get_config()
+
+    assert result.discover_urls is False
+    assert result.search_provider is None
+
+
+# ---------------------------------------------------------------------------
+# get_config - singleton behavior
+# ---------------------------------------------------------------------------
+
+def test_load_config_discover_urls_explicitly_false_disables_discovery(monkeypatch, tmp_path, sample_config_text):
+    text = sample_config_text.replace("politeness = 5;", 'politeness = 5;\ndiscover_urls = False;\n')
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    config_service.load_config(configs)
+    result = config_service.get_config()
+
+    assert result.discover_urls is False
+    assert result.search_provider is None
+    assert result.results_per_query == 0
+    assert result.query_politeness == 0
+
+
+def test_get_config_loads_lazily_when_no_session_config_exists(monkeypatch, tmp_path, sample_config_text):
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+    original_read_config = config_service._read_config
+    monkeypatch.setattr(config_service, "_read_config", lambda: original_read_config(config_file))
+    config_service._session_config = None
+
+    result = config_service.get_config()
+
+    assert result is config_service._session_config
+    assert [c.name for c in result.get_categories()] == ["STATION", "IRRELEVANT"]

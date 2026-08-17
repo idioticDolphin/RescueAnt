@@ -44,6 +44,11 @@ def _make_config(categories):
         skip_tags=["script"],
         starting_url_path="starting_urls.csv",
         database_path="crawl.db",
+        discover_urls=False,
+        results_per_query=10,
+        query_politeness=1.0,
+        redo_all_fetches=False,
+        redo_failed_fetches=True,
     )
 
 
@@ -71,3 +76,9 @@ def test_config_simple_getters():
     assert config.get_starting_url_path() == "starting_urls.csv"
     assert config.get_database_path() == "crawl.db"
     assert config.get_categories() == [Category(name="STATION", is_relevant=True)]
+
+
+def test_config_search_getters_default_to_none():
+    config = _make_config([Category(name="STATION", is_relevant=True)])
+    assert config.get_search_provider() is None
+    assert config.get_search_query_path() is None

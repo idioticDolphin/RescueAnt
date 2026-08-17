@@ -210,10 +210,205 @@ async def test_get_content_fetches_via_provided_browser(monkeypatch):
     assert fetching_service.processed_urls["http://example.com/new"] == "<html>fetched</html>"
 
 
+@pytest.mark.asyncio
+async def test_get_content_falls_back_to_load_when_networkidle_times_out(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+
+    goto_calls = []
+
+    async def flaky_goto(url, wait_until, timeout):
+        goto_calls.append(wait_until)
+        if wait_until == "networkidle":
+            raise TimeoutError("networkidle timed out")
+
+    fake_page = MagicMock()
+    fake_page.goto = flaky_goto
+    fake_page.content = _async_mock("<html>loaded via fallback</html>")
+    fake_page.close = _async_mock(None)
+
+    fake_browser = MagicMock()
+    fake_browser.new_page = _async_mock(fake_page)
+
+    result = await fetching_service.get_content("http://example.com/slow", browser=fake_browser)
+
+    assert result == "<html>loaded via fallback</html>"
+    assert goto_calls == ["networkidle", "load"]
+
+
+@pytest.mark.asyncio
+async def test_get_content_returns_empty_html_when_both_waits_fail(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+
+    async def always_fails(url, wait_until, timeout):
+        raise TimeoutError(f"{wait_until} timed out")
+
+    fake_page = MagicMock()
+    fake_page.goto = always_fails
+    fake_page.close = _async_mock(None)
+
+    fake_browser = MagicMock()
+    fake_browser.new_page = _async_mock(fake_page)
+
+    result = await fetching_service.get_content("http://example.com/broken", browser=fake_browser)
+
+    assert result == ""
+    assert fetching_service.processed_urls["http://example.com/broken"] == ""
+
+
+@pytest.mark.asyncio
+async def test_get_content_launches_and_closes_own_browser_when_none_provided(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+
+    fake_page = MagicMock()
+    fake_page.goto = _async_mock(None)
+    fake_page.content = _async_mock("<html>own browser</html>")
+    fake_page.close = _async_mock(None)
+
+    stopped = []
+
+    async def fake_stop():
+        stopped.append(True)
+
+    closed = []
+
+    async def fake_close():
+        closed.append(True)
+
+    fake_browser = MagicMock()
+    fake_browser.new_page = _async_mock(fake_page)
+    fake_browser.close = fake_close
+
+    fake_chromium = MagicMock()
+    fake_chromium.launch = _async_mock(fake_browser)
+
+    fake_playwright = MagicMock()
+    fake_playwright.chromium = fake_chromium
+    fake_playwright.stop = fake_stop
+
+    class FakePlaywrightStarter:
+        async def start(self):
+            return fake_playwright
+
+    monkeypatch.setattr(fetching_service, "async_playwright", lambda: FakePlaywrightStarter())
+
+    result = await fetching_service.get_content("http://example.com/solo")
+
+    assert result == "<html>own browser</html>"
+    assert closed == [True]
+    assert stopped == [True]
+
+
 def _async_mock(return_value):
     async def _mock(*args, **kwargs):
         return return_value
     return _mock
+
+
+class _FakePlaywrightContextManager:
+    def __init__(self, playwright_obj):
+        self._obj = playwright_obj
+
+    async def __aenter__(self):
+        return self._obj
+
+    async def __aexit__(self, *args):
+        return False
+
+
+# ---------------------------------------------------------------------------
+# parse_queue
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_parse_queue_fetches_all_queued_urls_and_clears_queue(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+
+    fake_page = MagicMock()
+    fake_page.goto = _async_mock(None)
+    fake_page.content = _async_mock("<html>fetched</html>")
+    fake_page.close = _async_mock(None)
+
+    close_calls = []
+
+    async def fake_close():
+        close_calls.append(True)
+
+    fake_browser = MagicMock()
+    fake_browser.new_page = _async_mock(fake_page)
+    fake_browser.close = fake_close
+
+    fake_chromium = MagicMock()
+    fake_chromium.launch = _async_mock(fake_browser)
+
+    fake_playwright_obj = MagicMock()
+    fake_playwright_obj.chromium = fake_chromium
+
+    monkeypatch.setattr(
+        fetching_service, "async_playwright",
+        lambda: _FakePlaywrightContextManager(fake_playwright_obj),
+    )
+
+    fetching_service.url_queue = ["http://example.com/a", "http://example.com/b"]
+
+    await fetching_service.parse_queue()
+
+    assert fetching_service.url_queue == []
+    assert fetching_service.processed_urls["http://example.com/a"] == "<html>fetched</html>"
+    assert fetching_service.processed_urls["http://example.com/b"] == "<html>fetched</html>"
+    assert close_calls == [True]
+
+
+# ---------------------------------------------------------------------------
+# init
+# ---------------------------------------------------------------------------
+
+def test_init_marks_successful_crawls_as_processed_when_redoing_failed(monkeypatch, tmp_path):
+    csv_file = tmp_path / "starting_urls.csv"
+    csv_file.write_text("http://example.com/new\n")
+    fake_data_service = MagicMock()
+    fake_data_service.get_successful_crawl_urls.return_value = ["http://example.com/done"]
+    monkeypatch.setattr(fetching_service, "data_service", fake_data_service)
+
+    fetching_service.init(starting_url_path=csv_file, redo_failed_fetches=True, redo_all_fetches=False)
+
+    fake_data_service.get_successful_crawl_urls.assert_called_once()
+    fake_data_service.get_crawl_urls.assert_not_called()
+    assert fetching_service.processed_urls["http://example.com/done"] is None
+    assert fetching_service.url_queue == ["http://example.com/new"]
+
+
+def test_init_uses_all_crawled_urls_when_not_redoing_failed(monkeypatch, tmp_path):
+    csv_file = tmp_path / "starting_urls.csv"
+    csv_file.write_text("http://example.com/new\n")
+    fake_data_service = MagicMock()
+    fake_data_service.get_crawl_urls.return_value = ["http://example.com/done", "http://example.com/failed"]
+    monkeypatch.setattr(fetching_service, "data_service", fake_data_service)
+
+    fetching_service.init(starting_url_path=csv_file, redo_failed_fetches=False, redo_all_fetches=False)
+
+    fake_data_service.get_crawl_urls.assert_called_once()
+    fake_data_service.get_successful_crawl_urls.assert_not_called()
+    assert set(fetching_service.processed_urls.keys()) == {
+        "http://example.com/done", "http://example.com/failed"
+    }
+
+
+def test_init_skips_db_lookup_entirely_when_redoing_all_fetches(monkeypatch, tmp_path):
+    csv_file = tmp_path / "starting_urls.csv"
+    csv_file.write_text("http://example.com/new\n")
+    fake_data_service = MagicMock()
+    monkeypatch.setattr(fetching_service, "data_service", fake_data_service)
+
+    fetching_service.init(starting_url_path=csv_file, redo_failed_fetches=True, redo_all_fetches=True)
+
+    fake_data_service.get_successful_crawl_urls.assert_not_called()
+    fake_data_service.get_crawl_urls.assert_not_called()
+    assert fetching_service.processed_urls == {}
+    assert fetching_service.url_queue == ["http://example.com/new"]
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +419,7 @@ def test_read_starting_urls_queues_each_url(tmp_path):
     csv_file = tmp_path / "starting_urls.csv"
     csv_file.write_text("http://example.com/a\nhttp://example.com/b\n")
 
-    fetching_service.read_starting_urls(path=csv_file)
+    fetching_service._read_starting_urls(path=csv_file)
 
     assert fetching_service.url_queue == ["http://example.com/a", "http://example.com/b"]
 
@@ -234,6 +429,28 @@ def test_read_starting_urls_skips_duplicates_and_already_processed(tmp_path):
     csv_file.write_text("http://example.com/a\nhttp://example.com/a\n")
     fetching_service.processed_urls["http://example.com/a"] = "<html></html>"
 
-    fetching_service.read_starting_urls(path=csv_file)
+    fetching_service._read_starting_urls(path=csv_file)
 
     assert fetching_service.url_queue == []
+
+
+# ---------------------------------------------------------------------------
+# get_crawl_time
+# ---------------------------------------------------------------------------
+
+def test_get_crawl_time_returns_last_request_time_for_urls_domain():
+    fetching_service._last_request_time["example.com"] = 123.456
+
+    assert fetching_service.get_crawl_time("http://example.com/some/page") == 123.456
+
+
+def test_get_crawl_time_returns_zero_for_unknown_domain():
+    assert fetching_service.get_crawl_time("http://never-fetched.com/a") == 0.0
+
+
+def test_get_crawl_time_distinguishes_between_domains():
+    fetching_service._last_request_time["example.com"] = 10.0
+    fetching_service._last_request_time["other.com"] = 20.0
+
+    assert fetching_service.get_crawl_time("http://example.com/a") == 10.0
+    assert fetching_service.get_crawl_time("http://other.com/b") == 20.0

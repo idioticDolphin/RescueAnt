@@ -123,7 +123,7 @@ def _read_starting_urls(path=config.get_starting_url_path()):
 
 def get_crawl_time(url:str):
     try:
-        return _last_request_time[url]
+        return _last_request_time[_get_domain(url)]
     except KeyError:
         return 0.0
 
