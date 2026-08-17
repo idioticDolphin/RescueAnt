@@ -4,8 +4,8 @@ from pathlib import Path
 import model.tools.config_service as config_service
 import json
 
-DATABASE_PATH = Path(__file__).parent.parent.parent.parent / "db.sqlite3"
 config = config_service.get_config()
+DATABASE_PATH = Path(config.get_database_path())
 db_fields = []
 
 @contextmanager
@@ -21,30 +21,37 @@ def get_connection():
     finally:
         connection.close() # always close connection afterwards
 
+def _quote_identifier(name:str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
 def init_db():
     categories = config.get_categories()
     global db_fields
+    seen_fields = set()
+    db_fields = []
     for category in categories:
         if category.is_relevant:
             for field in category.fields.keys():
-                db_fields.append(f"{field} TEXT")
+                if field not in seen_fields:
+                    seen_fields.add(field)
+                    db_fields.append(f"{_quote_identifier(field)} TEXT")
 
     db_fields_string = ",".join(db_fields) # Careful. Fine for reading from local config, but deadly sql injection risk when exposing configuration to outsiders
 
     with get_connection() as connection:
         connection.executescript("""
-        CREATE TABLE IF NOT EXISTS entries (
-            entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_crawl_id INTEGER NOT NULL,
-            FOREIGN KEY (source_crawl_id) REFERENCES crawls(crawl_id) ON DELETE CASCADE,
-            """ + db_fields_string + """
-        );
         CREATE TABLE IF NOT EXISTS crawls (
             crawl_id INTEGER PRIMARY KEY AUTOINCREMENT,
             crawl_time TEXT NOT NULL,
             source_url TEXT NOT NULL,
             category TEXT,
             fetch_success BOOLEAN NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS entries (
+            entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_crawl_id INTEGER NOT NULL,
+            """ + db_fields_string + (", " if db_fields_string else "") + """
+            FOREIGN KEY (source_crawl_id) REFERENCES crawls(crawl_id) ON DELETE CASCADE
         );
         """)
 
@@ -71,13 +78,14 @@ def save_site_category(crawl_id:int, category_name:str):
 
 def save_extraction(crawl_id:int, extracted_fields):
     with get_connection() as connection:
-        fields = extracted_fields.keys()
-        field_string = ", ".join(fields)
+        fields = list(extracted_fields.keys())
+        field_string = ", ".join(_quote_identifier(field) for field in fields)
         field_values = tuple(_to_sql_value(extracted_fields[field]) for field in fields)
         parameters = (crawl_id, ) + field_values
         placeholders = ", ".join(["?"] * len(parameters))
+        columns = "source_crawl_id" + (f", {field_string}" if field_string else "")
         connection.execute(
-            f"INSERT INTO entries(source_crawl_id, {field_string}) VALUES ({placeholders})",
+            f"INSERT INTO entries({columns}) VALUES ({placeholders})",
             parameters
         )
         connection.commit()

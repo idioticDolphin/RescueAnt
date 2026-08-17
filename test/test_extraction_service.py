@@ -40,7 +40,7 @@ def test_extract_information_returns_extracted_text_and_links(monkeypatch):
         "<html><a href='/imprint'>Imprint</a></html>", category, "http://example.com/"
     )
 
-    assert json.loads(extracted) == {"name": "Igel Station Berlin"}
+    assert extracted == {"name": "Igel Station Berlin"}
     assert links == ["http://example.com/imprint"]
 
 

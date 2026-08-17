@@ -66,6 +66,11 @@ def make_fake_config():
         skip_tags=FAKE_SKIP_TAGS,
         starting_url_path="starting_urls.csv",
         database_path="crawl.db",
+        discover_urls=False,
+        results_per_query=10,
+        query_politeness=1.0,
+        redo_all_fetches=False,
+        redo_failed_fetches=True,
     )
 
 
