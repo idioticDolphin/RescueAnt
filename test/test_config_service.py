@@ -182,7 +182,7 @@ def test_load_config_builds_config_with_expected_categories(monkeypatch, tmp_pat
     )
 
     configs = config_service._read_config(config_file)
-    config_service._load_config(configs)
+    config_service.load_config(configs)
     result = config_service.get_config()
 
     names = [c.name for c in result.get_categories()]
@@ -215,7 +215,7 @@ def test_load_config_wraps_fields_as_list_when_is_list_category_true(monkeypatch
     )
 
     configs = config_service._read_config(config_file)
-    config_service._load_config(configs)
+    config_service.load_config(configs)
     result = config_service.get_config()
 
     station = result.get_category("STATION")
@@ -236,4 +236,4 @@ def test_load_config_raises_config_error_on_missing_key(monkeypatch, tmp_path):
 
     configs = config_service._read_config(config_file)
     with pytest.raises(ConfigError):
-        config_service._load_config(configs)
+        config_service.load_config(configs)
