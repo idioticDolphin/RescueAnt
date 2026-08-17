@@ -118,4 +118,4 @@ def queue_url(url:str):
 def read_starting_urls(path=config.get_starting_url_path()):
     with open(path) as f:
         urls = f.readlines()
-    for url in urls: queue_url(url)
+    for url in urls: queue_url(url.strip())
