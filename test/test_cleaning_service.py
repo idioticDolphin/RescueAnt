@@ -68,6 +68,13 @@ def test_clean_inlines_links_with_surrounding_text():
     assert "us (mailto:info@example.com)" in result
 
 
+def test_clean_leaves_fragment_and_empty_hrefs_untouched():
+    html = '<p><a href="#top">Top</a><a href="">Empty</a></p>'
+    result = cleaning_service.clean(html)
+    assert "Top" in result and "(#top)" not in result
+    assert "Empty" in result and "()" not in result
+
+
 def test_clean_inlines_link_with_no_text_using_href_only():
     html = '<a href="/x"></a>'
     result = cleaning_service.clean(html)
