@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from llama_cpp import Llama
 from model.objects.category import Category
 from model.exceptions import *
 
@@ -12,6 +11,8 @@ class Config(BaseModel):
     category_model_id: int
     politeness: int
     skip_tags: list[str]
+    starting_url_path: str
+    database_path: str
 
     def get_categories(self):
         return self.categories
@@ -28,3 +29,7 @@ class Config(BaseModel):
             if category.name == category_name:
                 return category
         else: raise CategoryNotFoundError(category_name)
+    def get_starting_url_path(self):
+        return self.starting_url_path
+    def get_database_path(self):
+        return self.database_path

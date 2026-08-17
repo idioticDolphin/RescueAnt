@@ -23,6 +23,9 @@ def _load_config(configs:dict=None):
         configs = _read_config()
     categories = []
     try:
+        starting_url_path = configs["starting_url_file"]
+        database_path = configs["database"]
+
         politeness = int(configs["politeness"])
         skip_tags = configs["skip_tags"].split(",")
         skip_tags = [s.strip() for s in skip_tags]
@@ -98,7 +101,9 @@ def _load_config(configs:dict=None):
             politeness=politeness,
             category_max_tokens=category_max_tokens,
             category_context=category_context,
-            skip_tags=skip_tags
+            skip_tags=skip_tags,
+            starting_url_path=starting_url_path,
+            database_path=database_path,
         )
 
     except Exception as e:
