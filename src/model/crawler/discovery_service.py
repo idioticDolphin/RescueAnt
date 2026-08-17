@@ -102,3 +102,6 @@ def queue_discovered_urls(urls: Iterable[str]) -> int:
         if len(fetching_service.url_queue) > before:
             added += 1
     return added
+
+def read_query_templates(path: str):
+    pass

@@ -18,6 +18,10 @@ class Config(BaseModel):
     search_provider: SearchProvider | None = None
     search_query_path: str | None = None
     discover_urls: bool
+    results_per_query: int
+    query_politeness: float
+    redo_all_fetches: bool
+    redo_failed_fetches: bool
 
     def get_categories(self):
         return self.categories
