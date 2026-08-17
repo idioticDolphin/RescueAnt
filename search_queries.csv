@@ -1,0 +1,23 @@
+# Query template file for discovery_service.read_query_templates().
+#
+# - lines starting with "location:" declare a location to search in
+# - a template containing "{location}" gets that location substituted in
+# - a template with no placeholder just gets the location appended
+# - blank lines and lines starting with "#" are ignored
+
+location: Marburg
+location: Berlin
+location: Hamburg
+location: Muenchen
+location: Koeln
+location: Frankfurt am Main
+location: Leipzig
+location: Dresden
+
+Tierheim in {location}
+Tierrettung {location}
+Wildtierhilfe
+Wildtierauffangstation {location}
+Pflegestelle fuer Wildtiere {location}
+Igelstation {location}
+Tierschutzverein {location}
