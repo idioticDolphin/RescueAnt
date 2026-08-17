@@ -39,12 +39,15 @@ def clean(html, deduplicate=False):
 
     # Mark list items explicitly
     for li in soup.find_all("li"):
-        li.insert(0, "- ")
-
+        text = li.get_text()
+        li.clear()
+        li.append(f"- {text}")
     # Mark headings explicitly
     for level in range(1, 7):
         for h in soup.find_all(f"h{level}"):
-            h.insert(0, "#" * level + " ")
+            text = h.get_text()
+            h.clear()
+            h.append(f"{'#'*level} {text}")
 
     # Render tables as markdown-ish rows
     for table in soup.find_all("table"):
