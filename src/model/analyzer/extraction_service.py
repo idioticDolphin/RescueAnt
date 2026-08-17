@@ -1,6 +1,7 @@
 from model.objects.category import Category
 import model.analyzer.cleaning_service as cleaning_service
 import model.tools.llm_service as llm_service
+import json
 
 
 def extract_information(html: str, category:Category, base_url: str):
@@ -29,4 +30,4 @@ def extract_information(html: str, category:Category, base_url: str):
     )
     extracted = result['choices'][0]['message']['content']
     print(f"Extracted: {extracted}")
-    return extracted, links
+    return json.loads(extracted), links

@@ -31,8 +31,11 @@ def load_config(configs:dict=None):
         try:
             discover_urls = configs["discover_urls"]
             if discover_urls == "True":
+                discover_urls = True
                 search_provider = configs["search_provider"]
                 search_query_file = configs["search_query_file"]
+                results_per_query = int(configs["results_per_query"])
+                query_politeness = float(configs["query_politeness"])
                 if search_provider == "Google":
                     search_provider = GoogleCustomSearchProvider(
                         api_key=configs["search_api_key"],
@@ -43,26 +46,33 @@ def load_config(configs:dict=None):
                     search_provider = ConfigurableJsonSearchProvider(
                         base_url=configs["search_base_url"],
                         query_param=configs["query_parameters"],
-                        result_path=",".split(configs["search_result_path"]),
+                        result_path=configs["search_result_path"].split(","),
                         url_field=configs["search_url_field"],
                         extra_params=json.loads(configs["search_extra_params"]),
                         headers=json.loads(configs["search_headers"]),
-                        timeout=configs["search_timeout"]
+                        timeout=float(configs["search_timeout"])
                     )
             else:
+                discover_urls = False
                 search_provider = None
                 search_query_file = ""
+                results_per_query = 0
+                query_politeness = 0
 
         except Exception as e:
             discover_urls = False
             search_provider = None
             search_query_file = ""
+            results_per_query = 0
+            query_politeness = 0
             print("Failed to load search provider from config. No search discovery will be used.")
 
 
         politeness = int(configs["politeness"])
         skip_tags = configs["skip_tags"].split(",")
         skip_tags = [s.strip() for s in skip_tags]
+        redo_all_fetches = configs["redo_all_fetches"] == "True"
+        redo_failed_fetches = configs["redo_failed_fetches"] == "True"
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -110,8 +120,10 @@ def load_config(configs:dict=None):
                     raise
                 category_fields = fields
                 print(f"reused fields")
+            is_list_category = False
             try:
-                if configs[f"is_list_category[{category}]"] == "True":
+                is_list_category = configs[f"is_list_category[{category}]"] == "True"
+                if is_list_category:
                     category_fields = _wrap_as_list_schema(category_fields)
             finally:
                 pass
@@ -125,6 +137,7 @@ def load_config(configs:dict=None):
                     process_links=check_linked_urls,
                     fields=category_fields,
                     analysis_max_tokens=max_tokens,
+                    is_list_category=is_list_category
                 )
             )
         global _session_config
@@ -140,7 +153,11 @@ def load_config(configs:dict=None):
             database_path=database_path,
             search_provider=search_provider,
             search_query_path=search_query_file,
-            discover_urls=discover_urls
+            discover_urls=discover_urls,
+            results_per_query=results_per_query,
+            query_politeness=query_politeness,
+            redo_all_fetches = redo_all_fetches,
+            redo_failed_fetches = redo_failed_fetches
         )
 
     except Exception as e:

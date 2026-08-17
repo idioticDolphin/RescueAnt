@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 from playwright.async_api import async_playwright
 import model.tools.config_service as config_service
+from model.tools import data_service
 
 url_queue = [] # save all urls not yet crawled
 processed_urls = {}
@@ -115,7 +116,7 @@ def queue_url(url:str):
     if url not in url_queue and url not in processed_urls.keys():
         url_queue.append(url)
 
-def read_starting_urls(path=config.get_starting_url_path()):
+def _read_starting_urls(path=config.get_starting_url_path()):
     with open(path) as f:
         urls = f.readlines()
     for url in urls: queue_url(url.strip())
@@ -125,3 +126,13 @@ def get_crawl_time(url:str):
         return _last_request_time[url]
     except KeyError:
         return 0.0
+
+def init(starting_url_path:str=config.get_starting_url_path(), redo_failed_fetches:bool=True, redo_all_fetches:bool=False):
+    if not redo_all_fetches: # Priority. True overrides redo_failed_fetches
+        if redo_failed_fetches:
+            already_parsed_urls = data_service.get_successful_crawl_urls()
+        else:
+            already_parsed_urls = data_service.get_crawl_urls()
+        for url in already_parsed_urls:
+            processed_urls[url] = None
+    _read_starting_urls(starting_url_path)

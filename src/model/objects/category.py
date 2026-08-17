@@ -9,3 +9,4 @@ class Category(BaseModel):
     analysis_max_tokens: int = None
     fields: dict = None
     process_links: bool = None
+    is_list_category: bool = False
