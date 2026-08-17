@@ -21,8 +21,10 @@ from urllib.parse import urlparse
 from model.objects.searchprovider import *
 
 import model.crawler.fetching_service as fetching_service
+import model.tools.config_service as config_service
 
 CRAWLABLE_SCHEMES = {"http", "https"}
+config = config_service.get_config()
 
 
 def generate_queries(keyword_templates: Iterable[str], locations: Iterable[str]) -> list[str]:
@@ -103,5 +105,26 @@ def queue_discovered_urls(urls: Iterable[str]) -> int:
             added += 1
     return added
 
-def read_query_templates(path: str):
-    pass
+def read_query_templates(path: str = config.get_search_query_path()) -> list[str]:
+    """
+    Read keyword templates and locations from a query-template file and
+    combine them into a list of search queries via generate_queries().
+
+    File format - one entry per line:
+      - lines starting with "location:" declare a location (e.g. "location: Marburg")
+      - blank lines and lines starting with "#" are ignored
+      - every other non-empty line is a keyword template, optionally
+        containing "{location}" as a placeholder (see generate_queries())
+    """
+    templates = []
+    locations = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.lower().startswith("location:"):
+                locations.append(line.split(":", 1)[1].strip())
+            else:
+                templates.append(line)
+    return generate_queries(templates, locations)

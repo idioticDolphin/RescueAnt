@@ -120,11 +120,6 @@ def test_queue_discovered_urls_adds_new_urls_to_fetching_queue():
     assert fetching_service.url_queue == ["http://a.com", "http://b.com"]
 
 
-def test_read_query_templates_is_currently_a_stub():
-    # documents current behavior explicitly: not implemented yet.
-    assert discovery_service.read_query_templates("anything.csv") is None
-
-
 def test_queue_discovered_urls_does_not_count_duplicates():
     fetching_service.processed_urls["http://already-done.com"] = "<html></html>"
 
@@ -132,3 +127,67 @@ def test_queue_discovered_urls_does_not_count_duplicates():
 
     assert added == 1
     assert fetching_service.url_queue == ["http://a.com"]
+
+
+# ---------------------------------------------------------------------------
+# read_query_templates
+# ---------------------------------------------------------------------------
+
+def test_read_query_templates_combines_templates_and_locations(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "location: Marburg\n"
+        "location: Berlin\n"
+        "Tierheim in {location}\n"
+        "Wildtierhilfe\n"
+    )
+
+    result = discovery_service.read_query_templates(str(query_file))
+
+    assert result == [
+        "Tierheim in Marburg",
+        "Tierheim in Berlin",
+        "Wildtierhilfe Marburg",
+        "Wildtierhilfe Berlin",
+    ]
+
+
+def test_read_query_templates_ignores_blank_lines_and_comments(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "# a comment\n"
+        "\n"
+        "location: Marburg\n"
+        "\n"
+        "# another comment\n"
+        "Tierheim in {location}\n"
+    )
+
+    result = discovery_service.read_query_templates(str(query_file))
+
+    assert result == ["Tierheim in Marburg"]
+
+
+def test_read_query_templates_location_prefix_is_case_insensitive(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "LOCATION: Marburg\n"
+        "Tierheim in {location}\n"
+    )
+
+    result = discovery_service.read_query_templates(str(query_file))
+
+    assert result == ["Tierheim in Marburg"]
+
+
+def test_read_query_templates_with_no_locations_produces_no_queries(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text("Tierheim in {location}\n")
+
+    assert discovery_service.read_query_templates(str(query_file)) == []
+
+
+def test_read_query_templates_default_path_comes_from_config():
+    assert discovery_service.read_query_templates.__defaults__ == (
+        discovery_service.config.get_search_query_path(),
+    )
