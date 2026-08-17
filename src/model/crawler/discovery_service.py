@@ -102,16 +102,3 @@ def queue_discovered_urls(urls: Iterable[str]) -> int:
         if len(fetching_service.url_queue) > before:
             added += 1
     return added
-
-
-def queue_extracted_links(links: Iterable[str]) -> int:
-    """
-    Feed URLs pulled from an already-crawled LIST-category page (the second
-    element extraction_service.extract_information() returns, sourced from
-    cleaning_service.extract_links()) back into the crawl queue.
-    extract_links() already filters out non-crawlable schemes, so no extra
-    filtering happens here - this just gives the "known directory site"
-    discovery path its own named entry point, separate from search-based
-    discovery, for clarity at the call site.
-    """
-    return queue_discovered_urls(links)

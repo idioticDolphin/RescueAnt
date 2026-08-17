@@ -119,3 +119,9 @@ def read_starting_urls(path=config.get_starting_url_path()):
     with open(path) as f:
         urls = f.readlines()
     for url in urls: queue_url(url.strip())
+
+def get_crawl_time(url:str):
+    try:
+        return _last_request_time[url]
+    except KeyError:
+        return 0.0

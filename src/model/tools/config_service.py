@@ -20,7 +20,7 @@ def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.con
         config[0]: config[1].strip("'").strip('"') for config in configs
     }
 
-def _load_config(configs:dict=None):
+def load_config(configs:dict=None):
     if configs is None:
         configs = _read_config()
     categories = []
@@ -185,7 +185,7 @@ def _build_schema(analyzed_fields: dict[str, str], custom_types: dict[str, list[
 
 def get_config() -> Config: # Singleton-like getter
     if _session_config is None:
-        _load_config()
+        load_config()
     return _session_config
 
 def _wrap_as_list_schema(item_schema: dict) -> dict:
