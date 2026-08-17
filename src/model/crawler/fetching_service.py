@@ -1,6 +1,4 @@
 import asyncio
-import csv
-import json
 import time
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
@@ -117,7 +115,7 @@ def queue_url(url:str):
     if url not in url_queue and url not in processed_urls.keys():
         url_queue.append(url)
 
-def read_starting_urls(path):
+def read_starting_urls(path=config.get_starting_url_path()):
     with open(path) as f:
         urls = f.readlines()
     for url in urls: queue_url(url)
