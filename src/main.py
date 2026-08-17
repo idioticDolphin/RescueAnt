@@ -1,19 +1,16 @@
 import model.analyzer.category_service as category_service
 import model.analyzer.extraction_service as extraction_service
+import model.crawler.fetching_service as fetching_service
+from pathlib import Path
+import asyncio
 
-html = """
-<!DOCTYPE html>
-    <html lang="en">
-    <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device; initial-scale=1.0">
-    <link rel="icon" type="image/x-icon" />
-    </head>
-    <body>
-    <h1>This is a web page of the animal rescue station Tierliebe Marburg.</h1>
-    <p>We take in dogs only.</p>
-    <p>Reach us at Liebigstraße 4, or via <a href=mailto:tierliebe-marburg@aol.com>mail</a>.</p>
-    </body>"""
-category = category_service.categorize_website(html)
-print(f"Category has fields:\n{category.fields}")
-extracted = extraction_service.extract_information(html, category, "tierliebe-marburg.de")
+root_path = Path(__file__).parent.parent
+fetching_service.read_starting_urls(root_path / "starting_urls_test.csv")
+asyncio.run(fetching_service.parse_queue())
+fetched = fetching_service.processed_urls
+for url in fetched.keys():
+    html = fetched[url]
+    category = category_service.categorize_website(html)
+    print(f"{url} has category: {category.name}")
+    extracted = extraction_service.extract_information(html, category, url)
+    print(f"Extracted information for {url}:\n{extracted}")
