@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+
+from model.objects.searchprovider import SearchProvider
 from model.objects.category import Category
 from model.exceptions import *
 
@@ -13,6 +15,9 @@ class Config(BaseModel):
     skip_tags: list[str]
     starting_url_path: str
     database_path: str
+    search_provider: SearchProvider | None = None
+    search_query_path: str | None = None
+    discover_urls: bool
 
     def get_categories(self):
         return self.categories
@@ -33,3 +38,7 @@ class Config(BaseModel):
         return self.starting_url_path
     def get_database_path(self):
         return self.database_path
+    def get_search_provider(self):
+        return self.search_provider
+    def get_search_query_path(self):
+        return self.search_query_path

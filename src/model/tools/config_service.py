@@ -1,5 +1,7 @@
 from pathlib import Path
 import re
+
+from model.objects.searchprovider import *
 from model.exceptions import *
 from model.objects.category import Category
 from model.objects.config import Config
@@ -25,6 +27,38 @@ def _load_config(configs:dict=None):
     try:
         starting_url_path = configs["starting_url_file"]
         database_path = configs["database"]
+
+        try:
+            discover_urls = configs["discover_urls"]
+            if discover_urls == "True":
+                search_provider = configs["search_provider"]
+                search_query_file = configs["search_query_file"]
+                if search_provider == "Google":
+                    search_provider = GoogleCustomSearchProvider(
+                        api_key=configs["search_api_key"],
+                        search_engine_id=configs["search_engine_id"],
+                        timeout=float(configs["search_timeout"])
+                    )
+                else:
+                    search_provider = ConfigurableJsonSearchProvider(
+                        base_url=configs["search_base_url"],
+                        query_param=configs["query_parameters"],
+                        result_path=",".split(configs["search_result_path"]),
+                        url_field=configs["search_url_field"],
+                        extra_params=json.loads(configs["search_extra_params"]),
+                        headers=json.loads(configs["search_headers"]),
+                        timeout=configs["search_timeout"]
+                    )
+            else:
+                search_provider = None
+                search_query_file = ""
+
+        except Exception as e:
+            discover_urls = False
+            search_provider = None
+            search_query_file = ""
+            print("Failed to load search provider from config. No search discovery will be used.")
+
 
         politeness = int(configs["politeness"])
         skip_tags = configs["skip_tags"].split(",")
@@ -104,6 +138,9 @@ def _load_config(configs:dict=None):
             skip_tags=skip_tags,
             starting_url_path=starting_url_path,
             database_path=database_path,
+            search_provider=search_provider,
+            search_query_path=search_query_file,
+            discover_urls=discover_urls
         )
 
     except Exception as e:
