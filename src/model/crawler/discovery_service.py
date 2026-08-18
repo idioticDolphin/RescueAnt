@@ -15,6 +15,7 @@ as every other URL in the system, and the same robots.txt / politeness
 handling once they're actually fetched.
 """
 from __future__ import annotations
+import logging
 import time
 from typing import Iterable
 from urllib.parse import urlparse
@@ -22,6 +23,8 @@ from model.objects.searchprovider import *
 
 import model.crawler.fetching_service as fetching_service
 import model.tools.config_service as config_service
+
+logger = logging.getLogger(__name__)
 
 CRAWLABLE_SCHEMES = {"http", "https"}
 config = config_service.get_config()
@@ -77,7 +80,7 @@ def discover_urls(
         try:
             results = provider.search(query, results_per_query)
         except Exception as e:
-            print(f"Search failed for query {query!r}: {e!r}")
+            logger.warning("Search failed for query %r: %r", query, e)
             results = []
 
         for url in results:
@@ -87,6 +90,9 @@ def discover_urls(
         if i < len(queries) - 1:
             time.sleep(politeness)
 
+    logger.info("Discovery: %d quer%s -> %d unique URL%s",
+                len(queries), "y" if len(queries) == 1 else "ies",
+                len(discovered), "" if len(discovered) == 1 else "s")
     return sorted(discovered)
 
 

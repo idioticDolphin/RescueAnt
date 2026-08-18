@@ -437,6 +437,89 @@ def test_process_batch_saves_extraction_for_single_category(monkeypatch):
     data_service.save_extraction.assert_called_once_with(1, {"name": "Station A"})
 
 
+def test_process_batch_logs_fetch_summary_and_categorization(monkeypatch, caplog):
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://a.com": "<html>a</html>",
+        "http://b.com": "",
+    }))
+    _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = _make_category("STATION")
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+
+    with caplog.at_level("INFO", logger="model.orchestrator"):
+        orchestrator.process_batch(["http://a.com", "http://b.com"])
+
+    assert "Fetched 1/2 URL(s) successfully" in caplog.text
+    assert "Categorized http://a.com as STATION" in caplog.text
+
+
+def test_process_batch_logs_extraction_progress_without_dumping_full_content(monkeypatch, caplog):
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://a.com": "<html>a</html>",
+    }))
+    _patch_data_service(monkeypatch)
+    category = _make_category("STATION", is_list_category=False)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = category
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    secret_looking_value = "THIS-SHOULD-NOT-APPEAR-AT-INFO-LEVEL"
+    extraction_service.extract_information.return_value = ({"name": secret_looking_value}, [])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+
+    with caplog.at_level("INFO", logger="model.orchestrator"):
+        orchestrator.process_batch(["http://a.com"])
+
+    assert "Extracted 1 field(s) from http://a.com" in caplog.text
+    # the extracted content itself is only logged at DEBUG (extraction_service),
+    # not re-dumped into orchestrator's INFO-level progress log
+    assert secret_looking_value not in caplog.text
+
+
+def test_process_batch_logs_entry_count_for_list_category(monkeypatch, caplog):
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://a.com": "<html>a</html>",
+    }))
+    _patch_data_service(monkeypatch)
+    category = _make_category("LIST", is_list_category=True)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = category
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    entries = [{"station_url": "http://x.com"}, {"station_url": "http://y.com"}]
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = (entries, [])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+
+    with caplog.at_level("INFO", logger="model.orchestrator"):
+        orchestrator.process_batch(["http://a.com"])
+
+    assert "Extracted 2 entries from http://a.com" in caplog.text
+
+
+def test_process_batch_does_not_log_at_info_when_nothing_extracted(monkeypatch, caplog):
+    # irrelevant-category pages are routine, not a "fail" - must not spam INFO
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://a.com": "<html>a</html>",
+    }))
+    _patch_data_service(monkeypatch)
+    category = _make_category("IRRELEVANT")
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = category
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+
+    with caplog.at_level("INFO", logger="model.orchestrator"):
+        orchestrator.process_batch(["http://a.com"])
+
+    assert "Extracted" not in caplog.text
+
+
 def test_process_batch_saves_each_entry_for_list_category(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
         "http://a.com": "<html>a</html>",

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 import re
 
@@ -8,6 +9,8 @@ from model.objects.config import Config
 import model.tools.llm_service as llm_service
 import json
 
+logger = logging.getLogger(__name__)
+
 _session_config = None
 
 def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.config"):
@@ -15,7 +18,7 @@ def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.con
         config_string = f.read()
         config_pattern = r"""(?:^|[\n])\s*(?P<left>.+?)\s*=\s*(?P<right>(?:[^;'"]|(?:(?:".*?")|(?:'.*?')))*?);"""
         configs = re.findall(config_pattern, config_string)
-        print(f"read configs: {configs}")
+    logger.debug("Read %d config entries from %s", len(configs), path)
     return {
         config[0]: config[1].strip("'").strip('"') for config in configs
     }
@@ -73,7 +76,7 @@ def load_config(configs:dict=None):
             search_query_file = ""
             results_per_query = 0
             query_politeness = 0
-            print("Failed to load search provider from config. No search discovery will be used.")
+            logger.warning("Failed to load search provider from config (%s). Search discovery disabled.", e)
 
 
         politeness = int(configs["politeness"])
@@ -106,7 +109,6 @@ def load_config(configs:dict=None):
         category_max_tokens = int(configs["category_max_tokens"])
         category_context = int(configs["category_context"])
         category_model_path = configs["category_model_path"]
-        max_chars = 40
 
         fields = None
         type_definitions = dict()
@@ -117,37 +119,28 @@ def load_config(configs:dict=None):
         if "fields" in configs.keys():
             fields = json.loads(configs["fields"])
             fields = _build_schema(fields, type_definitions)
-            print(f"General fields: {str(fields)[:max_chars]}{'...' if len(str(fields)) > max_chars else ''}")
 
         for category in configs["categories"].split("|"):
-            print(f"Found category {category}:")
             is_relevant_category = configs[f"relevancy[{category}]"]=="True"
-            print(f"relevant: {"yes" if is_relevant_category else "no"}")
             if not is_relevant_category:
                 if configs[f"relevancy[{category}]"]=="False":
                     categories.append(Category(name=category, is_relevant=is_relevant_category))
+                    logger.debug("Loaded category %r (irrelevant, skipped)", category)
                     continue
                 raise
 
             prompt = configs[f"prompt[{category}]"]
-            print(f"prompt: {prompt[:max_chars]}{'...' if len(prompt) > max_chars else ''}")
             model_path = configs[f"model_path[{category}]"]
-            print(f"model_path: {model_path}")
             max_tokens = int(configs[f"max_tokens[{category}]"])
-            print(f"max_tokens: {max_tokens}")
             context = int(configs[f"context[{category}]"])
-            print(f"context: {context}")
             check_linked_urls = configs[f"check_linked_urls[{category}]"]=="True"
-            print(f"check_linked_urls: {"yes" if check_linked_urls else "no"}")
             if f"fields[{category}]" in configs.keys():
                 category_fields = json.loads(configs[f"fields[{category}]"])
                 category_fields = _build_schema(category_fields, type_definitions)
-                print(f"custom fields for category: {str(category_fields)[:max_chars]}{'...' if len(str(category_fields)) > max_chars else ''}")
             else:
                 if fields is None:
                     raise
                 category_fields = fields
-                print(f"reused fields")
             is_list_category = False
             try:
                 is_list_category = configs[f"is_list_category[{category}]"] == "True"
@@ -167,6 +160,10 @@ def load_config(configs:dict=None):
                     analysis_max_tokens=max_tokens,
                     is_list_category=is_list_category
                 )
+            )
+            logger.debug(
+                "Loaded category %r (list=%s, process_links=%s, model=%s)",
+                category, is_list_category, check_linked_urls, model_path,
             )
         global _session_config
         _session_config = Config(
@@ -190,6 +187,10 @@ def load_config(configs:dict=None):
             max_discovery_batches = max_discovery_batches,
             max_rounds = max_rounds,
             max_runtime_seconds = max_runtime_seconds
+        )
+        logger.info(
+            "Config loaded: %d categories (%d relevant), discovery=%s",
+            len(categories), sum(c.is_relevant for c in categories), discover_urls,
         )
 
     except Exception as e:

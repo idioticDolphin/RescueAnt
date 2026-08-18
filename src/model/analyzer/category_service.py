@@ -1,3 +1,5 @@
+import logging
+
 import model.tools.config_service as config_service
 import model.tools.llm_service as llm_service
 from llama_cpp import LlamaGrammar
@@ -5,6 +7,7 @@ from llama_cpp import LlamaGrammar
 from model.analyzer import cleaning_service
 from model.objects.category import Category
 
+logger = logging.getLogger(__name__)
 config = config_service.get_config()
 
 def categorize_website(html):
@@ -35,5 +38,5 @@ def categorize_website(html):
         max_tokens=max_tokens,
     )
     found_category = result['choices'][0]['message']['content']
-    print(f"Predicted category: {found_category}")
+    logger.debug("Predicted category: %s", found_category)
     return config.get_category(found_category)

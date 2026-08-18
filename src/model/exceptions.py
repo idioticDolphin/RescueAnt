@@ -5,4 +5,4 @@ class ConfigError(Exception):
 class CategoryNotFoundError(Exception):
     """Raised when a category name doesn't match any configured Category."""
     def __init__(self, category_name):
-        print(f"Category {category_name} not found")
+        super().__init__(f"Category '{category_name}' not found")

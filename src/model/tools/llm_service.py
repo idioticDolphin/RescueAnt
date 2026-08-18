@@ -1,4 +1,8 @@
+import logging
+
 from llama_cpp import Llama
+
+logger = logging.getLogger(__name__)
 
 _initialized_model_mapper = dict()
 _initialized_models = []
@@ -25,9 +29,15 @@ def get_model(id: int):
 def init_model(model_path, context):
     """Load a Llama model from disk and append it to the loaded-models cache."""
     global _initialized_models
+    logger.info("Loading model %s (context=%d)...", model_path, context)
+    # verbose=False: llama.cpp's own logging is extremely chatty (hundreds of
+    # lines per load and per generation call) - silence it and rely on our
+    # own logging for progress/errors instead.
     _initialized_models.append(
         Llama(
             model_path=model_path,
-            n_ctx = context
+            n_ctx = context,
+            verbose = False,
         )
     )
+    logger.info("Model %s loaded.", model_path)
