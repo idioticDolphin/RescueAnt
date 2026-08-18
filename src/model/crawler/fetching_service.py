@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import time
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 from playwright.async_api import async_playwright
 import model.tools.config_service as config_service
 from model.tools import data_service
+
+logger = logging.getLogger(__name__)
 
 url_queue = [] # save all urls not yet crawled
 processed_urls = {}
@@ -58,6 +61,7 @@ async def get_content(url, browser=None):
         return processed_urls[url]
 
     if not _is_allowed(url):
+        logger.info("Skipping %s (disallowed by robots.txt)", url)
         processed_urls[url] = ""
         return ""
 
@@ -74,12 +78,12 @@ async def get_content(url, browser=None):
             await page.goto(url, wait_until="networkidle", timeout=30000)
             html = await page.content()
         except Exception:
-            print(f"Url {url} failed to wait for networkidle. Trying waiting for load.")
+            logger.debug("%s didn't reach networkidle, falling back to 'load'", url)
             try:
                 await page.goto(url, wait_until="load", timeout=30000)
                 html = await page.content()
             except Exception:
-                print(f"Url {url} failed to wait for load. Aborting.")
+                logger.warning("Failed to fetch %s", url)
                 html = ""
         finally:
             await page.close()

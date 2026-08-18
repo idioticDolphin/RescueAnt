@@ -67,6 +67,13 @@ def test_get_category_raises_for_unknown_name():
         config.get_category("DOES_NOT_EXIST")
 
 
+def test_category_not_found_error_carries_a_message():
+    # regression guard: the exception used to print the message instead of
+    # setting it, so str(exception) was empty - unusable for logging/display.
+    error = CategoryNotFoundError("DOES_NOT_EXIST")
+    assert "DOES_NOT_EXIST" in str(error)
+
+
 def test_config_simple_getters():
     config = _make_config([Category(name="STATION", is_relevant=True)])
     assert config.get_category_prompt() == "prompt"

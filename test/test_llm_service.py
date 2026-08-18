@@ -17,9 +17,10 @@ def _isolate_llm_service_state(monkeypatch):
     created = []
 
     class DummyLlama:
-        def __init__(self, model_path, n_ctx):
+        def __init__(self, model_path, n_ctx, verbose=True):
             self.model_path = model_path
             self.n_ctx = n_ctx
+            self.verbose = verbose
             created.append(self)
 
     monkeypatch.setattr(llm_service, "Llama", DummyLlama)
@@ -32,6 +33,14 @@ def test_get_model_id_creates_new_id_for_new_model(_isolate_llm_service_state):
     assert len(_isolate_llm_service_state) == 1
     assert _isolate_llm_service_state[0].model_path == "models/a.gguf"
     assert _isolate_llm_service_state[0].n_ctx == 2048
+
+
+def test_init_model_loads_quietly(_isolate_llm_service_state):
+    # llama.cpp's own verbose logging floods the terminal (hundreds of lines
+    # per call) - it must stay disabled so progress/failure logging remains
+    # legible.
+    llm_service.get_model_id("models/a.gguf", 2048)
+    assert _isolate_llm_service_state[0].verbose is False
 
 
 def test_get_model_id_reuses_id_for_identical_path_and_context(_isolate_llm_service_state):

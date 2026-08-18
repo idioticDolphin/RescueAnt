@@ -202,12 +202,18 @@ https://programmablesearchengine.google.com/.
 ## Running
 
 ```bash
-python src/main.py [path/to/bot.config]
+python src/main.py [path/to/bot.config] [-v]
 ```
 
 The config path is optional and defaults to `bot.config` at the project
 root; pass one to run against a different configuration without touching
-your main one (see "Trying it out with the example files" below).
+your main one (see "Trying it out with the example files" below). By
+default only progress/failure messages are logged (batches, fetch/category/
+extraction outcomes, discovery yield); pass `-v`/`--verbose` for debug-level
+detail (raw LLM outputs, per-field config parsing, ...). Either way, the LLM
+library itself (`llama.cpp`) is kept quiet - without that, loading the model
+and every single query would print hundreds of lines of its own internal
+logging.
 
 This runs `model.orchestrator.run()`, which initializes the database,
 seeds the fetch queue from `starting_url_file`, and then works through two
@@ -258,6 +264,51 @@ python -m pytest test/
 Add `--cov=src --cov-report=term-missing` (requires the `dev` extra) to
 also see coverage.
 
+## Experiments & notebooks
+
+`experiments/` and `notebooks/` hold a small set of measurement scripts and
+analysis notebooks used to characterize the crawler's behavior - page
+category distribution, per-step (fetch/categorize/extract) timing, the
+effect of grammar-constrained vs. free-form extraction on latency, and
+search-discovery yield over successive query batches. They're written for
+a bachelor thesis audience: each notebook documents its research question,
+methodology and limitations alongside the plots, and exports each figure
+as both PDF (for LaTeX) and PNG into `notebooks/figures/`.
+
+Install the extra dependencies these need (matplotlib, pandas, seaborn,
+scipy, jupyter):
+
+```bash
+pip install -e ".[notebooks]"
+```
+
+The scripts under `experiments/` run the *real* pipeline (real HTTP
+fetches, the real configured LLM, and - for discovery - the real search
+provider) against fixed, reproducible input samples, and write their
+results as CSVs into `experiments/data/` (already committed, so the
+notebooks can be read without re-running anything). To regenerate them:
+
+```bash
+python experiments/collect_crawl_metrics.py        # fetch/categorize/extract timing + category mix
+python experiments/collect_grammar_comparison.py   # strict (enum) vs. lax (string) grammar timing
+python experiments/collect_discovery_yield.py       # search-discovery yield per batch
+```
+
+Each accepts an optional sample-size/batch-count argument (see the
+docstring at the top of the script) and logs progress the same way
+`src/main.py` does. `collect_crawl_metrics.py` and
+`collect_grammar_comparison.py` need the LLM (and are, on CPU, the slow
+ones - see their docstrings for the runtime/accuracy trade-offs made to
+keep them tractable); `collect_discovery_yield.py` needs SearXNG running
+(`docker compose up -d`) but no LLM.
+
+Then (re-)run the notebooks, e.g. `jupyter lab notebooks/` interactively,
+or headlessly:
+
+```bash
+jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb
+```
+
 ## Project layout
 
 ```
@@ -277,5 +328,7 @@ search_queries.csv         query templates for search-based discovery
 examples/                  small config + seed files to try the whole workflow with
 docker-compose.yml         runs the self-hosted SearXNG instance (see "Search engines")
 searxng/                   SearXNG configuration (settings.yml), bind-mounted into the container
+experiments/                data-collection scripts + their CSV output (see "Experiments & notebooks")
+notebooks/                  analysis notebooks + exported figures (see "Experiments & notebooks")
 download-models.sh         downloads the default LLM model into models/
 ```

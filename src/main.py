@@ -1,4 +1,5 @@
 import argparse
+import logging
 from pathlib import Path
 
 
@@ -8,11 +9,21 @@ def _parse_args():
         "config_path", nargs="?", default=None,
         help="Path to a bot.config-style file (default: bot.config at the project root)",
     )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Show debug-level logging (raw LLM outputs, per-field config details, ...)",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     # config_service.get_config() is called at *import time* by most other
     # model modules (fetching_service, category_service, ...), so a custom
