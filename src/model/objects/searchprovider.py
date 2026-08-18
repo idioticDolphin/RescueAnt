@@ -23,10 +23,13 @@ class SearchProvider(abc.ABC):
 class GoogleCustomSearchProvider(SearchProvider):
     """
     Uses Google's Programmable Search Engine (Custom Search JSON API).
-    Free tier: 100 queries/day. To use this:
+    Free tier: 100 queries/day, but as of 2026 no longer supports
+    unrestricted whole-web search - only sites you explicitly list. For
+    open-ended discovery, use ConfigurableJsonSearchProvider against a
+    self-hosted SearXNG instance instead (see the README's "Search engines"
+    section). To use this provider anyway:
       1. Create an API key: https://developers.google.com/custom-search/v1/introduction
       2. Create a Search Engine and get its ID (cx): https://programmablesearchengine.google.com/
-         Set it to search the whole web, not just specific sites.
     """
     BASE_URL = "https://www.googleapis.com/customsearch/v1"
 
