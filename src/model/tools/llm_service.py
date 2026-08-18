@@ -4,6 +4,11 @@ _initialized_model_mapper = dict()
 _initialized_models = []
 
 def get_model_id(model_path, max_tokens):
+    """
+    Return the id of the Llama model loaded from (model_path, max_tokens),
+    loading it via init_model() the first time this exact combination is
+    requested and reusing the cached instance on subsequent calls.
+    """
     global _initialized_model_mapper
     next_id = len(_initialized_model_mapper)
     model_key = f"{model_path};{max_tokens}"
@@ -14,9 +19,11 @@ def get_model_id(model_path, max_tokens):
     return _initialized_model_mapper[model_key]
 
 def get_model(id: int):
+    """Return the loaded Llama instance for the given model id."""
     return _initialized_models[id]
 
 def init_model(model_path, context):
+    """Load a Llama model from disk and append it to the loaded-models cache."""
     global _initialized_models
     _initialized_models.append(
         Llama(

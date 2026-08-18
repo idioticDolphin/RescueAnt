@@ -5,6 +5,19 @@ import json
 
 
 def extract_information(html: str, category:Category, base_url: str):
+    """
+    Extract structured data from a page's HTML per its category's field
+    schema, using that category's LLM constrained to a JSON response
+    matching category.fields.
+
+    :param html: raw page HTML
+    :param category: the page's Category (as returned by category_service.categorize_website)
+    :param base_url: the page's URL, used to resolve any links extracted for further crawling
+    :return: None if the category is not relevant; otherwise a
+             (extracted_data, links) tuple, where extracted_data is a dict
+             (or, for list categories, a list of dicts) and links is the
+             list of outbound page URLs found (empty unless category.process_links)
+    """
     if not category.is_relevant:
         return None
 

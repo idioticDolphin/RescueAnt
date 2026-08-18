@@ -24,6 +24,16 @@ def extract_links(html, base_url):
     return sorted(links)
 
 def clean(html, deduplicate=False):
+    """
+    Turn raw HTML into plain, LLM-friendly text: strips configured skip
+    tags, inlines links as "text (href)", marks list items/headings/tables
+    explicitly, and collapses whitespace into one line per piece of content.
+
+    :param html: raw page HTML
+    :param deduplicate: if True, drop repeated lines (useful for
+                         categorization; keep False for extraction so
+                         repeated list entries aren't lost)
+    """
     soup = BeautifulSoup(html, 'html.parser')
 
     for tag in soup(config.get_skip_tags()):

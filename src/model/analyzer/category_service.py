@@ -8,6 +8,14 @@ from model.objects.category import Category
 config = config_service.get_config()
 
 def categorize_website(html):
+    """
+    Classify a page's HTML into one of the configured categories using the
+    category LLM, constrained by a grammar built from the category names so
+    the model can only return a valid category name.
+
+    :param html: raw page HTML
+    :return: the matching Category
+    """
     llm_id = config.get_category_model_id()
     llm = llm_service.get_model(llm_id)
     categories = config.get_categories()

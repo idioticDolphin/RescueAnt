@@ -36,6 +36,7 @@ class GoogleCustomSearchProvider(SearchProvider):
         self.timeout = timeout
 
     def search(self, query: str, max_results: int) -> list[str]:
+        """Return up to max_results result URLs for query, paging through the API as needed."""
         # Google's API caps each request at 10 results; page via `start` for more.
         urls = []
         start = 1
@@ -106,6 +107,7 @@ class ConfigurableJsonSearchProvider(SearchProvider):
         self.timeout = timeout
 
     def search(self, query: str, max_results: int) -> list[str]:
+        """Return up to max_results result URLs for query, walking result_path into the JSON response."""
         params = {self.query_param: query, **self.extra_params}
         response = requests.get(self.base_url, params=params, headers=self.headers, timeout=self.timeout)
         response.raise_for_status()

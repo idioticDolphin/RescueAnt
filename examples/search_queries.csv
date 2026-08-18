@@ -1,0 +1,9 @@
+# Small example query-template file for discovery_service.read_query_templates() -
+# see search_queries.csv at the project root for the full-size version, and its
+# comments (or the function's docstring) for the exact file format.
+
+location: Marburg
+location: Berlin
+
+Tierheim in {location}
+Wildtierhilfe {location}
