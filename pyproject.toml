@@ -1,9 +1,31 @@
 [build-system]
-# TODO
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "rescue-ant"
+version = "0.1.0"
+description = "Web scraping tool that automatically finds animal rescue station data."
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.12"
 dependencies = [
     "playwright",
-    "llama-cpp-python"
+    "llama-cpp-python",
+    "beautifulsoup4",
+    "pydantic",
+    "requests",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

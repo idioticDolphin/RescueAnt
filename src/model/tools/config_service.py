@@ -21,6 +21,14 @@ def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.con
     }
 
 def load_config(configs:dict=None):
+    """
+    Parse a bot.config-style dict into a Config object and store it as the
+    current session config (see get_config()). Raises ConfigError, wrapping
+    the original exception, if any required key is missing or malformed.
+
+    :param configs: pre-parsed key/value pairs (as returned by _read_config());
+                     if None, bot.config is read and parsed from disk.
+    """
     if configs is None:
         configs = _read_config()
     categories = []
@@ -73,6 +81,26 @@ def load_config(configs:dict=None):
         skip_tags = [s.strip() for s in skip_tags]
         redo_all_fetches = configs["redo_all_fetches"] == "True"
         redo_failed_fetches = configs["redo_failed_fetches"] == "True"
+
+        # Workflow batching/stopping parameters - optional, default to sensible
+        # "unlimited"/"small batch" values so existing bot.config files without
+        # them keep working.
+        try:
+            discovery_batch_size = int(configs["discovery_batch_size"])
+        except Exception:
+            discovery_batch_size = 5
+        try:
+            max_discovery_batches = int(configs["max_discovery_batches"])
+        except Exception:
+            max_discovery_batches = 0
+        try:
+            max_rounds = int(configs["max_rounds"])
+        except Exception:
+            max_rounds = 0
+        try:
+            max_runtime_seconds = float(configs["max_runtime_seconds"])
+        except Exception:
+            max_runtime_seconds = 0
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -157,7 +185,11 @@ def load_config(configs:dict=None):
             results_per_query=results_per_query,
             query_politeness=query_politeness,
             redo_all_fetches = redo_all_fetches,
-            redo_failed_fetches = redo_failed_fetches
+            redo_failed_fetches = redo_failed_fetches,
+            discovery_batch_size = discovery_batch_size,
+            max_discovery_batches = max_discovery_batches,
+            max_rounds = max_rounds,
+            max_runtime_seconds = max_runtime_seconds
         )
 
     except Exception as e:
@@ -201,6 +233,7 @@ def _build_schema(analyzed_fields: dict[str, str], custom_types: dict[str, list[
     }
 
 def get_config() -> Config: # Singleton-like getter
+    """Return the current session's Config, loading it from bot.config on first access."""
     if _session_config is None:
         load_config()
     return _session_config

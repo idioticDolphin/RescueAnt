@@ -1,16 +1,26 @@
-import model.analyzer.category_service as category_service
-import model.analyzer.extraction_service as extraction_service
-import model.crawler.fetching_service as fetching_service
+import argparse
 from pathlib import Path
-import asyncio
 
-root_path = Path(__file__).parent.parent
-fetching_service.read_starting_urls(root_path / "starting_urls_test.csv")
-asyncio.run(fetching_service.parse_queue())
-fetched = fetching_service.processed_urls
-for url in fetched.keys():
-    html = fetched[url]
-    category = category_service.categorize_website(html)
-    print(f"{url} has category: {category.name}")
-    extracted = extraction_service.extract_information(html, category, url)
-    print(f"Extracted information for {url}:\n{extracted}")
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Run the RescueAnt crawl workflow.")
+    parser.add_argument(
+        "config_path", nargs="?", default=None,
+        help="Path to a bot.config-style file (default: bot.config at the project root)",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = _parse_args()
+
+    # config_service.get_config() is called at *import time* by most other
+    # model modules (fetching_service, category_service, ...), so a custom
+    # config has to be loaded before model.orchestrator (or anything it
+    # imports) gets imported below.
+    import model.tools.config_service as config_service
+    if args.config_path is not None:
+        config_service.load_config(config_service._read_config(Path(args.config_path)))
+
+    import model.orchestrator as orchestrator
+    orchestrator.run()

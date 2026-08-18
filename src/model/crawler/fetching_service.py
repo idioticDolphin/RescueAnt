@@ -112,6 +112,7 @@ async def parse_queue(max_concurrency: int = 4):
     url_queue = []
 
 def queue_url(url:str):
+    """Add a URL to the fetch queue, skipping it if already queued or already fetched."""
     global url_queue
     if url not in url_queue and url not in processed_urls.keys():
         url_queue.append(url)
@@ -122,12 +123,23 @@ def _read_starting_urls(path=config.get_starting_url_path()):
     for url in urls: queue_url(url.strip())
 
 def get_crawl_time(url:str):
+    """Return the monotonic timestamp of the most recent request to url's domain, or 0.0 if none was made."""
     try:
         return _last_request_time[_get_domain(url)]
     except KeyError:
         return 0.0
 
 def init(starting_url_path:str=config.get_starting_url_path(), redo_failed_fetches:bool=True, redo_all_fetches:bool=False):
+    """
+    Prepare the module state for a crawl run: mark URLs from prior crawls as
+    already processed (so they're skipped) and queue the starting URLs.
+
+    :param starting_url_path: file with one URL per line to seed the queue with
+    :param redo_failed_fetches: if True, only URLs from prior *successful*
+                                 crawls are skipped - failed ones are retried
+    :param redo_all_fetches: if True, no prior crawls are skipped at all;
+                              takes priority over redo_failed_fetches
+    """
     if not redo_all_fetches: # Priority. True overrides redo_failed_fetches
         if redo_failed_fetches:
             already_parsed_urls = data_service.get_successful_crawl_urls()
