@@ -23,6 +23,15 @@ dev = [
     "pytest-asyncio",
     "pytest-cov",
 ]
+notebooks = [
+    "jupyter",
+    "nbconvert",
+    "ipykernel",
+    "matplotlib",
+    "pandas",
+    "seaborn",
+    "scipy",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
