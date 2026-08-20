@@ -3,10 +3,18 @@ Data collection for notebooks/grammar_strictness.ipynb.
 
 Controlled, paired comparison: for the same set of fixed sample texts, run
 extraction twice per sample - once with the `accepted_animals` field
-constrained to the project's real `animal_type` enum (bot.config's `define
-animal_type = mammal|bat|rodent|...`, i.e. what the real pipeline uses for
-STATION/LIST categories), once with it as a free-form `list[string]` - and
-measure wall-clock time and token counts for each.
+constrained to bot.config's `define animal_type = mammal|bat|rodent|...`
+enum, once with it as a free-form `list[string]` - and measure wall-clock
+time and token counts for each.
+
+Note: the free-form `list[string]` condition is what the live bot.config
+actually uses for STATION/LIST today - `accepted_animals` was constrained
+to the animal_type enum earlier in the project (commit 1605d1e) but was
+reverted to free-form afterwards, per WildTanic's own preference: unconstrained
+strings let them see animal-type phrasings the fixed enum might miss.
+strict_enum here is a deliberately-tested alternative, not the current
+default - don't read this experiment as measuring "the pipeline's real
+setting" vs. a hypothetical; it's the other way around.
 
 Everything else (prompt text, other fields, model, temperature, sample
 content) is held constant across both conditions, so any timing/token
