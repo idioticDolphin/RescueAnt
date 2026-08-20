@@ -32,7 +32,14 @@ Methodology notes (relevant for interpreting the resulting diagrams):
     specs) - absolute timings are hardware-specific; relative comparisons
     between steps/categories are the more portable takeaway.
 
-Usage: python experiments/collect_crawl_metrics.py [sample_size]
+Usage: python experiments/collect_crawl_metrics.py [sample_size] [max_content_chars]
+
+max_content_chars defaults to 1500 (see the cap note above) - pass a larger
+value (or 0 for "no cap") if you need fuller/more realistic page content for
+a specific run, e.g. a future correctness/accuracy evaluation where cutting
+off page text could remove the exact fields being measured. Runtime scales
+with this value on CPU, so raising it substantially will make the run much
+slower - see the docstring note above.
 """
 import asyncio
 import json
@@ -44,7 +51,7 @@ from common import DATA_DIR, configure_logging, timed, write_csv
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DEFAULT_SAMPLE_SIZE = 16
-MAX_CONTENT_CHARS = 1500
+DEFAULT_MAX_CONTENT_CHARS = 1500
 OUTPUT_PATH = DATA_DIR / "crawl_metrics.csv"
 
 FIELDNAMES = [
@@ -116,6 +123,7 @@ def main():
     logger = logging.getLogger("experiments.collect_crawl_metrics")
 
     sample_size = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SAMPLE_SIZE
+    max_content_chars = int(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_MAX_CONTENT_CHARS
     urls = _select_diverse_urls(PROJECT_ROOT / "starting_urls.csv", sample_size)
     logger.info("Selected %d URLs (one per domain) out of starting_urls.csv", len(urls))
 
@@ -125,11 +133,14 @@ def main():
     import model.analyzer.cleaning_service as cleaning_service
 
     _real_clean = cleaning_service.clean
-    def _capped_clean(html, deduplicate=False):
-        text = _real_clean(html, deduplicate=deduplicate)
-        return text[:MAX_CONTENT_CHARS]
-    cleaning_service.clean = _capped_clean
-    logger.info("Page text capped at %d characters for this run", MAX_CONTENT_CHARS)
+    if max_content_chars:
+        def _capped_clean(html, deduplicate=False):
+            text = _real_clean(html, deduplicate=deduplicate)
+            return text[:max_content_chars]
+        cleaning_service.clean = _capped_clean
+        logger.info("Page text capped at %d characters for this run", max_content_chars)
+    else:
+        logger.info("Page text uncapped for this run (slower - see docstring)")
 
     rows = []
     for i, url in enumerate(urls, 1):

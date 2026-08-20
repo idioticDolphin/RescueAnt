@@ -1,0 +1,4 @@
+source_url,category,fetch_success,gold_entry_count,extracted_entry_count
+https://marswildliferescue.com/,STATION,True,1,1
+https://wp.wildvogelhilfe.org/auffangstationen/auffangstationen-plz-gebiet-0/,LIST,True,9,1
+http://www.greifvogelhilfe.de//greifvogelhilfe,STATION,True,1,1
