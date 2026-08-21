@@ -1,7 +1,7 @@
 # RescueAnt
 
 This web scraping tool is being developed as part of a bachelor thesis project.
-It aims to automatically find rescue station data for the website of WildTanic e.V..
+It aims to automatically find rescue station data for the website of Wildtanic e.V..
 
 It crawls a list of starting URLs (and, optionally, URLs found via a
 search-engine API), categorizes each page with a local LLM, and extracts
