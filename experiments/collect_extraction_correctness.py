@@ -64,7 +64,7 @@ def _read_gold_labels(path):
             url = row["source_url"].strip()
             if not url:
                 continue
-            by_url[url].append({field: row.get(field, "").strip() for field in FIELDS})
+            by_url[url].append({field: (row.get(field) or "").strip() for field in FIELDS})
     return by_url
 
 

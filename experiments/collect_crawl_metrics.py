@@ -59,7 +59,7 @@ FIELDNAMES = [
     "fetch_seconds", "fetch_success", "html_bytes",
     "categorize_seconds", "category",
     "cleaned_text_chars",
-    "extract_seconds", "extracted_count", "extracted_json",
+    "extract_seconds", "extracted_count", "extracted_json", "extract_error",
 ]
 
 
@@ -106,14 +106,27 @@ def _process_url(url, fetching_service, category_service, extraction_service, cl
     if not category.is_relevant:
         return row
 
-    with timed() as t:
-        extracted = extraction_service.extract_information(html, category, url)
-    row["extract_seconds"] = round(t.seconds, 3)
-    if extracted:
-        data, _links = extracted
-        row["extracted_count"] = len(data)
-        row["extracted_json"] = json.dumps(data, ensure_ascii=False)
-        logger.info("Extracted %d item(s) from %s in %.1fs", len(data), url, t.seconds)
+    try:
+        with timed() as t:
+            extracted = extraction_service.extract_information(html, category, url)
+        row["extract_seconds"] = round(t.seconds, 3)
+        if extracted:
+            data, _links = extracted
+            row["extracted_count"] = len(data)
+            row["extracted_json"] = json.dumps(data, ensure_ascii=False)
+            logger.info("Extracted %d item(s) from %s in %.1fs", len(data), url, t.seconds)
+    except Exception as e:
+        # extraction_service.extract_information() has no error handling around
+        # json.loads() (see src/model/analyzer/extraction_service.py) - on long/
+        # uncapped content the model's completion can get cut off by max_tokens
+        # before the JSON structure closes, producing an unparseable response.
+        # Keep the row's fetch/categorize data (already measured and valid)
+        # instead of discarding the whole URL over a failure in a later step;
+        # extract_seconds still reflects the real wall-clock time spent on the
+        # (failed) LLM call, since timed()'s finally clause always records it.
+        row["extract_seconds"] = round(t.seconds, 3)
+        row["extract_error"] = f"{type(e).__name__}: {e}"
+        logger.warning("Extraction failed for %s (kept fetch/categorize data): %s", url, e)
     return row
 
 

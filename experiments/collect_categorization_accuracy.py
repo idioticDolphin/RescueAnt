@@ -13,18 +13,19 @@ throughput (matching model.crawler.fetching_service.parse_queue()'s
 approach), but categorization itself runs sequentially per page afterwards,
 since it's a single local model instance.
 
-Page text is capped at max_content_chars (default 4000) before
-categorization, same rationale as collect_crawl_metrics.py: on CPU,
-prompt-processing time scales with input length, and categorization only
-needs enough content to tell STATION/LIST/IRRELEVANT apart, not the full
-page - an early real run of this script without a cap took 329s for a
-single long LIST page's categorization call alone, which would have made a
-55-URL run take hours. 4000 chars is more generous than
-collect_crawl_metrics.py's 1500 (categorization needs a bit more context
-than a single-page classification off a short snippet, since some pages
-only reveal "this is a list, not one station" well into the content), but
-still bounds runtime predictably. Pass a different value (or 0 for
-uncapped) if you want to compare against the uncapped setting explicitly.
+Page text is UNCAPPED by default (full real content, same as the
+production pipeline) - this script measures correctness, and correctness
+against a truncated view of the page is not a meaningful proxy for
+correctness against the real page a human or the production pipeline
+would see. An earlier version of this script defaulted to a 4000-character
+cap for runtime reasons; that was a real methodological mistake (applied
+without checking whether it was acceptable for an accuracy measurement,
+not just a timing one) and has been reverted. Pass a max_content_chars
+value explicitly if you want a capped run for comparison - it is opt-in,
+not the default. Runtime is correspondingly slower and less predictable
+(a single long LIST page's categorization call alone was observed to take
+329s uncapped); budget accordingly rather than assuming this finishes in
+minutes.
 
 Usage: python experiments/collect_categorization_accuracy.py [gold_csv_path] [max_content_chars]
 """
@@ -36,7 +37,7 @@ from pathlib import Path
 from common import DATA_DIR, configure_logging, timed, write_csv
 
 DEFAULT_GOLD_PATH = DATA_DIR / "categorization_gold_labels.csv"
-DEFAULT_MAX_CONTENT_CHARS = 4000
+DEFAULT_MAX_CONTENT_CHARS = 0  # 0 = uncapped (full real content) - see docstring
 OUTPUT_PATH = DATA_DIR / "categorization_accuracy.csv"
 MAX_CONCURRENCY = 4
 
