@@ -1,0 +1,7 @@
+url,fetch_success,html_bytes,categorize_cleaned_chars,extract_cleaned_chars,categorize_reduction_pct,extract_reduction_pct
+https://rlp.nabu.de/tiere-und-pflanzen/tieren-helfen/pflege-und-auffangstationen/index.html,True,90583,22807,23113,74.8,74.5
+https://www.vbu-ffm.de/pflegestationen.shtml,True,29328,13740,13746,53.2,53.1
+https://deutsche-wildtierrettung.de/wildtierauffangstationen/,True,128372,8290,8706,93.5,93.2
+https://marswildliferescue.com/,True,586032,7519,7870,98.7,98.7
+https://wp.wildvogelhilfe.org/auffangstationen/auffangstationen-plz-gebiet-0/,False,,,,,
+http://www.greifvogelhilfe.de//greifvogelhilfe,True,39737,6222,8769,84.3,77.9
