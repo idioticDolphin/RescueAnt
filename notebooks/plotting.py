@@ -72,6 +72,27 @@ def load_csv(relative_path: str) -> pd.DataFrame:
     return pd.read_csv(Path(__file__).parent.parent / "experiments" / "data" / relative_path)
 
 
+def find_latest_session_prefix() -> str:
+    """
+    Return the filename prefix (e.g. "session_20260822_022754") of the most
+    recently produced session_*_rounds.csv in experiments/data/, as written by
+    experiments/analyze_session.py from a model.tools.monitor_service session
+    log. Session filenames sort chronologically by construction
+    (session_<YYYYmmdd>_<HHMMSS>), so this is the most recently analyzed real
+    crawl session - used by notebooks/session_monitoring.ipynb to default to
+    "whatever session was analyzed last" without the user having to edit a
+    path by hand each time.
+    """
+    data_dir = Path(__file__).parent.parent / "experiments" / "data"
+    candidates = sorted(data_dir.glob("session_*_rounds.csv"))
+    if not candidates:
+        raise FileNotFoundError(
+            f"No session_*_rounds.csv found in {data_dir} - run "
+            "`python experiments/analyze_session.py <session_log.jsonl>` first."
+        )
+    return candidates[-1].stem.removesuffix("_rounds")
+
+
 def wilson_ci(successes: int, n: int, z: float = 1.96):
     """
     Wilson score interval for a binomial proportion, returned as (lower, upper)
