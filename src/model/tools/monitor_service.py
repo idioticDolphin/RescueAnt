@@ -15,6 +15,13 @@ model.orchestrator writes two kinds of markers here as a run progresses:
     discovery batch turned up and how many were newly queued, since
     already-queued/already-crawled URLs are filtered out before they'd ever
     reach the crawls table.
+  - page: one line per page process_batch() categorizes, timing the
+    categorize_website() and extract_information() calls individually. This
+    also isn't reconstructable from the database (crawls only records
+    crawl_time, not how long categorization/extraction took), and it's the
+    only source for "how much time did this round spend on productive vs.
+    irrelevant pages" / "LIST vs. STATION extraction time" style analysis -
+    see experiments/analyze_session.py and notebooks/session_monitoring.ipynb.
 
 Every event is appended to a JSON-lines file and flushed immediately - not
 batched in memory for the run's duration - so a session interrupted by
@@ -105,6 +112,31 @@ def round_end():
     _write({
         "event": "round_end", "round": _round,
         "wall_time": _wall_time(), "monotonic_time": time.monotonic(),
+    })
+
+
+def page(url: str, category: str | None, categorize_seconds: float, extract_seconds: float):
+    """
+    Record one page's categorize/extract timing, tied to the current round
+    (the one started by the last round_start() call).
+
+    :param url: the page's URL
+    :param category: the category name it was classified as, or None if
+                      categorization itself failed (see
+                      model.analyzer.category_service.categorize_website())
+    :param categorize_seconds: wall-clock time spent in categorize_website()
+    :param extract_seconds: wall-clock time spent in extract_information() -
+                             0.0 for pages categorization failed on (no
+                             extraction attempted) and near-0 for irrelevant
+                             categories (extract_information() returns
+                             immediately without calling the LLM)
+    """
+    _write({
+        "event": "page", "round": _round,
+        "wall_time": _wall_time(), "monotonic_time": time.monotonic(),
+        "url": url, "category": category,
+        "categorize_seconds": round(categorize_seconds, 3),
+        "extract_seconds": round(extract_seconds, 3),
     })
 
 

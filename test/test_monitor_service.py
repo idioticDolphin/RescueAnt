@@ -51,6 +51,25 @@ def test_round_events_are_flushed_to_disk_immediately(tmp_path):
     assert events[2]["round"] == 1
 
 
+def test_page_event_is_tied_to_the_current_round(tmp_path):
+    path = monitor_service.start_session(str(tmp_path / "sessions"))
+
+    monitor_service.round_start(queued=2)
+    monitor_service.page("http://a.com", "STATION", 1.5, 3.25)
+    monitor_service.page("http://b.com", None, 0.8, 0.0)
+    monitor_service.round_end()
+
+    events = _read_events(path)
+    page_events = [e for e in events if e["event"] == "page"]
+    assert len(page_events) == 2
+    assert all(e["round"] == 1 for e in page_events)
+    assert page_events[0]["url"] == "http://a.com"
+    assert page_events[0]["category"] == "STATION"
+    assert page_events[0]["categorize_seconds"] == 1.5
+    assert page_events[0]["extract_seconds"] == 3.25
+    assert page_events[1]["category"] is None
+
+
 def test_discovery_event_records_batch_outcome_and_increments_batch_number(tmp_path):
     path = monitor_service.start_session(str(tmp_path / "sessions"))
 

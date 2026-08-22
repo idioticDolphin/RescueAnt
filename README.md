@@ -266,6 +266,31 @@ docstrings for why, and for how an interrupted session's still-open last
 round is handled. Output goes to `experiments/data/`, alongside the other
 experiment CSVs (see "Experiments & notebooks" below).
 
+To plot that data - round size/fetch outcomes, category composition and
+link-quality trend per round, round duration vs. quality, time spent on
+productive vs. irrelevant pages per round, LIST vs. STATION extraction
+time, and discovery yield per batch - run
+`notebooks/session_monitoring.ipynb` (needs the `notebooks` extra below).
+It defaults to the most recently analyzed session, so analyzing a session
+captured on another machine is two commands: run `analyze_session.py`
+against the copied-over `session_<timestamp>.jsonl` + `crawl.db`, then
+re-run the notebook - headlessly with `jupyter nbconvert --to notebook
+--execute --inplace notebooks/session_monitoring.ipynb`, or interactively
+to point it at a specific older session instead of the latest one. The
+per-page categorize/extract timing (productive-vs-irrelevant, LIST-vs-
+STATION) only exists for sessions captured after `model.orchestrator`
+started emitting it - older sessions plot everything else, just not that.
+
+`python experiments/compare_gold_to_crawl_db.py [gold_csv_path] [db_path]`
+cross-checks `experiments/data/extraction_gold_labels.csv` against what a
+*real* crawl actually stored for those same URLs, as opposed to
+`collect_extraction_correctness.py`'s isolated re-fetch-and-re-run - the
+two can disagree (a real, observed case: the isolated experiment
+under-extracted a LIST page 1/9 while the same page's real crawl got 9/9,
+see the script's docstring). Gold URLs not yet covered by the given
+database are reported, not treated as an error, so it's safe to re-run
+against a growing/changing crawl database.
+
 ## Trying it out with the example files
 
 `examples/` contains a small, self-contained config (`examples/bot.config`)
@@ -300,7 +325,10 @@ effect of grammar-constrained vs. free-form extraction on latency, and
 search-discovery yield over successive query batches. They're written for
 a bachelor thesis audience: each notebook documents its research question,
 methodology and limitations alongside the plots, and exports each figure
-as both PDF (for LaTeX) and PNG into `notebooks/figures/`.
+as both PDF (for LaTeX) and PNG into `notebooks/figures/`. One notebook
+differs from the rest: `session_monitoring.ipynb` plots a real, uncontrolled
+`src/main.py` run rather than a fixed reproducible sample - see "Session
+monitoring" above.
 
 Install the extra dependencies these need (matplotlib, pandas, seaborn,
 scipy, jupyter):

@@ -157,7 +157,10 @@ def process_batch(urls:list[str]|None=None):
     model.tools.monitor_service and experiments/analyze_session.py for how
     those timestamps are later used to bin this round's crawls (fetched/
     failed/categorized counts, all already in the database) out of the
-    crawls table.
+    crawls table. Also times each page's categorize_website()/
+    extract_information() calls individually and logs them via
+    monitor_service.page() - unlike the round-level counts, this timing data
+    only exists in the monitoring log, since the database doesn't record it.
 
     :param urls: extra URLs to queue before this batch runs, in addition to
                   whatever is already in fetching_service.url_queue.
@@ -192,13 +195,17 @@ def process_batch(urls:list[str]|None=None):
 
     ### Categorization
     categorized_websites = []
+    categorize_seconds_by_url = {}
     for website in websites:
         url = website.url
+        categorize_start = time.monotonic()
         category = category_service.categorize_website(website.html)
+        categorize_seconds_by_url[url] = time.monotonic() - categorize_start
         if category is None:
             # category_service already logged why - one bad page (e.g. too
             # long for the model's context window) must not crash the run
             logger.warning("Skipping %s - categorization failed", url)
+            monitor_service.page(url, None, categorize_seconds_by_url[url], 0.0)
             continue
         website.category = category
         crawl_id = crawl_ids[url]
@@ -211,7 +218,9 @@ def process_batch(urls:list[str]|None=None):
         url = website.url
         category = website.category
         crawl_id = crawl_ids[url]
+        extract_start = time.monotonic()
         extracted = extraction_service.extract_information(website.html, website.category, website.url)
+        monitor_service.page(url, category.name, categorize_seconds_by_url[url], time.monotonic() - extract_start)
         if extracted:
             extracted, links = extracted
             if category.is_list_category:

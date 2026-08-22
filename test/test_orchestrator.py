@@ -586,6 +586,37 @@ def test_process_batch_skips_extraction_and_keeps_going_when_categorization_fail
     assert extraction_service.extract_information.call_args.args[2] == "http://fine.com"
 
 
+def test_process_batch_reports_page_timing_to_monitor_service(monkeypatch):
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://too-long.com": "<html>too long</html>",
+        "http://station.com": "<html>station</html>",
+    }))
+    _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.side_effect = [None, _make_category("STATION")]
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+    monitor_service = MagicMock()
+    monkeypatch.setattr(orchestrator, "monitor_service", monitor_service)
+
+    orchestrator.process_batch(["http://too-long.com", "http://station.com"])
+
+    calls = {c.args[0]: c.args[1:] for c in monitor_service.page.call_args_list}
+    assert set(calls.keys()) == {"http://too-long.com", "http://station.com"}
+    # failed categorization: category is None, no extraction attempted (extract_seconds == 0.0)
+    failed_category, failed_categorize_s, failed_extract_s = calls["http://too-long.com"]
+    assert failed_category is None
+    assert failed_categorize_s >= 0
+    assert failed_extract_s == 0.0
+    # successful categorization: category name reported, extraction was attempted
+    ok_category, ok_categorize_s, ok_extract_s = calls["http://station.com"]
+    assert ok_category == "STATION"
+    assert ok_categorize_s >= 0
+    assert ok_extract_s >= 0
+
+
 def test_process_batch_uses_existing_queue_when_no_urls_passed(monkeypatch):
     fetching_service.queue_url("http://already-queued.com")
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
