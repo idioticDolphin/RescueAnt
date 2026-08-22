@@ -17,7 +17,11 @@ def categorize_website(html):
     the model can only return a valid category name.
 
     :param html: raw page HTML
-    :return: the matching Category
+    :return: the matching Category, or None if categorization failed (e.g.
+             the page's cleaned content doesn't fit the category model's
+             context window, or the model returned something no configured
+             category matches) - logged as a warning either way, so a single
+             bad page doesn't take down the whole crawl run.
     """
     llm_id = config.get_category_model_id()
     llm = llm_service.get_model(llm_id)
@@ -28,15 +32,19 @@ def categorize_website(html):
     site_content = cleaning_service.clean(html, deduplicate=True)
     max_tokens = config.category_max_tokens
 
-    result = llm.create_chat_completion(
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": f"Website content:\n{site_content}"}
-        ],
-        grammar=grammar,
-        temperature=0,
-        max_tokens=max_tokens,
-    )
-    found_category = result['choices'][0]['message']['content']
-    logger.debug("Predicted category: %s", found_category)
-    return config.get_category(found_category)
+    try:
+        result = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Website content:\n{site_content}"}
+            ],
+            grammar=grammar,
+            temperature=0,
+            max_tokens=max_tokens,
+        )
+        found_category = result['choices'][0]['message']['content']
+        logger.debug("Predicted category: %s", found_category)
+        return config.get_category(found_category)
+    except Exception as e:
+        logger.warning("Categorization failed (%s) - skipping this page", e)
+        return None

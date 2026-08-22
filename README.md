@@ -239,6 +239,33 @@ discovery queries left to try. You can also make it stop earlier via
 | `max_rounds` | ...this many fetch/process batches have been processed |
 | `max_runtime_seconds` | ...this many seconds have elapsed since the run started |
 
+### Session monitoring
+
+Every `python src/main.py` run also writes a `sessions/session_<timestamp>.jsonl`
+log via `model.tools.monitor_service` - one JSON line per event, flushed to
+disk immediately (not held in memory for the run's duration), so the data
+survives the run being interrupted (Ctrl-C, a crash, a killed process). It
+records round boundaries (one round = one `process_batch()` call) and
+discovery batch outcomes (queries used, URLs discovered, URLs newly queued).
+
+To turn a session log into per-round/per-discovery-batch CSVs - URLs
+fetched/failed per round, how many sites landed in which category per
+round, how round size changed over the run, discovery yield per batch -
+run:
+
+```bash
+python experiments/analyze_session.py [session_log.jsonl] [db_path]
+```
+
+Both arguments are optional: it defaults to the most recent file under
+`sessions/` and the database configured in `bot.config`. It re-derives
+fetch/category counts by binning the `crawls` table's timestamps into each
+round's time window, rather than duplicating that data in the log - see
+`model.tools.monitor_service`'s and `experiments/analyze_session.py`'s
+docstrings for why, and for how an interrupted session's still-open last
+round is handled. Output goes to `experiments/data/`, alongside the other
+experiment CSVs (see "Experiments & notebooks" below).
+
 ## Trying it out with the example files
 
 `examples/` contains a small, self-contained config (`examples/bot.config`)
@@ -330,5 +357,6 @@ docker-compose.yml         runs the self-hosted SearXNG instance (see "Search en
 searxng/                   SearXNG configuration (settings.yml), bind-mounted into the container
 experiments/                data-collection scripts + their CSV output (see "Experiments & notebooks")
 notebooks/                  analysis notebooks + exported figures (see "Experiments & notebooks")
+sessions/                   per-run monitoring logs (gitignored, see "Session monitoring")
 download-models.sh         downloads the default LLM model into models/
 ```

@@ -106,3 +106,44 @@ def test_extract_information_prompt_mentions_the_schema(monkeypatch):
     _, kwargs = llm.create_chat_completion.call_args
     system_message = kwargs["messages"][0]["content"]
     assert "name" in system_message  # schema was embedded into the prompt
+
+
+def test_extract_information_returns_none_when_completion_raises(monkeypatch, caplog):
+    # e.g. llama_cpp's "Requested tokens (N) exceed context window of M"
+    # ValueError for an overlong page - must not propagate and crash the run
+    category = Category(
+        name="STATION", is_relevant=True, analysis_model_id=0,
+        analysis_prompt="Extract fields.", analysis_max_tokens=40,
+        fields={"type": "object", "properties": {}, "required": []},
+        process_links=False,
+    )
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = ValueError("Requested tokens (40000) exceed context window of 32768")
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda model_id: llm)
+
+    with caplog.at_level("WARNING", logger="model.analyzer.extraction_service"):
+        result = extraction_service.extract_information("<html></html>", category, "http://example.com/")
+
+    assert result is None
+    assert "Extraction failed" in caplog.text
+
+
+def test_extract_information_returns_none_when_completion_is_unparsable_json(monkeypatch, caplog):
+    # a completion cut off by max_tokens before the JSON closes must not crash either
+    category = Category(
+        name="STATION", is_relevant=True, analysis_model_id=0,
+        analysis_prompt="Extract fields.", analysis_max_tokens=40,
+        fields={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+        process_links=False,
+    )
+    llm = MagicMock()
+    llm.create_chat_completion.return_value = {
+        "choices": [{"message": {"content": '{"name": "truncated...'}}]
+    }
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda model_id: llm)
+
+    with caplog.at_level("WARNING", logger="model.analyzer.extraction_service"):
+        result = extraction_service.extract_information("<html></html>", category, "http://example.com/")
+
+    assert result is None
+    assert "Extraction failed" in caplog.text
