@@ -14,6 +14,9 @@ def _isolate_fetching_service_state(monkeypatch):
     monkeypatch.setattr(fetching_service, "processed_urls", {})
     monkeypatch.setattr(fetching_service, "_last_request_time", {})
     monkeypatch.setattr(orchestrator, "discovery_queries", [])
+    # Real monitor_service writes files to disk (sessions/) - keep tests from
+    # touching the filesystem unless a test explicitly wants the real thing.
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
 
 
 def _fake_parse_queue_returning(html_by_url):
@@ -557,6 +560,30 @@ def test_process_batch_queues_links_discovered_during_extraction(monkeypatch):
     orchestrator.process_batch(["http://a.com"])
 
     assert fetching_service.url_queue == ["http://linked.com"]
+
+
+def test_process_batch_skips_extraction_and_keeps_going_when_categorization_fails(monkeypatch, caplog):
+    # e.g. category_service.categorize_website() returning None because the
+    # page's content overflowed the model's context window - must not crash
+    # process_batch, and must not let extraction see a None category
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://too-long.com": "<html>too long</html>",
+        "http://fine.com": "<html>fine</html>",
+    }))
+    _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.side_effect = [None, _make_category("STATION")]
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+
+    with caplog.at_level("WARNING", logger="model.orchestrator"):
+        orchestrator.process_batch(["http://too-long.com", "http://fine.com"])
+
+    assert "Skipping http://too-long.com - categorization failed" in caplog.text
+    extraction_service.extract_information.assert_called_once()
+    assert extraction_service.extract_information.call_args.args[2] == "http://fine.com"
 
 
 def test_process_batch_uses_existing_queue_when_no_urls_passed(monkeypatch):

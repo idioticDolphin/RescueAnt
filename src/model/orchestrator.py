@@ -2,6 +2,7 @@ import logging
 
 import model.tools.data_service as data_service
 import model.tools.config_service as config_service
+import model.tools.monitor_service as monitor_service
 import model.crawler.fetching_service as fetching_service
 import model.crawler.discovery_service as discovery_service
 import asyncio
@@ -64,6 +65,12 @@ def run_discovery():
         politeness=config.query_politeness,
     )
     added = discovery_service.queue_discovered_urls(discovered)
+    monitor_service.discovery(
+        queries_used=len(batch),
+        discovered_unique=len(discovered),
+        newly_queued=added,
+        queries_remaining=len(discovery_queries),
+    )
     logger.info("Discovery batch: %d new URL(s) queued (%d queries remaining)", added, len(discovery_queries))
     return added
 
@@ -96,6 +103,7 @@ def run():
     """
     config = config_service.get_config()
     logger.info("Starting crawl run")
+    monitor_service.start_session()
     init()
 
     start_time = time.monotonic()
@@ -131,10 +139,12 @@ def run():
         if _time_or_round_limit_reached():
             break
 
+    elapsed = time.monotonic() - start_time
     logger.info(
         "Crawl run finished: %d batch(es), %d discovery batch(es), %.1fs elapsed (%s)",
-        rounds, discovery_batches_used, time.monotonic() - start_time, stop_reason,
+        rounds, discovery_batches_used, elapsed, stop_reason,
     )
+    monitor_service.session_end(rounds, discovery_batches_used, elapsed, stop_reason)
 
 def process_batch(urls:list[str]|None=None):
     """
@@ -142,6 +152,12 @@ def process_batch(urls:list[str]|None=None):
     (plus any given explicitly), categorize each successfully fetched page,
     extract structured data per its category, save everything to the
     database, and queue any linked pages extraction found for a future batch.
+
+    Brackets the pass with monitor_service.round_start()/round_end() - see
+    model.tools.monitor_service and experiments/analyze_session.py for how
+    those timestamps are later used to bin this round's crawls (fetched/
+    failed/categorized counts, all already in the database) out of the
+    crawls table.
 
     :param urls: extra URLs to queue before this batch runs, in addition to
                   whatever is already in fetching_service.url_queue.
@@ -152,7 +168,8 @@ def process_batch(urls:list[str]|None=None):
         for url in urls:
             fetching_service.queue_url(url)
     batch = fetching_service.url_queue
-    logger.info("Processing batch of %d URL(s)", len(batch))
+    round_number = monitor_service.round_start(len(batch))
+    logger.info("Processing batch of %d URL(s) (round %d)", len(batch), round_number)
     asyncio.run(fetching_service.parse_queue())
     websites = []
     crawl_ids = {}
@@ -174,17 +191,23 @@ def process_batch(urls:list[str]|None=None):
         logger.info("Fetched %d/%d URL(s) successfully", len(websites), len(batch))
 
     ### Categorization
+    categorized_websites = []
     for website in websites:
-        category = category_service.categorize_website(website.html)
-        website.category = category
         url = website.url
-        category_name = category.name
+        category = category_service.categorize_website(website.html)
+        if category is None:
+            # category_service already logged why - one bad page (e.g. too
+            # long for the model's context window) must not crash the run
+            logger.warning("Skipping %s - categorization failed", url)
+            continue
+        website.category = category
         crawl_id = crawl_ids[url]
-        data_service.save_site_category(crawl_id, category_name)
-        logger.info("Categorized %s as %s", url, category_name)
+        data_service.save_site_category(crawl_id, category.name)
+        logger.info("Categorized %s as %s", url, category.name)
+        categorized_websites.append(website)
 
     ### Extraction
-    for website in websites:
+    for website in categorized_websites:
         url = website.url
         category = website.category
         crawl_id = crawl_ids[url]
@@ -202,3 +225,5 @@ def process_batch(urls:list[str]|None=None):
                 fetching_service.queue_url(link)
         else:
             logger.debug("No data extracted from %s (category=%s)", url, category.name)
+
+    monitor_service.round_end()
