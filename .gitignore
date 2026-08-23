@@ -222,3 +222,29 @@ __marimo__/
 /.claude/
 /notebooks/figures/
 /tex/
+
+# Real crawl-session databases and derived experiment output - these
+# contain genuine extracted personal data (names, addresses, phone
+# numbers, e-mails) scraped from real rescue-station websites, and were
+# scrubbed from git history on 2026-08-23. Kept on disk locally, never
+# tracked again. Hand-labeled ground truth
+# (experiments/data/*_gold_labels.csv) is intentionally NOT covered by
+# this and stays tracked.
+/crawl*.db
+/crawl_run.log*
+/sessions/
+/experiments/data/categorization_accuracy.csv
+/experiments/data/cleaning_size_comparison.csv
+/experiments/data/crawl_metrics.csv
+/experiments/data/discovery_yield.csv
+/experiments/data/extraction_correctness.csv
+/experiments/data/extraction_correctness_entry_counts.csv
+/experiments/data/grammar_comparison.csv
+/experiments/data/categorization_gold_vs_real_crawl.csv
+/experiments/data/gold_vs_real_crawl.csv
+/experiments/data/gold_vs_real_crawl_entry_counts.csv
+/experiments/data/extraction_accuracy_overview.csv
+/experiments/data/run_log_*.csv
+/experiments/data/session_*.csv
+/crawl.db.bak_20260822_022747
+/out/

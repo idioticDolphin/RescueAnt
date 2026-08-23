@@ -90,6 +90,16 @@ def _load_entries(connection, crawl_id):
                     value = json.loads(value)  # data_service._to_sql_value() JSON-encodes list/dict fields
                 except (json.JSONDecodeError, TypeError):
                     pass
+            if gold_field == "animal_pickup" and value is not None:
+                # data_service stores booleans as the TEXT "0"/"1" (sqlite has no
+                # native boolean type), but gold_scoring.score_entry() compares
+                # str(extracted_value).lower() against the gold "true"/"false"
+                # string - without this, "0" vs "false" never matches even when
+                # both mean the same thing. Isolated live-pipeline runs (
+                # collect_extraction_correctness.py) don't hit this, since
+                # extraction_service there returns real Python bools straight
+                # from the LLM's JSON output, never a DB round-trip.
+                value = str(value).strip().lower() in ("1", "true")
             entry[gold_field] = value
         entries.append(entry)
     return entries
