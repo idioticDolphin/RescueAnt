@@ -37,6 +37,7 @@ def init_model(model_path, context):
         Llama(
             model_path=model_path,
             n_ctx = context,
+            n_gpu_layers = -1,
             verbose = False,
         )
     )

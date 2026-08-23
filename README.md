@@ -105,6 +105,80 @@ sqlite database.
      `model.crawler.discovery_service.read_query_templates()`'s docstring,
      for the exact format.
 
+## GPU acceleration (optional)
+
+`fetching_service`/`analyzer` inference goes through `llama-cpp-python`
+(`model.tools.llm_service`), which loads every model with `n_gpu_layers=-1` -
+i.e. it offloads as many layers as fit onto a CUDA GPU automatically,
+falling back to CPU-only layers if none is found. Whether that actually uses
+a GPU depends on which `llama-cpp-python` build is installed:
+
+1. **Try the prebuilt CUDA wheel first** - no compiler needed:
+
+   ```bash
+   pip uninstall -y llama-cpp-python
+   pip install llama-cpp-python --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+   ```
+
+   (swap `cu124` for whichever CUDA branch matches your driver - see
+   https://abetlen.github.io/llama-cpp-python/whl/ for the available ones).
+   Sanity-check it loads without crashing:
+
+   ```bash
+   python -c "from llama_cpp import Llama; Llama(model_path='models/<your model>.gguf', n_ctx=512, n_gpu_layers=-1, verbose=True)"
+   ```
+
+   Look for `offloaded N/N layers to GPU` in the output. If it instead
+   crashes with `OSError: [WinError -1073741795] Windows Error 0xc000001d`
+   (or a SIGILL on Linux) **even with `n_gpu_layers=0`**, the prebuilt
+   wheel's CPU code was compiled for AVX-512, which older CPUs (e.g. AMD
+   Zen 2/Ryzen 3000-series) don't support - move on to building from source.
+
+2. **Build from source** if the prebuilt wheel crashes or none matches your
+   setup. On Windows this needs, on top of the base setup:
+
+   - [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio)
+     with the "Desktop development with C++" workload
+   - the [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit-archive)
+     (pick a version your driver supports - check with `nvidia-smi`; you only
+     need the compiler/libraries, the driver components can be deselected in
+     a custom install if a newer driver is already installed)
+   - [CMake](https://cmake.org/download/)
+
+   Building via a single chained shell command silently breaks on Windows:
+   `cmd.exe` expands every `%VAR%` in a `&&`-joined line up front, so
+   `set PATH=...;%PATH%` ends up using the PATH from *before*
+   `vcvars64.bat` ran, wiping out the compiler/SDK paths it just added for
+   every command after it. Use a real (multi-line) batch script instead, so
+   each line's variables resolve after the previous line has run - e.g.:
+
+   ```bat
+   @echo off
+   call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+   set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4
+   set PATH=%CUDA_PATH%\bin;%PATH%
+   set CMAKE_ARGS=-GNinja -DGGML_CUDA=on -DGGML_AVX512=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DCMAKE_CUDA_ARCHITECTURES=75
+   pip install llama-cpp-python --no-cache-dir --no-binary llama-cpp-python
+   ```
+
+   Run it with `cmd.exe /c build_gpu.bat` from an activated venv shell.
+   Notes on the flags:
+   - `-GNinja`: CMake's Visual Studio generator needs the CUDA Toolkit's
+     MSBuild integration files, which a component-selective CUDA install
+     (skipping the driver) may not register; Ninja invokes `nvcc`/`cl.exe`
+     directly and sidesteps that entirely. VS Build Tools ships its own
+     `ninja.exe`, already on `PATH` after `vcvars64.bat`.
+   - `-DGGML_AVX512=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON`: pins the CPU
+     fallback code to AVX2, avoiding the AVX-512 crash described above.
+   - `-DCMAKE_CUDA_ARCHITECTURES=75`: the CUDA compute capability to
+     compile for - 75 is Turing (RTX 20-series); check yours at
+     https://developer.nvidia.com/cuda-gpus.
+
+   Re-run the same load/offload check as step 1 to confirm it worked, then
+   `python -m pytest test/` (a `DummyLlama` test double in
+   `test/test_llm_service.py` needs to accept whatever `Llama(...)` kwargs
+   `llm_service.py` passes).
+
 ## Search engines
 
 Search-based discovery (`discover_urls = True`) is only reached once the

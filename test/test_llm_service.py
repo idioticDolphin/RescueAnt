@@ -17,9 +17,10 @@ def _isolate_llm_service_state(monkeypatch):
     created = []
 
     class DummyLlama:
-        def __init__(self, model_path, n_ctx, verbose=True):
+        def __init__(self, model_path, n_ctx, n_gpu_layers=0, verbose=True):
             self.model_path = model_path
             self.n_ctx = n_ctx
+            self.n_gpu_layers = n_gpu_layers
             self.verbose = verbose
             created.append(self)
 
