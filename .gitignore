@@ -248,3 +248,4 @@ __marimo__/
 /experiments/data/session_*.csv
 /crawl.db.bak_20260822_022747
 /out/
+/.mcp.json
