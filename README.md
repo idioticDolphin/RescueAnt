@@ -29,7 +29,7 @@ sqlite database.
 1. **Clone the repository and create a virtual environment**
 
    ```bash
-   git clone <this-repo-url> RescueAnt
+   git clone https://github.com/idioticDolphin/RescueAnt.git
    cd RescueAnt
    python3 -m venv .venv
    source .venv/bin/activate  # on Windows: .venv\Scripts\activate
@@ -364,6 +364,20 @@ under-extracted a LIST page 1/9 while the same page's real crawl got 9/9,
 see the script's docstring). Gold URLs not yet covered by the given
 database are reported, not treated as an error, so it's safe to re-run
 against a growing/changing crawl database.
+`experiments/compare_categorization_gold_to_crawl_db.py [gold_csv_path]
+[db_path]` does the same comparison for `categorization_gold_labels.csv`,
+scoring a real session's stored category per URL instead of re-running
+`categorize_website()` in isolation.
+
+For a real session captured *before* `model.orchestrator` started emitting
+per-page timing (see "Session monitoring" above), `experiments/parse_run_log_timing.py
+<log_file> <label>` reconstructs per-page `categorize_seconds`/
+`extract_seconds` from the plain console log instead - `process_batch()`'s
+categorize/extract loops process pages strictly one after another, so the
+gap between two consecutive same-phase log lines *is* that page's call
+duration. Needs the run to have been logged at `-v`/`--verbose` (see
+"Running" above). Output matches `analyze_session.py`'s
+`_page_timing.csv` shape, so it's a drop-in for the same notebook cells.
 
 ## Trying it out with the example files
 
@@ -414,8 +428,12 @@ pip install -e ".[notebooks]"
 The scripts under `experiments/` run the *real* pipeline (real HTTP
 fetches, the real configured LLM, and - for discovery - the real search
 provider) against fixed, reproducible input samples, and write their
-results as CSVs into `experiments/data/` (already committed, so the
-notebooks can be read without re-running anything). To regenerate them:
+results as CSVs into `experiments/data/`. The hand-labeled ground-truth
+files (`categorization_gold_labels.csv`, `extraction_gold_labels.csv`) are
+committed; the rest of that directory is gitignored, since it holds real
+extracted personal data (station operators' names, addresses, phone
+numbers) scraped from real websites - re-run the scripts below to
+regenerate it locally before reading the notebooks that depend on it:
 
 ```bash
 python experiments/collect_crawl_metrics.py        # fetch/categorize/extract timing + category mix
