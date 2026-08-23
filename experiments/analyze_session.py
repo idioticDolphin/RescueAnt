@@ -1,10 +1,13 @@
 """
 Turns a model.tools.monitor_service session log (sessions/session_*.jsonl,
-written continuously while python src/main.py runs) into per-round and
-per-discovery-batch CSVs, for analyzing a *real* crawl session: how many
-URLs were fetched/failed per round, how round composition shifted between
-useful (STATION/LIST) and IRRELEVANT categories, how round size changed
-over the run, and how much each discovery batch actually contributed.
+written continuously while python src/main.py runs) into per-round,
+per-discovery-batch, and per-page CSVs, for analyzing a *real* crawl
+session: how many URLs were fetched/failed per round, how round composition
+shifted between useful (STATION/LIST) and IRRELEVANT categories, how round
+size changed over the run, how much each discovery batch actually
+contributed, and how categorize/extract time broke down per page and per
+category (e.g. LIST vs. STATION extraction time, or time spent on
+productive vs. irrelevant pages per round).
 
 Fetch/failure/category counts are not stored in the session log itself -
 monitor_service only records round_start/round_end timestamps (see its
@@ -33,8 +36,11 @@ written by monitor_service.start_session(), which is the default location
 model.orchestrator.run() writes to when started from src/main.py). db_path
 defaults to the active bot.config's `database` setting.
 
-Output: experiments/data/<session_log_stem>_rounds.csv and
-_discovery.csv, plus a summary printed to stdout.
+Output: experiments/data/<session_log_stem>_rounds.csv, _discovery.csv, and
+_page_timing.csv, plus a summary printed to stdout. _page_timing.csv is
+empty (header only) for session logs captured before model.orchestrator
+started emitting "page" events - re-run the crawl to get this data for an
+older session.
 """
 import json
 import sqlite3
@@ -111,6 +117,27 @@ def _discovery_rows(events: list[dict]) -> list[dict]:
     return rows
 
 
+def _page_rows(events: list[dict]) -> list[dict]:
+    """
+    One row per "page" event, as-is - round-tagged categorize/extract timing
+    per page. Left unaggregated (round/category classification into
+    "productive"/"unproductive" happens downstream, in
+    notebooks/session_monitoring.ipynb, which already builds a live
+    category-relevance mapping from bot.config for the category-composition
+    plots) so this script stays a pure log-to-CSV transform.
+    """
+    return [
+        {
+            "round": e["round"],
+            "url": e["url"],
+            "category": e["category"] or "",
+            "categorize_seconds": e["categorize_seconds"],
+            "extract_seconds": e["extract_seconds"],
+        }
+        for e in events if e["event"] == "page"
+    ]
+
+
 def _load_crawls(db_path: Path) -> list[sqlite3.Row]:
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
@@ -136,7 +163,10 @@ def _bin_crawls_into_rounds(windows: list[dict], crawls: list[sqlite3.Row]):
     }
     unassigned = []
     for row in crawls:
-        crawl_time = row["crawl_time"]
+        # crawls.crawl_time is declared TEXT (data_service.init_db()), so
+        # SQLite's TEXT type affinity stores/returns the float
+        # fetching_service.get_crawl_time() actually produced as a string.
+        crawl_time = float(row["crawl_time"]) if row["crawl_time"] is not None else None
         matched = None
         for w in windows:
             if crawl_time is None:
@@ -183,6 +213,7 @@ def main():
     events = _read_events(session_log)
     windows = _round_windows(events)
     discovery_rows = _discovery_rows(events)
+    page_rows = _page_rows(events)
 
     logger.info("Reading crawls from %s", db_path)
     crawls = _load_crawls(db_path)
@@ -212,14 +243,24 @@ def main():
 
     discovery_fieldnames = ["discovery_batch", "queries_used", "discovered_unique", "newly_queued",
                              "queries_remaining", "batch_seconds"]
+    page_fieldnames = ["round", "url", "category", "categorize_seconds", "extract_seconds"]
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     rounds_out = DATA_DIR / f"{session_log.stem}_rounds.csv"
     discovery_out = DATA_DIR / f"{session_log.stem}_discovery.csv"
+    page_out = DATA_DIR / f"{session_log.stem}_page_timing.csv"
     write_csv(rounds_out, round_rows, round_fieldnames)
     write_csv(discovery_out, discovery_rows, discovery_fieldnames)
+    write_csv(page_out, page_rows, page_fieldnames)
     logger.info("Wrote %d round row(s) to %s", len(round_rows), rounds_out)
     logger.info("Wrote %d discovery row(s) to %s", len(discovery_rows), discovery_out)
+    if page_rows:
+        logger.info("Wrote %d page timing row(s) to %s", len(page_rows), page_out)
+    else:
+        logger.info(
+            "No page timing events in this log (captured before model.orchestrator "
+            "emitted them, or the session never got past fetching) - wrote empty %s", page_out,
+        )
 
     total_fetched = sum(s["fetched"] for s in round_stats.values())
     total_failed = sum(s["fetch_failed"] for s in round_stats.values())
