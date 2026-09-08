@@ -4,7 +4,7 @@ import re
 
 from model.objects.searchprovider import *
 from model.exceptions import *
-from model.objects.category import Category
+from model.objects.category import Category, Relevancy
 from model.objects.config import Config
 import model.tools.llm_service as llm_service
 import json
@@ -121,19 +121,29 @@ def load_config(configs:dict=None):
             fields = _build_schema(fields, type_definitions)
 
         for category in configs["categories"].split("|"):
-            is_relevant_category = configs[f"relevancy[{category}]"]=="True"
-            if not is_relevant_category:
-                if configs[f"relevancy[{category}]"]=="False":
-                    categories.append(Category(name=category, is_relevant=is_relevant_category))
-                    logger.debug("Loaded category %r (irrelevant, skipped)", category)
-                    continue
-                raise
+            relevancy = Relevancy(configs[f"relevancy[{category}]"])
+
+            if relevancy is Relevancy.IRRELEVANT:
+                categories.append(Category(name=category, relevancy=relevancy))
+                logger.debug("Loaded category %r (irrelevant, skipped)", category)
+                continue
+
+            check_linked_urls = configs[f"check_linked_urls[{category}]"]=="True"
+
+            if relevancy is Relevancy.LINKS:
+                # No content extraction happens for this category - only its
+                # outbound links matter, so none of the extraction-specific
+                # config keys (prompt/model_path/fields/...) are needed.
+                categories.append(
+                    Category(name=category, relevancy=relevancy, process_links=check_linked_urls)
+                )
+                logger.debug("Loaded category %r (links-only, process_links=%s)", category, check_linked_urls)
+                continue
 
             prompt = configs[f"prompt[{category}]"]
             model_path = configs[f"model_path[{category}]"]
             max_tokens = int(configs[f"max_tokens[{category}]"])
             context = int(configs[f"context[{category}]"])
-            check_linked_urls = configs[f"check_linked_urls[{category}]"]=="True"
             if f"fields[{category}]" in configs.keys():
                 category_fields = json.loads(configs[f"fields[{category}]"])
                 category_fields = _build_schema(category_fields, type_definitions)
@@ -152,7 +162,7 @@ def load_config(configs:dict=None):
             categories.append(
                 Category(
                     name=category,
-                    is_relevant=is_relevant_category,
+                    relevancy=relevancy,
                     analysis_model_id=llm_service.get_model_id(model_path, context),
                     analysis_prompt=prompt,
                     process_links=check_linked_urls,

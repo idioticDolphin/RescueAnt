@@ -4,7 +4,7 @@ import pytest
 
 import model.tools.config_service as config_service
 import model.tools.data_service as data_service
-from model.objects.category import Category
+from model.objects.category import Category, Relevancy
 from model.objects.config import Config
 
 
@@ -54,7 +54,7 @@ def _isolate_data_service_state(tmp_path, monkeypatch):
 def _init_with_fields(monkeypatch, *field_names, is_list_category=False):
     category = Category(
         name="STATION",
-        is_relevant=True,
+        relevancy=Relevancy.CONTENT,
         fields=_list_schema(*field_names) if is_list_category else _object_schema(*field_names),
         analysis_prompt="p",
         analysis_max_tokens=1,
@@ -113,7 +113,7 @@ def test_init_db_field_names_match_a_real_config_service_built_schema(monkeypatc
     built = config_service._build_schema({"name": "string", "e-mail": "string"}, {})
     wrapped = config_service._wrap_as_list_schema(built)
     category = Category(
-        name="LIST", is_relevant=True, fields=wrapped, is_list_category=True,
+        name="LIST", relevancy=Relevancy.CONTENT, fields=wrapped, is_list_category=True,
         analysis_prompt="p", analysis_max_tokens=1, analysis_model_id=0, process_links=False,
     )
     monkeypatch.setattr(data_service, "config", _make_config([category]))
@@ -125,11 +125,24 @@ def test_init_db_field_names_match_a_real_config_service_built_schema(monkeypatc
 
 def test_init_db_ignores_irrelevant_categories(monkeypatch):
     relevant = Category(
-        name="STATION", is_relevant=True, fields=_object_schema("name"),
+        name="STATION", relevancy=Relevancy.CONTENT, fields=_object_schema("name"),
         analysis_prompt="p", analysis_max_tokens=1, analysis_model_id=0, process_links=False,
     )
-    irrelevant = Category(name="IRRELEVANT", is_relevant=False)
+    irrelevant = Category(name="IRRELEVANT", relevancy=Relevancy.IRRELEVANT)
     monkeypatch.setattr(data_service, "config", _make_config([relevant, irrelevant]))
+
+    data_service.init_db()
+
+    assert data_service.get_db_fields() == ['"name" TEXT']
+
+
+def test_init_db_ignores_links_only_categories(monkeypatch):
+    relevant = Category(
+        name="STATION", relevancy=Relevancy.CONTENT, fields=_object_schema("name"),
+        analysis_prompt="p", analysis_max_tokens=1, analysis_model_id=0, process_links=False,
+    )
+    links_only = Category(name="HUB", relevancy=Relevancy.LINKS, process_links=True)
+    monkeypatch.setattr(data_service, "config", _make_config([relevant, links_only]))
 
     data_service.init_db()
 
@@ -141,11 +154,11 @@ def test_init_db_deduplicates_fields_shared_across_categories(monkeypatch):
     they share the global `fields` config block) must not produce duplicate
     column definitions - that used to be a SQL syntax error."""
     station = Category(
-        name="STATION", is_relevant=True, fields=_object_schema("name", "address"),
+        name="STATION", relevancy=Relevancy.CONTENT, fields=_object_schema("name", "address"),
         analysis_prompt="p", analysis_max_tokens=1, analysis_model_id=0, process_links=False,
     )
     listing = Category(
-        name="LIST", is_relevant=True, fields=_list_schema("name", "address"), is_list_category=True,
+        name="LIST", relevancy=Relevancy.CONTENT, fields=_list_schema("name", "address"), is_list_category=True,
         analysis_prompt="p", analysis_max_tokens=1, analysis_model_id=0, process_links=False,
     )
     monkeypatch.setattr(data_service, "config", _make_config([station, listing]))

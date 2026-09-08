@@ -158,7 +158,7 @@ category_max_tokens = 20;
 category_model_path = "models/fake.gguf";
 category_context = 4096;
 
-relevancy[STATION] = True;
+relevancy[STATION] = CONTENT;
 prompt[STATION] = "Extract fields.";
 max_tokens[STATION] = 40;
 context[STATION] = 4096;
@@ -166,7 +166,7 @@ model_path[STATION] = "models/fake.gguf";
 check_linked_urls[STATION] = True;
 is_list_category[STATION] = False;
 
-relevancy[IRRELEVANT] = False;
+relevancy[IRRELEVANT] = IRRELEVANT;
 
 fields = {"name": "string", "accepted_animals": "list[animal_type]"};
 
@@ -203,6 +203,36 @@ def test_load_config_builds_config_with_expected_categories(monkeypatch, tmp_pat
     assert irrelevant.is_relevant is False
 
 
+def test_load_config_builds_links_only_category_without_extraction_config(monkeypatch, tmp_path, sample_config_text):
+    # A LINKS category needs no prompt/model_path/max_tokens/context/fields -
+    # only relevancy and check_linked_urls - since no extraction call is
+    # ever made for it.
+    text = sample_config_text.replace(
+        "categories = STATION|IRRELEVANT;",
+        "categories = STATION|HUB|IRRELEVANT;",
+    ).replace(
+        "relevancy[IRRELEVANT] = IRRELEVANT;",
+        "relevancy[HUB] = LINKS;\ncheck_linked_urls[HUB] = True;\n\nrelevancy[IRRELEVANT] = IRRELEVANT;",
+    )
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(text)
+
+    monkeypatch.setattr(
+        "model.tools.llm_service.get_model_id",
+        lambda model_path, context: 42,
+    )
+
+    configs = config_service._read_config(config_file)
+    config_service.load_config(configs)
+    result = config_service.get_config()
+
+    hub = result.get_category("HUB")
+    assert hub.is_relevant is False
+    assert hub.process_links is True
+    assert hub.analysis_prompt is None
+    assert hub.fields is None
+
+
 def test_load_config_wraps_fields_as_list_when_is_list_category_true(monkeypatch, tmp_path, sample_config_text):
     text = sample_config_text.replace(
         "is_list_category[STATION] = False;",
@@ -229,7 +259,7 @@ def test_load_config_raises_config_error_on_missing_key(monkeypatch, tmp_path):
     # "politeness" is missing entirely -> should surface as ConfigError,
     # not a raw KeyError, since callers rely on catching ConfigError.
     config_file = tmp_path / "bot.config"
-    config_file.write_text('database = "crawl.db"; categories = STATION; relevancy[STATION] = False;')
+    config_file.write_text('database = "crawl.db"; categories = STATION; relevancy[STATION] = IRRELEVANT;')
 
     monkeypatch.setattr(
         "model.tools.llm_service.get_model_id",
@@ -242,7 +272,7 @@ def test_load_config_raises_config_error_on_missing_key(monkeypatch, tmp_path):
 
 
 def test_load_config_raises_config_error_on_malformed_relevancy_value(monkeypatch, tmp_path, sample_config_text):
-    text = sample_config_text.replace("relevancy[IRRELEVANT] = False;", "relevancy[IRRELEVANT] = MAYBE;")
+    text = sample_config_text.replace("relevancy[IRRELEVANT] = IRRELEVANT;", "relevancy[IRRELEVANT] = MAYBE;")
     config_file = tmp_path / "bot.config"
     config_file.write_text(text)
 

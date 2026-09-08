@@ -1,6 +1,6 @@
 import pytest
 
-from model.objects.category import Category
+from model.objects.category import Category, Relevancy
 from model.objects.config import Config
 from model.exceptions import CategoryNotFoundError
 
@@ -9,14 +9,14 @@ from model.exceptions import CategoryNotFoundError
 # Category
 # ---------------------------------------------------------------------------
 
-def test_category_requires_name_and_is_relevant():
-    category = Category(name="STATION", is_relevant=True)
+def test_category_requires_name_and_relevancy():
+    category = Category(name="STATION", relevancy=Relevancy.CONTENT)
     assert category.name == "STATION"
     assert category.is_relevant is True
 
 
 def test_category_optional_fields_default_to_none():
-    category = Category(name="IRRELEVANT", is_relevant=False)
+    category = Category(name="IRRELEVANT", relevancy=Relevancy.IRRELEVANT)
     assert category.analysis_model_id is None
     assert category.analysis_prompt is None
     assert category.analysis_max_tokens is None
@@ -26,7 +26,13 @@ def test_category_optional_fields_default_to_none():
 
 def test_category_missing_required_field_raises():
     with pytest.raises(Exception):
-        Category(is_relevant=True)  # missing "name"
+        Category(relevancy=Relevancy.CONTENT)  # missing "name"
+
+
+def test_category_is_relevant_true_only_for_content_relevancy():
+    assert Category(name="STATION", relevancy=Relevancy.CONTENT).is_relevant is True
+    assert Category(name="HUB", relevancy=Relevancy.LINKS).is_relevant is False
+    assert Category(name="IRRELEVANT", relevancy=Relevancy.IRRELEVANT).is_relevant is False
 
 
 # ---------------------------------------------------------------------------
@@ -53,8 +59,8 @@ def _make_config(categories):
 
 
 def test_get_category_returns_matching_category():
-    station = Category(name="STATION", is_relevant=True)
-    other = Category(name="LIST", is_relevant=True)
+    station = Category(name="STATION", relevancy=Relevancy.CONTENT)
+    other = Category(name="LIST", relevancy=Relevancy.CONTENT)
     config = _make_config([station, other])
 
     assert config.get_category("STATION") is station
@@ -62,7 +68,7 @@ def test_get_category_returns_matching_category():
 
 
 def test_get_category_raises_for_unknown_name():
-    config = _make_config([Category(name="STATION", is_relevant=True)])
+    config = _make_config([Category(name="STATION", relevancy=Relevancy.CONTENT)])
     with pytest.raises(CategoryNotFoundError):
         config.get_category("DOES_NOT_EXIST")
 
@@ -75,17 +81,17 @@ def test_category_not_found_error_carries_a_message():
 
 
 def test_config_simple_getters():
-    config = _make_config([Category(name="STATION", is_relevant=True)])
+    config = _make_config([Category(name="STATION", relevancy=Relevancy.CONTENT)])
     assert config.get_category_prompt() == "prompt"
     assert config.get_category_model_id() == 0
     assert config.get_politeness() == 2
     assert config.get_skip_tags() == ["script"]
     assert config.get_starting_url_path() == "starting_urls.csv"
     assert config.get_database_path() == "crawl.db"
-    assert config.get_categories() == [Category(name="STATION", is_relevant=True)]
+    assert config.get_categories() == [Category(name="STATION", relevancy=Relevancy.CONTENT)]
 
 
 def test_config_search_getters_default_to_none():
-    config = _make_config([Category(name="STATION", is_relevant=True)])
+    config = _make_config([Category(name="STATION", relevancy=Relevancy.CONTENT)])
     assert config.get_search_provider() is None
     assert config.get_search_query_path() is None

@@ -222,14 +222,18 @@ def process_batch(urls:list[str]|None=None):
         extracted = extraction_service.extract_information(website.html, website.category, website.url)
         monitor_service.page(url, category.name, categorize_seconds_by_url[url], time.monotonic() - extract_start)
         if extracted:
-            extracted, links = extracted
-            if category.is_list_category:
-                for entry in extracted:
+            extracted_data, links = extracted
+            if extracted_data is None:
+                # LINKS category: nothing to extract from this page itself,
+                # only its outbound links (if any) are worth following.
+                logger.debug("No content to extract from %s (category=%s), following %d link(s)", url, category.name, len(links))
+            elif category.is_list_category:
+                for entry in extracted_data:
                     data_service.save_extraction(crawl_id, entry)
-                logger.info("Extracted %d entries from %s", len(extracted), url)
+                logger.info("Extracted %d entries from %s", len(extracted_data), url)
             else:
-                data_service.save_extraction(crawl_id, extracted)
-                logger.info("Extracted %d field(s) from %s", len(extracted), url)
+                data_service.save_extraction(crawl_id, extracted_data)
+                logger.info("Extracted %d field(s) from %s", len(extracted_data), url)
             for link in links:
                 fetching_service.queue_url(link)
         else:

@@ -1,6 +1,6 @@
 import logging
 
-from model.objects.category import Category
+from model.objects.category import Category, Relevancy
 import model.analyzer.cleaning_service as cleaning_service
 import model.tools.llm_service as llm_service
 import json
@@ -17,21 +17,26 @@ def extract_information(html: str, category:Category, base_url: str):
     :param html: raw page HTML
     :param category: the page's Category (as returned by category_service.categorize_website)
     :param base_url: the page's URL, used to resolve any links extracted for further crawling
-    :return: None if the category is not relevant, or if extraction failed
-             (e.g. content too long for the model's context window, or its
-             completion couldn't be parsed as JSON - both logged as a
-             warning, so a single bad page doesn't take down the whole
-             crawl run); otherwise a (extracted_data, links) tuple, where
-             extracted_data is a dict (or, for list categories, a list of
-             dicts) and links is the list of outbound page URLs found
-             (empty unless category.process_links)
+    :return: None if the category is IRRELEVANT, or if a CONTENT category's
+             extraction failed (e.g. content too long for the model's
+             context window, or its completion couldn't be parsed as JSON -
+             both logged as a warning, so a single bad page doesn't take
+             down the whole crawl run); otherwise a (extracted_data, links)
+             tuple, where links is the list of outbound page URLs found
+             (empty unless category.process_links) and extracted_data is
+             either a dict (or, for list categories, a list of dicts) for a
+             CONTENT category, or None for a LINKS category - its own page
+             has nothing worth extracting, only the links are useful
     """
-    if not category.is_relevant:
+    if category.relevancy is Relevancy.IRRELEVANT:
         return None
 
     links = []
     if category.process_links:
         links = cleaning_service.extract_links(html, base_url)
+
+    if category.relevancy is Relevancy.LINKS:
+        return None, links
 
     site_content = cleaning_service.clean(html)
     llm = llm_service.get_model(category.analysis_model_id)

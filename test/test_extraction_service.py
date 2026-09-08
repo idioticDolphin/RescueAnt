@@ -2,7 +2,7 @@ import json
 from unittest.mock import MagicMock
 
 import model.analyzer.extraction_service as extraction_service
-from model.objects.category import Category
+from model.objects.category import Category, Relevancy
 
 
 def _make_llm_returning(payload: dict):
@@ -14,15 +14,42 @@ def _make_llm_returning(payload: dict):
 
 
 def test_extract_information_returns_none_for_irrelevant_category(monkeypatch):
-    category = Category(name="IRRELEVANT", is_relevant=False)
+    category = Category(name="IRRELEVANT", relevancy=Relevancy.IRRELEVANT)
     result = extraction_service.extract_information("<html></html>", category, "http://example.com/")
     assert result is None
+
+
+def test_extract_information_returns_no_content_but_links_for_links_only_category(monkeypatch):
+    category = Category(name="HUB", relevancy=Relevancy.LINKS, process_links=True)
+    monkeypatch.setattr(
+        extraction_service.cleaning_service, "extract_links",
+        lambda html, base_url: ["http://example.com/station-a", "http://example.com/station-b"],
+    )
+
+    extracted_data, links = extraction_service.extract_information(
+        "<html><a href='/station-a'>A</a></html>", category, "http://example.com/"
+    )
+
+    assert extracted_data is None
+    assert links == ["http://example.com/station-a", "http://example.com/station-b"]
+
+
+def test_extract_information_links_only_category_skips_link_extraction_when_process_links_false(monkeypatch):
+    category = Category(name="HUB", relevancy=Relevancy.LINKS, process_links=False)
+    link_extractor = MagicMock(return_value=["should-not-be-called"])
+    monkeypatch.setattr(extraction_service.cleaning_service, "extract_links", link_extractor)
+
+    extracted_data, links = extraction_service.extract_information("<html></html>", category, "http://example.com/")
+
+    link_extractor.assert_not_called()
+    assert extracted_data is None
+    assert links == []
 
 
 def test_extract_information_returns_extracted_text_and_links(monkeypatch):
     category = Category(
         name="STATION",
-        is_relevant=True,
+        relevancy=Relevancy.CONTENT,
         analysis_model_id=0,
         analysis_prompt="Extract fields.",
         analysis_max_tokens=40,
@@ -47,7 +74,7 @@ def test_extract_information_returns_extracted_text_and_links(monkeypatch):
 def test_extract_information_skips_link_extraction_when_process_links_false(monkeypatch):
     category = Category(
         name="STATION",
-        is_relevant=True,
+        relevancy=Relevancy.CONTENT,
         analysis_model_id=0,
         analysis_prompt="Extract fields.",
         analysis_max_tokens=40,
@@ -70,7 +97,7 @@ def test_extract_information_passes_category_schema_as_response_format(monkeypat
     schema = {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}
     category = Category(
         name="STATION",
-        is_relevant=True,
+        relevancy=Relevancy.CONTENT,
         analysis_model_id=0,
         analysis_prompt="Extract fields.",
         analysis_max_tokens=40,
@@ -91,7 +118,7 @@ def test_extract_information_prompt_mentions_the_schema(monkeypatch):
     schema = {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}
     category = Category(
         name="STATION",
-        is_relevant=True,
+        relevancy=Relevancy.CONTENT,
         analysis_model_id=0,
         analysis_prompt="Extract fields.",
         analysis_max_tokens=40,
@@ -112,7 +139,7 @@ def test_extract_information_returns_none_when_completion_raises(monkeypatch, ca
     # e.g. llama_cpp's "Requested tokens (N) exceed context window of M"
     # ValueError for an overlong page - must not propagate and crash the run
     category = Category(
-        name="STATION", is_relevant=True, analysis_model_id=0,
+        name="STATION", relevancy=Relevancy.CONTENT, analysis_model_id=0,
         analysis_prompt="Extract fields.", analysis_max_tokens=40,
         fields={"type": "object", "properties": {}, "required": []},
         process_links=False,
@@ -131,7 +158,7 @@ def test_extract_information_returns_none_when_completion_raises(monkeypatch, ca
 def test_extract_information_returns_none_when_completion_is_unparsable_json(monkeypatch, caplog):
     # a completion cut off by max_tokens before the JSON closes must not crash either
     category = Category(
-        name="STATION", is_relevant=True, analysis_model_id=0,
+        name="STATION", relevancy=Relevancy.CONTENT, analysis_model_id=0,
         analysis_prompt="Extract fields.", analysis_max_tokens=40,
         fields={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
         process_links=False,

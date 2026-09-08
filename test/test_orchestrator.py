@@ -5,7 +5,7 @@ import pytest
 
 import model.orchestrator as orchestrator
 import model.crawler.fetching_service as fetching_service
-from model.objects.category import Category
+from model.objects.category import Category, Relevancy
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +30,7 @@ def _fake_parse_queue_returning(html_by_url):
 def _make_category(name="STATION", is_list_category=False):
     return Category(
         name=name,
-        is_relevant=True,
+        relevancy=Relevancy.CONTENT,
         analysis_prompt="p",
         analysis_max_tokens=1,
         analysis_model_id=0,
@@ -38,6 +38,10 @@ def _make_category(name="STATION", is_list_category=False):
         is_list_category=is_list_category,
         fields={"type": "object", "properties": {}, "required": []},
     )
+
+
+def _make_links_only_category(name="HUB"):
+    return Category(name=name, relevancy=Relevancy.LINKS, process_links=True)
 
 
 def _patch_data_service(monkeypatch):
@@ -409,8 +413,7 @@ def test_process_batch_only_categorizes_successfully_fetched_sites(monkeypatch):
     }))
     _patch_data_service(monkeypatch)
     category_service = MagicMock()
-    category_service.categorize_website.return_value = _make_category("IRRELEVANT")
-    category_service.categorize_website.return_value.is_relevant = False
+    category_service.categorize_website.return_value = Category(name="IRRELEVANT", relevancy=Relevancy.IRRELEVANT)
     monkeypatch.setattr(orchestrator, "category_service", category_service)
     extraction_service = MagicMock()
     extraction_service.extract_information.return_value = None
@@ -560,6 +563,25 @@ def test_process_batch_queues_links_discovered_during_extraction(monkeypatch):
     orchestrator.process_batch(["http://a.com"])
 
     assert fetching_service.url_queue == ["http://linked.com"]
+
+
+def test_process_batch_queues_links_but_saves_nothing_for_links_only_category(monkeypatch):
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://hub.com": "<html>hub</html>",
+    }))
+    data_service = _patch_data_service(monkeypatch)
+    category = _make_links_only_category("HUB")
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = category
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = (None, ["http://station-a.com"])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+
+    orchestrator.process_batch(["http://hub.com"])
+
+    data_service.save_extraction.assert_not_called()
+    assert fetching_service.url_queue == ["http://station-a.com"]
 
 
 def test_process_batch_skips_extraction_and_keeps_going_when_categorization_fails(monkeypatch, caplog):

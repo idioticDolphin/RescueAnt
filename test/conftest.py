@@ -22,16 +22,16 @@ SRC_PATH = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(SRC_PATH))
 
 import model.tools.config_service as config_service
-from model.objects.category import Category
+from model.objects.category import Category, Relevancy
 from model.objects.config import Config
 
 FAKE_SKIP_TAGS = ["script", "style", "noscript", "svg", "iframe", "form"]
 
 
-def make_fake_category(name="STATION", is_relevant=True, model_id=0, fields=None):
+def make_fake_category(name="STATION", relevancy=Relevancy.CONTENT, model_id=0, fields=None):
     return Category(
         name=name,
-        is_relevant=is_relevant,
+        relevancy=relevancy,
         analysis_model_id=model_id,
         analysis_prompt=f"Extract fields for {name}.",
         analysis_max_tokens=40,
@@ -47,8 +47,8 @@ def make_fake_category(name="STATION", is_relevant=True, model_id=0, fields=None
 def make_fake_config():
     return Config(
         categories=[
-            make_fake_category("STATION", True, model_id=0),
-            make_fake_category("LIST", True, model_id=1, fields={
+            make_fake_category("STATION", Relevancy.CONTENT, model_id=0),
+            make_fake_category("LIST", Relevancy.CONTENT, model_id=1, fields={
                 "type": "array",
                 "items": {
                     "type": "object",
@@ -56,7 +56,8 @@ def make_fake_config():
                     "required": ["station_url"],
                 },
             }),
-            Category(name="IRRELEVANT", is_relevant=False),
+            Category(name="HUB", relevancy=Relevancy.LINKS, process_links=True),
+            Category(name="IRRELEVANT", relevancy=Relevancy.IRRELEVANT),
         ],
         category_prompt="Categorize the website.",
         category_max_tokens=20,
