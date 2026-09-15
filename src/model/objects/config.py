@@ -66,6 +66,11 @@ class Config(BaseModel):
     # Number of classification samples to majority-vote over (1 = disabled).
     category_votes: int = 1
 
+    # --- Durability (P23/P24/P25) ---------------------------------------
+    # Directory holding fetched page bodies, so a run can be resumed and
+    # pages can be re-processed without refetching.
+    page_store_path: str = "store"
+
     def get_field_role(self, field_name: str) -> str | None:
         """Return the declared role of a field, or None if undeclared."""
         return (self.field_semantics.get(field_name) or {}).get("role")

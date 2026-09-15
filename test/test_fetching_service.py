@@ -370,12 +370,12 @@ def test_init_marks_successful_crawls_as_processed_when_redoing_failed(monkeypat
     csv_file = tmp_path / "starting_urls.csv"
     csv_file.write_text("http://example.com/new\n")
     fake_data_service = MagicMock()
-    fake_data_service.get_successful_crawl_urls.return_value = ["http://example.com/done"]
+    fake_data_service.get_finished_crawl_urls.return_value = ["http://example.com/done"]
     monkeypatch.setattr(fetching_service, "data_service", fake_data_service)
 
     fetching_service.init(starting_url_path=csv_file, redo_failed_fetches=True, redo_all_fetches=False)
 
-    fake_data_service.get_successful_crawl_urls.assert_called_once()
+    fake_data_service.get_finished_crawl_urls.assert_called_once()
     fake_data_service.get_crawl_urls.assert_not_called()
     assert fetching_service.processed_urls["http://example.com/done"] is None
     assert fetching_service.url_queue == ["http://example.com/new"]
@@ -391,7 +391,7 @@ def test_init_uses_all_crawled_urls_when_not_redoing_failed(monkeypatch, tmp_pat
     fetching_service.init(starting_url_path=csv_file, redo_failed_fetches=False, redo_all_fetches=False)
 
     fake_data_service.get_crawl_urls.assert_called_once()
-    fake_data_service.get_successful_crawl_urls.assert_not_called()
+    fake_data_service.get_finished_crawl_urls.assert_not_called()
     assert set(fetching_service.processed_urls.keys()) == {
         "http://example.com/done", "http://example.com/failed"
     }
@@ -405,7 +405,7 @@ def test_init_skips_db_lookup_entirely_when_redoing_all_fetches(monkeypatch, tmp
 
     fetching_service.init(starting_url_path=csv_file, redo_failed_fetches=True, redo_all_fetches=True)
 
-    fake_data_service.get_successful_crawl_urls.assert_not_called()
+    fake_data_service.get_finished_crawl_urls.assert_not_called()
     fake_data_service.get_crawl_urls.assert_not_called()
     assert fetching_service.processed_urls == {}
     assert fetching_service.url_queue == ["http://example.com/new"]

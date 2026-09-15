@@ -9,6 +9,7 @@ import asyncio
 import time
 import model.analyzer.category_service as category_service
 import model.analyzer.extraction_service as extraction_service
+from model.tools import page_store, url_service
 from model.objects.website import Website
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ def init():
     """
     config = config_service.get_config()
     data_service.init_db()
+    page_store.configure(config.page_store_path)
     fetching_service.init(
         starting_url_path = config.get_starting_url_path(),
         redo_failed_fetches=config.redo_failed_fetches,
@@ -37,6 +39,10 @@ def init():
         len(fetching_service.url_queue), len(discovery_queries),
         "y" if len(discovery_queries) == 1 else "ies",
     )
+    # Finish work left over from an earlier run before fetching anything new,
+    # so an interruption never leaves a permanently growing tail of
+    # fetched-but-unprocessed pages.
+    resume_pending()
 
 def run_discovery():
     """
@@ -174,70 +180,124 @@ def process_batch(urls:list[str]|None=None):
     round_number = monitor_service.round_start(len(batch))
     logger.info("Processing batch of %d URL(s) (round %d)", len(batch), round_number)
     asyncio.run(fetching_service.parse_queue())
-    websites = []
-    crawl_ids = {}
+    fetched = []
     for url in batch:
         html = asyncio.run(fetching_service.get_content(url))
         crawl_time = fetching_service.get_crawl_time(url)
         fetch_success = bool(html)
-        crawl_id = data_service.save_crawl_instance(url, crawl_time, fetch_success)
-        crawl_ids[url] = crawl_id
+        # Persist the body *before* recording the crawl, so a row never points
+        # at content that isn't on disk. The row's state stays non-terminal
+        # until the page is actually processed, so an interruption here leaves
+        # resumable work rather than a page marked done that never was.
+        digest, content_path = page_store.store(html)
+        crawl_id = data_service.save_crawl_instance(
+            url, crawl_time, fetch_success,
+            content_path=content_path, content_sha256=digest,
+            site=url_service.registrable_domain(url),
+        )
         if fetch_success:
-            websites.append(
-                Website(
-                    url = url,
-                    crawl_time= crawl_time,
-                    html = html,
-                )
-            )
+            fetched.append((crawl_id, Website(url=url, crawl_time=crawl_time, html=html)))
     if batch:
-        logger.info("Fetched %d/%d URL(s) successfully", len(websites), len(batch))
+        logger.info("Fetched %d/%d URL(s) successfully", len(fetched), len(batch))
 
-    ### Categorization
-    categorized_websites = []
-    categorize_seconds_by_url = {}
-    for website in websites:
-        url = website.url
+    ### Categorization + extraction, page by page
+    for crawl_id, website in fetched:
+        process_page(crawl_id, website.url, website.html)
+
+    monitor_service.round_end()
+
+
+def process_page(crawl_id:int, url:str, html:str, category=None):
+    """
+    Take one fetched page from its current state to EXTRACTED.
+
+    Each stage commits before the next begins, so an interruption leaves the
+    page recorded at exactly the point it reached and a later run continues
+    from there rather than refetching or reprocessing it.
+
+    :param category: an already-determined Category (when resuming a page that
+                      was categorized but not extracted); None to categorize now.
+    """
+    categorize_seconds = 0.0
+    if category is None:
         categorize_start = time.monotonic()
-        category = category_service.categorize_website(website.html, website.url)
-        categorize_seconds_by_url[url] = time.monotonic() - categorize_start
+        category = category_service.categorize_website(html, url)
+        categorize_seconds = time.monotonic() - categorize_start
         if category is None:
             # category_service already logged why - one bad page (e.g. too
             # long for the model's context window) must not crash the run
             logger.warning("Skipping %s - categorization failed", url)
-            monitor_service.page(url, None, categorize_seconds_by_url[url], 0.0)
-            continue
-        website.category = category
-        crawl_id = crawl_ids[url]
+            monitor_service.page(url, None, categorize_seconds, 0.0)
+            data_service.set_crawl_state(crawl_id, data_service.STATE_FAILED,
+                                         last_error="categorization failed")
+            return
         data_service.save_site_category(crawl_id, category.name)
+        data_service.set_crawl_state(crawl_id, data_service.STATE_CATEGORIZED)
         logger.info("Categorized %s as %s", url, category.name)
-        categorized_websites.append(website)
 
-    ### Extraction
-    for website in categorized_websites:
-        url = website.url
-        category = website.category
-        crawl_id = crawl_ids[url]
-        extract_start = time.monotonic()
-        extracted = extraction_service.extract_information(website.html, website.category, website.url)
-        monitor_service.page(url, category.name, categorize_seconds_by_url[url], time.monotonic() - extract_start)
-        if extracted:
-            extracted_data, links = extracted
-            if extracted_data is None:
-                # Either a LINKS category (nothing on the page itself is worth
-                # extracting) or a CONTENT category whose record failed the
-                # admissibility gate. Both keep the page's outbound links.
-                logger.debug("No content to extract from %s (category=%s), following %d link(s)", url, category.name, len(links))
-            elif category.is_list_category:
-                for entry in extracted_data:
-                    data_service.save_extraction(crawl_id, entry)
-                logger.info("Extracted %d entries from %s", len(extracted_data), url)
-            else:
-                data_service.save_extraction(crawl_id, extracted_data)
-                logger.info("Extracted %d field(s) from %s", len(extracted_data), url)
-            for link in links:
-                fetching_service.queue_url(link)
+    extract_start = time.monotonic()
+    extracted = extraction_service.extract_information(html, category, url)
+    monitor_service.page(url, category.name, categorize_seconds, time.monotonic() - extract_start)
+
+    # Clear anything a previous attempt at this page wrote, so reprocessing
+    # (after a crash, or a deliberate replay) can never double-insert.
+    data_service.delete_entries_for_crawl(crawl_id)
+
+    if extracted:
+        extracted_data, links = extracted
+        if extracted_data is None:
+            # Either a LINKS category (nothing on the page itself is worth
+            # extracting) or a CONTENT category whose record failed the
+            # admissibility gate. Both keep the page's outbound links.
+            logger.debug("No content to extract from %s (category=%s), following %d link(s)", url, category.name, len(links))
+        elif category.is_list_category:
+            for entry in extracted_data:
+                data_service.save_extraction(crawl_id, entry)
+            logger.info("Extracted %d entries from %s", len(extracted_data), url)
         else:
-            logger.debug("No data extracted from %s (category=%s)", url, category.name)
+            data_service.save_extraction(crawl_id, extracted_data)
+            logger.info("Extracted %d field(s) from %s", len(extracted_data), url)
+        for link in links:
+            fetching_service.queue_url(link)
+    else:
+        logger.debug("No data extracted from %s (category=%s)", url, category.name)
 
-    monitor_service.round_end()
+    data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+
+
+def resume_pending():
+    """
+    Finish pages left unprocessed by an earlier run.
+
+    Pages fetched but never categorized (or categorized but never extracted)
+    are still in a non-terminal state, and their content is on disk, so they
+    are resumed from exactly where they stopped - with no refetching. Content
+    that has gone missing from the store is returned to the fetch queue rather
+    than silently dropped.
+
+    :return: number of pages processed.
+    """
+    pending = data_service.get_pending_crawls()
+    if not pending:
+        return 0
+
+    logger.info("Resuming %d unprocessed page(s) from a previous run", len(pending))
+    processed = 0
+    for row in pending:
+        html = page_store.load(row["content_path"])
+        if not html:
+            logger.warning("Stored content missing for %s - requeueing", row["source_url"])
+            data_service.set_crawl_state(row["crawl_id"], data_service.STATE_FETCH_FAILED,
+                                         last_error="stored content missing")
+            fetching_service.queue_url(row["source_url"])
+            continue
+        category = None
+        if row["category"]:
+            try:
+                category = config_service.get_config().get_category(row["category"])
+            except Exception:
+                category = None  # category set no longer matches config - redo it
+        process_page(row["crawl_id"], row["source_url"], html, category)
+        processed += 1
+    logger.info("Resumed %d page(s)", processed)
+    return processed

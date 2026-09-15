@@ -156,7 +156,11 @@ def init(starting_url_path:str=config.get_starting_url_path(), redo_failed_fetch
     """
     if not redo_all_fetches: # Priority. True overrides redo_failed_fetches
         if redo_failed_fetches:
-            already_parsed_urls = data_service.get_successful_crawl_urls()
+            # Only pages that actually reached a terminal state count as done.
+            # Using "fetched successfully" here instead would permanently skip
+            # pages that were fetched but never categorized or extracted -
+            # they would be neither retried nor processed, just lost.
+            already_parsed_urls = data_service.get_finished_crawl_urls()
         else:
             already_parsed_urls = data_service.get_crawl_urls()
         for url in already_parsed_urls:
