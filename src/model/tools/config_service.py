@@ -13,15 +13,93 @@ logger = logging.getLogger(__name__)
 
 _session_config = None
 
-def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.config"):
-    with open(path) as f:
+CONFIG_PATTERN = r"""(?:^|[\n])\s*(?P<left>.+?)\s*=\s*(?P<right>(?:[^;'"]|(?:(?:".*?")|(?:'.*?')))*?);"""
+INCLUDE_PATTERN = re.compile(r'(?:^|\n)\s*include\s+["\'](?P<path>[^"\']+)["\']\s*;')
+
+
+def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.config",
+                 _seen:set|None=None):
+    """
+    Read a config file into a flat key/value dict.
+
+    Supports `include "other.config";` directives, resolved relative to the
+    including file. Includes are read first, so keys in the including file
+    override keys from the files it includes; this lets a deployment pull in
+    shared schema/lexicon files and then tweak individual values. Cycles are
+    detected and ignored.
+    """
+    path = Path(path)
+    _seen = set() if _seen is None else _seen
+    resolved = path.resolve()
+    if resolved in _seen:
+        logger.warning("Ignoring circular config include of %s", path)
+        return {}
+    _seen.add(resolved)
+
+    with open(path, encoding="utf-8") as f:
         config_string = f.read()
-        config_pattern = r"""(?:^|[\n])\s*(?P<left>.+?)\s*=\s*(?P<right>(?:[^;'"]|(?:(?:".*?")|(?:'.*?')))*?);"""
-        configs = re.findall(config_pattern, config_string)
-    logger.debug("Read %d config entries from %s", len(configs), path)
-    return {
-        config[0]: config[1].strip("'").strip('"') for config in configs
-    }
+
+    merged: dict[str, str] = {}
+    for include in INCLUDE_PATTERN.finditer(config_string):
+        include_path = (path.parent / include.group("path")).resolve()
+        try:
+            merged.update(_read_config(include_path, _seen))
+        except FileNotFoundError:
+            logger.warning("Config include not found, skipping: %s", include_path)
+
+    configs = re.findall(CONFIG_PATTERN, config_string)
+    own = {c[0]: c[1].strip("'").strip('"') for c in configs if c[0] != "include"}
+    merged.update(own)
+    logger.debug("Read %d config entries from %s (%d total after includes)",
+                 len(own), path, len(merged))
+    return merged
+
+
+def _csv_list(raw:str) -> list[str]:
+    """Parse a comma-separated config value into a list of trimmed strings."""
+    if not raw:
+        return []
+    return [item.strip().strip('"').strip("'") for item in raw.split(",") if item.strip()]
+
+
+def _opt_int(configs:dict, key:str, default:int) -> int:
+    try:
+        return int(configs[key])
+    except Exception:
+        return default
+
+
+def _opt_float(configs:dict, key:str, default:float) -> float:
+    try:
+        return float(configs[key])
+    except Exception:
+        return default
+
+
+def _parse_field_semantics(configs:dict) -> dict[str, dict]:
+    """
+    Collect `field[<name>] = {...json...};` entries into {field_name: semantics}.
+
+    Semantics are free-form JSON so new keys (role, fusion, normalize, weight,
+    similarity, alias_map, ...) can be added without touching the parser. Bad
+    JSON is logged and skipped rather than failing the whole config.
+    """
+    semantics:dict[str, dict] = {}
+    for key, value in configs.items():
+        key = key.strip()
+        if not (key.startswith("field[") and key.endswith("]")):
+            continue
+        name = key[len("field["):-1].strip()
+        try:
+            parsed = json.loads(value)
+        except Exception as e:
+            logger.warning("Ignoring malformed field semantics for %r (%s)", name, e)
+            continue
+        if isinstance(parsed, dict):
+            semantics[name] = parsed
+        else:
+            logger.warning("Field semantics for %r must be a JSON object", name)
+    return semantics
 
 def load_config(configs:dict=None):
     """
@@ -104,6 +182,22 @@ def load_config(configs:dict=None):
             max_runtime_seconds = float(configs["max_runtime_seconds"])
         except Exception:
             max_runtime_seconds = 0
+
+        # --- optional, domain-neutral tuning keys ---------------------------
+        # All default to "feature off", so configs written before these
+        # existed keep working unchanged.
+        drop_query_params = _csv_list(configs.get("drop_query_params", ""))
+        url_tokens_exclude = _csv_list(configs.get("url_tokens[exclude]", ""))
+        url_tokens_identity = _csv_list(configs.get("url_tokens[identity]", ""))
+        url_prior_category = configs.get("url_prior_category") or None
+        require_fields = _csv_list(configs.get("require_fields", ""))
+        require_any_role = _csv_list(configs.get("require_any_role", ""))
+        field_semantics = _parse_field_semantics(configs)
+        llm_call_timeout_seconds = _opt_float(configs, "llm_call_timeout_seconds", 0)
+        repeat_penalty = _opt_float(configs, "repeat_penalty", 1.0)
+        grammar_constrained_extraction = configs.get(
+            "grammar_constrained_extraction", "True") == "True"
+        category_votes = max(1, _opt_int(configs, "category_votes", 1))
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -196,7 +290,18 @@ def load_config(configs:dict=None):
             discovery_batch_size = discovery_batch_size,
             max_discovery_batches = max_discovery_batches,
             max_rounds = max_rounds,
-            max_runtime_seconds = max_runtime_seconds
+            max_runtime_seconds = max_runtime_seconds,
+            drop_query_params = drop_query_params,
+            url_tokens_exclude = url_tokens_exclude,
+            url_tokens_identity = url_tokens_identity,
+            url_prior_category = url_prior_category,
+            require_fields = require_fields,
+            require_any_role = require_any_role,
+            field_semantics = field_semantics,
+            llm_call_timeout_seconds = llm_call_timeout_seconds,
+            repeat_penalty = repeat_penalty,
+            grammar_constrained_extraction = grammar_constrained_extraction,
+            category_votes = category_votes,
         )
         logger.info(
             "Config loaded: %d categories (%d relevant), discovery=%s",

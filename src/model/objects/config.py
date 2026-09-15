@@ -33,6 +33,48 @@ class Config(BaseModel):
     max_rounds: int = 0
     max_runtime_seconds: float = 0
 
+    # --- URL handling (P2/P7) -------------------------------------------
+    # Extra query parameters to strip when canonicalizing, on top of
+    # url_service.DEFAULT_DROP_PARAMS.
+    drop_query_params: list[str] = []
+    # Path tokens marking a page as not worth extracting from. A page whose
+    # path contains one of these is assigned url_prior_category without
+    # spending an LLM call. Language-specific - supply via a locale pack.
+    url_tokens_exclude: list[str] = []
+    # Path tokens marking a page as a likely identity/contact page. Used to
+    # pick evidence pages for site-level extraction.
+    url_tokens_identity: list[str] = []
+    # Category assigned to pages matching url_tokens_exclude. Should normally
+    # name a Relevancy.LINKS category so the page's links are still followed.
+    url_prior_category: str | None = None
+
+    # --- Extraction control (P10/P11/P13) -------------------------------
+    # A record must contain all of these fields to be persisted.
+    require_fields: list[str] = []
+    # ...and at least one field of each of these roles (see field_roles).
+    require_any_role: list[str] = []
+    # field name -> semantics dict, e.g.
+    #   {"role": "identifier", "fusion": "union", "normalize": "phone",
+    #    "weight": 0.9, "similarity": "ngram_dice"}
+    field_semantics: dict[str, dict] = {}
+    # Abort a single LLM call after this many seconds (0 = no limit).
+    llm_call_timeout_seconds: float = 0
+    # llama.cpp repetition penalty applied to extraction calls.
+    repeat_penalty: float = 1.0
+    # Constrain extraction output with a JSON-schema grammar.
+    grammar_constrained_extraction: bool = True
+    # Number of classification samples to majority-vote over (1 = disabled).
+    category_votes: int = 1
+
+    def get_field_role(self, field_name: str) -> str | None:
+        """Return the declared role of a field, or None if undeclared."""
+        return (self.field_semantics.get(field_name) or {}).get("role")
+
+    def fields_with_role(self, role: str) -> list[str]:
+        """Return every field name declared with the given role."""
+        return [name for name, sem in self.field_semantics.items()
+                if sem.get("role") == role]
+
     def get_categories(self):
         """Return the list of configured Category objects."""
         return self.categories

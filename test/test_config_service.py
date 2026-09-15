@@ -452,3 +452,107 @@ def test_get_config_loads_lazily_when_no_session_config_exists(monkeypatch, tmp_
 
     assert result is config_service._session_config
     assert [c.name for c in result.get_categories()] == ["STATION", "IRRELEVANT"]
+
+
+# ---------------------------------------------------------------------------
+# optional tuning keys (P2/P7/P10/P13/P22)
+# ---------------------------------------------------------------------------
+
+def _minimal_configs(**overrides):
+    """Smallest config dict load_config() accepts, plus any overrides."""
+    base = {
+        "starting_url_file": "starting_urls.csv",
+        "database": "crawl.db",
+        "discover_urls": "False",
+        "politeness": "1",
+        "skip_tags": "script, style",
+        "redo_all_fetches": "False",
+        "redo_failed_fetches": "True",
+        "category_prompt": "Categorize.",
+        "category_max_tokens": "20",
+        "category_context": "4096",
+        "category_model_path": "models/fake.gguf",
+        "categories": "A|IRRELEVANT",
+        "relevancy[A]": "LINKS",
+        "check_linked_urls[A]": "True",
+        "relevancy[IRRELEVANT]": "IRRELEVANT",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_optional_keys_default_to_feature_off(monkeypatch):
+    monkeypatch.setattr(config_service.llm_service, "get_model_id", lambda *a, **k: 0)
+    config_service.load_config(_minimal_configs())
+    cfg = config_service.get_config()
+    assert cfg.url_tokens_exclude == []
+    assert cfg.field_semantics == {}
+    assert cfg.category_votes == 1
+    assert cfg.drop_query_params == []
+
+
+def test_csv_list_keys_are_parsed(monkeypatch):
+    monkeypatch.setattr(config_service.llm_service, "get_model_id", lambda *a, **k: 0)
+    config_service.load_config(_minimal_configs(**{
+        "url_tokens[exclude]": '"datenschutz", "presse"',
+        "url_tokens[identity]": '"kontakt"',
+        "drop_query_params": '"rch", "ref"',
+    }))
+    cfg = config_service.get_config()
+    assert cfg.url_tokens_exclude == ["datenschutz", "presse"]
+    assert cfg.url_tokens_identity == ["kontakt"]
+    assert cfg.drop_query_params == ["rch", "ref"]
+
+
+def test_field_semantics_are_parsed_and_queryable(monkeypatch):
+    monkeypatch.setattr(config_service.llm_service, "get_model_id", lambda *a, **k: 0)
+    config_service.load_config(_minimal_configs(**{
+        "field[e-mail]": '{"role": "identifier", "fusion": "union", "weight": 1.0}',
+        "field[address]": '{"role": "locator", "fusion": "trust_then_valid"}',
+        "field[blurb]": '{"role": "attribute"}',
+    }))
+    cfg = config_service.get_config()
+    assert cfg.get_field_role("e-mail") == "identifier"
+    assert cfg.fields_with_role("locator") == ["address"]
+    assert cfg.field_semantics["e-mail"]["weight"] == 1.0
+
+
+def test_malformed_field_semantics_is_skipped_not_fatal(monkeypatch):
+    monkeypatch.setattr(config_service.llm_service, "get_model_id", lambda *a, **k: 0)
+    config_service.load_config(_minimal_configs(**{
+        "field[good]": '{"role": "identifier"}',
+        "field[bad]": '{not json at all}',
+    }))
+    cfg = config_service.get_config()
+    assert cfg.get_field_role("good") == "identifier"
+    assert "bad" not in cfg.field_semantics
+
+
+def test_include_directive_merges_files(tmp_path):
+    (tmp_path / "shared.config").write_text(
+        'politeness = 9;\nurl_tokens[exclude] = "shared";\n', encoding="utf-8")
+    main = tmp_path / "bot.config"
+    main.write_text(
+        'include "shared.config";\npoliteness = 3;\ndatabase = "x.db";\n', encoding="utf-8")
+    configs = config_service._read_config(main)
+    # included value is present...
+    assert configs["url_tokens[exclude]"] == "shared"
+    # ...but the including file wins on conflicts
+    assert configs["politeness"] == "3"
+    assert configs["database"] == "x.db"
+
+
+def test_include_cycle_is_not_fatal(tmp_path):
+    a = tmp_path / "a.config"
+    b = tmp_path / "b.config"
+    a.write_text('include "b.config";\nfoo = "1";\n', encoding="utf-8")
+    b.write_text('include "a.config";\nbar = "2";\n', encoding="utf-8")
+    configs = config_service._read_config(a)
+    assert configs["foo"] == "1"
+    assert configs["bar"] == "2"
+
+
+def test_missing_include_is_warned_not_fatal(tmp_path):
+    main = tmp_path / "bot.config"
+    main.write_text('include "nope.config";\nfoo = "1";\n', encoding="utf-8")
+    assert config_service._read_config(main)["foo"] == "1"
