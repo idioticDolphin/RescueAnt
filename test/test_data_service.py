@@ -308,3 +308,110 @@ def test_get_successful_crawl_urls_filters_failed_fetches(monkeypatch):
 
     assert len(data_service.get_crawl_urls()) == 2
     assert data_service.get_successful_crawl_urls() == ["http://example.com/a"]
+
+
+@pytest.fixture
+def temp_db(monkeypatch):
+    """An initialized throwaway database with a single 'name' column, for the
+    lifecycle-state tests below."""
+    _init_with_fields(monkeypatch, "name")
+    return data_service.DATABASE_PATH
+
+
+# ---------------------------------------------------------------------------
+# page lifecycle states and resumption (P23/P24/P25)
+# ---------------------------------------------------------------------------
+
+def test_new_crawl_defaults_to_fetched_state(temp_db):
+    crawl_id = data_service.save_crawl_instance("http://a.com/", 1.0, True)
+    rows = data_service.get_pending_crawls()
+    assert [r["crawl_id"] for r in rows] == [crawl_id]
+    assert rows[0]["state"] == data_service.STATE_FETCHED
+
+
+def test_failed_fetch_is_not_pending_work(temp_db):
+    data_service.save_crawl_instance("http://a.com/", 1.0, False)
+    assert data_service.get_pending_crawls() == []
+
+
+def test_crawl_stores_content_reference(temp_db):
+    data_service.save_crawl_instance("http://a.com/", 1.0, True,
+                                     content_path="ab/cd/x.html.gz",
+                                     content_sha256="abc", site="a.com")
+    row = data_service.get_pending_crawls()[0]
+    assert row["content_path"] == "ab/cd/x.html.gz"
+    assert row["site"] == "a.com"
+
+
+def test_set_crawl_state_advances_lifecycle(temp_db):
+    crawl_id = data_service.save_crawl_instance("http://a.com/", 1.0, True)
+    data_service.set_crawl_state(crawl_id, data_service.STATE_CATEGORIZED)
+    assert data_service.get_pending_crawls()[0]["state"] == data_service.STATE_CATEGORIZED
+
+
+def test_extracted_pages_are_no_longer_pending(temp_db):
+    crawl_id = data_service.save_crawl_instance("http://a.com/", 1.0, True)
+    data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+    assert data_service.get_pending_crawls() == []
+
+
+def test_set_crawl_state_with_error_increments_attempts(temp_db):
+    crawl_id = data_service.save_crawl_instance("http://a.com/", 1.0, True)
+    data_service.set_crawl_state(crawl_id, data_service.STATE_CATEGORIZED, last_error="boom")
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT attempt_count, last_error FROM crawls WHERE crawl_id=?",
+                        (crawl_id,)).fetchone()
+    assert row["attempt_count"] == 1 and row["last_error"] == "boom"
+
+
+def test_finished_urls_exclude_unprocessed_pages(temp_db):
+    """The F7 bug: a fetched-but-unprocessed page must NOT count as done, or
+    it is skipped forever on the next run."""
+    data_service.save_crawl_instance("http://pending.com/", 1.0, True)
+    done = data_service.save_crawl_instance("http://done.com/", 1.0, True)
+    data_service.set_crawl_state(done, data_service.STATE_EXTRACTED)
+
+    finished = data_service.get_finished_crawl_urls()
+
+    assert "http://done.com/" in finished
+    assert "http://pending.com/" not in finished
+
+
+def test_delete_entries_makes_reextraction_idempotent(temp_db):
+    crawl_id = data_service.save_crawl_instance("http://a.com/", 1.0, True)
+    data_service.save_extraction(crawl_id, {"name": "first"})
+    data_service.delete_entries_for_crawl(crawl_id)
+    data_service.save_extraction(crawl_id, {"name": "second"})
+
+    with data_service.get_connection() as c:
+        rows = c.execute("SELECT name FROM entries WHERE source_crawl_id=?", (crawl_id,)).fetchall()
+    assert [r["name"] for r in rows] == ["second"]
+
+
+def test_count_by_state_reports_progress(temp_db):
+    a = data_service.save_crawl_instance("http://a.com/", 1.0, True)
+    data_service.save_crawl_instance("http://b.com/", 1.0, True)
+    data_service.set_crawl_state(a, data_service.STATE_EXTRACTED)
+
+    counts = data_service.count_by_state()
+
+    assert counts[data_service.STATE_EXTRACTED] == 1
+    assert counts[data_service.STATE_FETCHED] == 1
+
+
+def test_migration_backfills_state_for_legacy_rows(temp_db):
+    """A database written before states existed must still resume sensibly."""
+    with data_service.get_connection() as c:
+        c.execute("UPDATE crawls SET state = NULL")
+        c.commit()
+    # simulate a legacy row: fetched successfully, never categorized
+    crawl_id = data_service.save_crawl_instance("http://legacy.com/", 1.0, True)
+    with data_service.get_connection() as c:
+        c.execute("UPDATE crawls SET state = NULL, category = NULL WHERE crawl_id=?", (crawl_id,))
+        c.commit()
+
+    data_service.init_db()   # runs the migration
+
+    with data_service.get_connection() as c:
+        state = c.execute("SELECT state FROM crawls WHERE crawl_id=?", (crawl_id,)).fetchone()["state"]
+    assert state == data_service.STATE_FETCH_FAILED   # retryable, not silently dropped

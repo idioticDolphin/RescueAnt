@@ -8,14 +8,33 @@ config = config_service.get_config()
 DATABASE_PATH = Path(config.get_database_path())
 db_fields = []
 
+# Page lifecycle states. A page not in a TERMINAL state is unfinished work
+# that a later run must pick up (see get_pending_crawls / orchestrator.resume).
+STATE_FETCHED = "FETCHED"            # content stored, not yet categorized
+STATE_CATEGORIZED = "CATEGORIZED"    # category known, not yet extracted
+STATE_EXTRACTED = "EXTRACTED"        # fully processed
+STATE_FETCH_FAILED = "FETCH_FAILED"  # retryable depending on redo_failed_fetches
+STATE_SKIPPED = "SKIPPED"            # robots.txt / duplicate - deliberately not processed
+STATE_FAILED = "FAILED_PERMANENT"    # gave up after repeated failures
+
+TERMINAL_STATES = (STATE_EXTRACTED, STATE_SKIPPED, STATE_FAILED)
+RESUMABLE_STATES = (STATE_FETCHED, STATE_CATEGORIZED)
+
+
 @contextmanager
 def get_connection():
     """Yield a sqlite3 connection to the crawl database, with row access by
     column name and foreign-key enforcement enabled. Rolls back on error and
-    always closes the connection when the block exits."""
+    always closes the connection when the block exits.
+
+    WAL journalling is enabled so that a commit survives an abrupt process
+    kill (or a machine reboot) - the crawler is expected to be interruptible
+    at any moment, and per-page commits are only durable if the journal is."""
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute('PRAGMA foreign_keys = ON') # Enforce foreign keys on inserts
+    connection.execute('PRAGMA journal_mode = WAL')
+    connection.execute('PRAGMA synchronous = FULL')
     try:
         yield connection
     except Exception:
@@ -75,21 +94,134 @@ def init_db():
             FOREIGN KEY (source_crawl_id) REFERENCES crawls(crawl_id) ON DELETE CASCADE
         );
         """)
+        _migrate(connection)
+
+
+# Columns added after the original schema. Applied with ALTER TABLE so that
+# databases from earlier runs keep working and keep their data.
+_CRAWL_MIGRATIONS = {
+    "state": "TEXT",
+    "content_path": "TEXT",
+    "content_sha256": "TEXT",
+    "site": "TEXT",
+    "attempt_count": "INTEGER DEFAULT 0",
+    "last_error": "TEXT",
+}
+
+
+def _migrate(connection):
+    """Add any missing crawls columns, then backfill state for legacy rows."""
+    existing = {row["name"] for row in connection.execute("PRAGMA table_info(crawls)")}
+    for column, definition in _CRAWL_MIGRATIONS.items():
+        if column not in existing:
+            connection.execute(f"ALTER TABLE crawls ADD COLUMN {column} {definition}")
+    # Rows written before states existed: infer where they got to, so an old
+    # database resumes sensibly instead of looking entirely unfinished. Scoped
+    # to NULL states, so this is idempotent and safe to run on every startup.
+    connection.execute(f"""
+            UPDATE crawls SET state = CASE
+                WHEN fetch_success = 0 THEN '{STATE_FETCH_FAILED}'
+                WHEN category IS NULL OR category = '' THEN '{STATE_FETCH_FAILED}'
+                ELSE '{STATE_EXTRACTED}'
+            END
+            WHERE state IS NULL
+        """)
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_crawls_state ON crawls(state)")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_crawls_site ON crawls(site)")
+    connection.commit()
 
 def get_db_fields():
     """Return the entries-table column definitions computed by the last init_db() call."""
     return db_fields
 
-def save_crawl_instance(url:str, crawl_time:float, fetch_success:bool) -> int:
-    """Insert a new crawls row and return its generated crawl_id."""
+def save_crawl_instance(url:str, crawl_time:float, fetch_success:bool,
+                        state:str=None, content_path:str=None,
+                        content_sha256:str=None, site:str=None) -> int:
+    """
+    Insert a new crawls row and return its generated crawl_id.
+
+    :param state: lifecycle state to record (see STATE_* constants). Defaults
+                   to FETCHED/FETCH_FAILED based on fetch_success, so a page
+                   is never recorded as finished before it has been processed.
+    :param content_path: page_store path of the stored body, if any
+    """
+    if state is None:
+        state = STATE_FETCHED if fetch_success else STATE_FETCH_FAILED
     with get_connection() as connection:
         cursor = connection.execute(
-            "INSERT INTO crawls(crawl_time, source_url, fetch_success) VALUES (?, ?, ?)",
-            (crawl_time, url, fetch_success)
+            """INSERT INTO crawls(crawl_time, source_url, fetch_success, state,
+                                  content_path, content_sha256, site)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (crawl_time, url, fetch_success, state, content_path, content_sha256, site)
         )
         crawl_id = cursor.lastrowid
         connection.commit()
     return crawl_id
+
+
+def set_crawl_state(crawl_id:int, state:str, last_error:str=None):
+    """Move a crawl row to a new lifecycle state, committing immediately.
+
+    Committing per transition (rather than per round) is what makes the crawl
+    resumable: the database always reflects exactly how far each page got."""
+    with get_connection() as connection:
+        if last_error is None:
+            connection.execute("UPDATE crawls SET state = ? WHERE crawl_id = ?",
+                               (state, crawl_id))
+        else:
+            connection.execute(
+                "UPDATE crawls SET state = ?, last_error = ?, "
+                "attempt_count = COALESCE(attempt_count, 0) + 1 WHERE crawl_id = ?",
+                (state, last_error, crawl_id))
+        connection.commit()
+
+
+def get_pending_crawls(states=RESUMABLE_STATES):
+    """
+    Return unfinished crawl rows (as dicts), oldest first.
+
+    This is the whole of the resume mechanism: work that was fetched or
+    categorized but never extracted is simply still in a non-terminal state,
+    and a later run picks it up from exactly there.
+    """
+    placeholders = ", ".join("?" for _ in states)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""SELECT crawl_id, source_url, category, content_path, state, site
+                FROM crawls WHERE state IN ({placeholders})
+                ORDER BY crawl_id""", tuple(states)
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def delete_entries_for_crawl(crawl_id:int):
+    """Remove any entries previously extracted from a crawl.
+
+    Called before re-extracting a page so that reprocessing is idempotent -
+    a page processed twice must not produce duplicate rows."""
+    with get_connection() as connection:
+        connection.execute("DELETE FROM entries WHERE source_crawl_id = ?", (crawl_id,))
+        connection.commit()
+
+
+def get_finished_crawl_urls():
+    """Return the URL of every crawl that needs no further fetching:
+    successfully processed pages plus deliberately skipped ones."""
+    placeholders = ", ".join("?" for _ in TERMINAL_STATES)
+    with get_connection() as connection:
+        return [row["source_url"] for row in connection.execute(
+            f"SELECT source_url FROM crawls WHERE state IN ({placeholders})",
+            TERMINAL_STATES
+        ).fetchall()]
+
+
+def count_by_state():
+    """Return {state: count} across the crawls table (for progress reporting)."""
+    with get_connection() as connection:
+        return {row["state"]: row["n"] for row in connection.execute(
+            "SELECT state, COUNT(*) AS n FROM crawls GROUP BY state")}
 
 def save_site_category(crawl_id:int, category_name:str):
     """Set the category of an existing crawls row."""
