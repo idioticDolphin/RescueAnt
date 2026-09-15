@@ -199,7 +199,7 @@ def process_batch(urls:list[str]|None=None):
     for website in websites:
         url = website.url
         categorize_start = time.monotonic()
-        category = category_service.categorize_website(website.html)
+        category = category_service.categorize_website(website.html, website.url)
         categorize_seconds_by_url[url] = time.monotonic() - categorize_start
         if category is None:
             # category_service already logged why - one bad page (e.g. too
@@ -224,8 +224,9 @@ def process_batch(urls:list[str]|None=None):
         if extracted:
             extracted_data, links = extracted
             if extracted_data is None:
-                # LINKS category: nothing to extract from this page itself,
-                # only its outbound links (if any) are worth following.
+                # Either a LINKS category (nothing on the page itself is worth
+                # extracting) or a CONTENT category whose record failed the
+                # admissibility gate. Both keep the page's outbound links.
                 logger.debug("No content to extract from %s (category=%s), following %d link(s)", url, category.name, len(links))
             elif category.is_list_category:
                 for entry in extracted_data:

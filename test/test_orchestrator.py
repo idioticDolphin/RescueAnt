@@ -186,14 +186,14 @@ def test_run_discovery_returns_number_of_newly_queued_urls(monkeypatch):
     config = _make_orchestrator_config(discover_urls=True, discovery_batch_size=5)
     monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
     discovery_service = MagicMock()
-    discovery_service.discover_urls.return_value = ["http://a.com", "http://b.com"]
+    discovery_service.discover_urls.return_value = ["http://a.com/", "http://b.com/"]
     discovery_service.queue_discovered_urls.return_value = 2
     monkeypatch.setattr(orchestrator, "discovery_service", discovery_service)
     monkeypatch.setattr(orchestrator, "discovery_queries", ["q1"])
 
     added = orchestrator.run_discovery()
 
-    discovery_service.queue_discovered_urls.assert_called_once_with(["http://a.com", "http://b.com"])
+    discovery_service.queue_discovered_urls.assert_called_once_with(["http://a.com/", "http://b.com/"])
     assert added == 2
 
 
@@ -226,7 +226,7 @@ def test_run_processes_initial_queue_completely_before_running_discovery(monkeyp
     monkeypatch.setattr(orchestrator, "discovery_queries", ["some query"])
 
     call_order = []
-    fetching_service.url_queue = ["http://a.com", "http://b.com"]
+    fetching_service.url_queue = ["http://a.com/", "http://b.com/"]
 
     def fake_process_batch():
         call_order.append("process_batch")
@@ -279,7 +279,7 @@ def test_run_resumes_processing_once_discovery_finds_something(monkeypatch):
     def fake_run_discovery():
         call_order.append("run_discovery")
         orchestrator.discovery_queries.clear()
-        fetching_service.url_queue.append("http://discovered.com")
+        fetching_service.url_queue.append("http://discovered.com/")
 
     def fake_process_batch():
         call_order.append("process_batch")
@@ -339,7 +339,7 @@ def test_run_stops_after_max_rounds(monkeypatch):
     monkeypatch.setattr(orchestrator, "init", lambda: None)
     monkeypatch.setattr(orchestrator, "run_discovery", lambda: None)
 
-    fetching_service.url_queue = ["http://never-ending.com"]
+    fetching_service.url_queue = ["http://never-ending.com/"]
     process_batch_calls = []
 
     def fake_process_batch():
@@ -359,7 +359,7 @@ def test_run_stops_after_max_runtime_seconds(monkeypatch):
     monkeypatch.setattr(orchestrator, "init", lambda: None)
     monkeypatch.setattr(orchestrator, "run_discovery", lambda: None)
 
-    fetching_service.url_queue = ["http://never-ending.com"]
+    fetching_service.url_queue = ["http://never-ending.com/"]
     process_batch_calls = []
 
     def fake_process_batch():
@@ -389,8 +389,8 @@ def test_run_does_nothing_when_queue_stays_empty(monkeypatch):
 
 def test_process_batch_saves_crawl_instance_for_every_url(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
-        "http://b.com": "",
+        "http://a.com/": "<html>a</html>",
+        "http://b.com/": "",
     }))
     data_service = _patch_data_service(monkeypatch)
     category_service = MagicMock()
@@ -400,16 +400,16 @@ def test_process_batch_saves_crawl_instance_for_every_url(monkeypatch):
     extraction_service.extract_information.return_value = None
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
-    orchestrator.process_batch(["http://a.com", "http://b.com"])
+    orchestrator.process_batch(["http://a.com/", "http://b.com/"])
 
     calls = {c.args[0]: c.args[2] for c in data_service.save_crawl_instance.call_args_list}
-    assert calls == {"http://a.com": True, "http://b.com": False}
+    assert calls == {"http://a.com/": True, "http://b.com/": False}
 
 
 def test_process_batch_only_categorizes_successfully_fetched_sites(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
-        "http://b.com": "",
+        "http://a.com/": "<html>a</html>",
+        "http://b.com/": "",
     }))
     _patch_data_service(monkeypatch)
     category_service = MagicMock()
@@ -419,7 +419,7 @@ def test_process_batch_only_categorizes_successfully_fetched_sites(monkeypatch):
     extraction_service.extract_information.return_value = None
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
-    orchestrator.process_batch(["http://a.com", "http://b.com"])
+    orchestrator.process_batch(["http://a.com/", "http://b.com/"])
 
     assert category_service.categorize_website.call_count == 1
     category_service.categorize_website.assert_called_with("<html>a</html>")
@@ -427,7 +427,7 @@ def test_process_batch_only_categorizes_successfully_fetched_sites(monkeypatch):
 
 def test_process_batch_saves_extraction_for_single_category(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
+        "http://a.com/": "<html>a</html>",
     }))
     data_service = _patch_data_service(monkeypatch)
     category = _make_category("STATION", is_list_category=False)
@@ -438,15 +438,15 @@ def test_process_batch_saves_extraction_for_single_category(monkeypatch):
     extraction_service.extract_information.return_value = ({"name": "Station A"}, [])
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
-    orchestrator.process_batch(["http://a.com"])
+    orchestrator.process_batch(["http://a.com/"])
 
     data_service.save_extraction.assert_called_once_with(1, {"name": "Station A"})
 
 
 def test_process_batch_logs_fetch_summary_and_categorization(monkeypatch, caplog):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
-        "http://b.com": "",
+        "http://a.com/": "<html>a</html>",
+        "http://b.com/": "",
     }))
     _patch_data_service(monkeypatch)
     category_service = MagicMock()
@@ -457,15 +457,15 @@ def test_process_batch_logs_fetch_summary_and_categorization(monkeypatch, caplog
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
     with caplog.at_level("INFO", logger="model.orchestrator"):
-        orchestrator.process_batch(["http://a.com", "http://b.com"])
+        orchestrator.process_batch(["http://a.com/", "http://b.com/"])
 
     assert "Fetched 1/2 URL(s) successfully" in caplog.text
-    assert "Categorized http://a.com as STATION" in caplog.text
+    assert "Categorized http://a.com/ as STATION" in caplog.text
 
 
 def test_process_batch_logs_extraction_progress_without_dumping_full_content(monkeypatch, caplog):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
+        "http://a.com/": "<html>a</html>",
     }))
     _patch_data_service(monkeypatch)
     category = _make_category("STATION", is_list_category=False)
@@ -478,7 +478,7 @@ def test_process_batch_logs_extraction_progress_without_dumping_full_content(mon
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
     with caplog.at_level("INFO", logger="model.orchestrator"):
-        orchestrator.process_batch(["http://a.com"])
+        orchestrator.process_batch(["http://a.com/"])
 
     assert "Extracted 1 field(s) from http://a.com" in caplog.text
     # the extracted content itself is only logged at DEBUG (extraction_service),
@@ -488,20 +488,20 @@ def test_process_batch_logs_extraction_progress_without_dumping_full_content(mon
 
 def test_process_batch_logs_entry_count_for_list_category(monkeypatch, caplog):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
+        "http://a.com/": "<html>a</html>",
     }))
     _patch_data_service(monkeypatch)
     category = _make_category("LIST", is_list_category=True)
     category_service = MagicMock()
     category_service.categorize_website.return_value = category
     monkeypatch.setattr(orchestrator, "category_service", category_service)
-    entries = [{"station_url": "http://x.com"}, {"station_url": "http://y.com"}]
+    entries = [{"station_url": "http://x.com/"}, {"station_url": "http://y.com/"}]
     extraction_service = MagicMock()
     extraction_service.extract_information.return_value = (entries, [])
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
     with caplog.at_level("INFO", logger="model.orchestrator"):
-        orchestrator.process_batch(["http://a.com"])
+        orchestrator.process_batch(["http://a.com/"])
 
     assert "Extracted 2 entries from http://a.com" in caplog.text
 
@@ -509,7 +509,7 @@ def test_process_batch_logs_entry_count_for_list_category(monkeypatch, caplog):
 def test_process_batch_does_not_log_at_info_when_nothing_extracted(monkeypatch, caplog):
     # irrelevant-category pages are routine, not a "fail" - must not spam INFO
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
+        "http://a.com/": "<html>a</html>",
     }))
     _patch_data_service(monkeypatch)
     category = _make_category("IRRELEVANT")
@@ -521,26 +521,26 @@ def test_process_batch_does_not_log_at_info_when_nothing_extracted(monkeypatch, 
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
     with caplog.at_level("INFO", logger="model.orchestrator"):
-        orchestrator.process_batch(["http://a.com"])
+        orchestrator.process_batch(["http://a.com/"])
 
     assert "Extracted" not in caplog.text
 
 
 def test_process_batch_saves_each_entry_for_list_category(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
+        "http://a.com/": "<html>a</html>",
     }))
     data_service = _patch_data_service(monkeypatch)
     category = _make_category("LIST", is_list_category=True)
     category_service = MagicMock()
     category_service.categorize_website.return_value = category
     monkeypatch.setattr(orchestrator, "category_service", category_service)
-    entries = [{"station_url": "http://x.com"}, {"station_url": "http://y.com"}]
+    entries = [{"station_url": "http://x.com/"}, {"station_url": "http://y.com/"}]
     extraction_service = MagicMock()
     extraction_service.extract_information.return_value = (entries, [])
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
-    orchestrator.process_batch(["http://a.com"])
+    orchestrator.process_batch(["http://a.com/"])
 
     assert data_service.save_extraction.call_args_list == [
         ((1, entries[0]),), ((1, entries[1]),)
@@ -549,7 +549,7 @@ def test_process_batch_saves_each_entry_for_list_category(monkeypatch):
 
 def test_process_batch_queues_links_discovered_during_extraction(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://a.com": "<html>a</html>",
+        "http://a.com/": "<html>a</html>",
     }))
     _patch_data_service(monkeypatch)
     category = _make_category("STATION", is_list_category=False)
@@ -557,17 +557,17 @@ def test_process_batch_queues_links_discovered_during_extraction(monkeypatch):
     category_service.categorize_website.return_value = category
     monkeypatch.setattr(orchestrator, "category_service", category_service)
     extraction_service = MagicMock()
-    extraction_service.extract_information.return_value = ({"name": "Station A"}, ["http://linked.com"])
+    extraction_service.extract_information.return_value = ({"name": "Station A"}, ["http://linked.com/"])
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
-    orchestrator.process_batch(["http://a.com"])
+    orchestrator.process_batch(["http://a.com/"])
 
-    assert fetching_service.url_queue == ["http://linked.com"]
+    assert fetching_service.url_queue == ["http://linked.com/"]
 
 
 def test_process_batch_queues_links_but_saves_nothing_for_links_only_category(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://hub.com": "<html>hub</html>",
+        "http://hub.com/": "<html>hub</html>",
     }))
     data_service = _patch_data_service(monkeypatch)
     category = _make_links_only_category("HUB")
@@ -575,13 +575,13 @@ def test_process_batch_queues_links_but_saves_nothing_for_links_only_category(mo
     category_service.categorize_website.return_value = category
     monkeypatch.setattr(orchestrator, "category_service", category_service)
     extraction_service = MagicMock()
-    extraction_service.extract_information.return_value = (None, ["http://station-a.com"])
+    extraction_service.extract_information.return_value = (None, ["http://station-a.com/"])
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
-    orchestrator.process_batch(["http://hub.com"])
+    orchestrator.process_batch(["http://hub.com/"])
 
     data_service.save_extraction.assert_not_called()
-    assert fetching_service.url_queue == ["http://station-a.com"]
+    assert fetching_service.url_queue == ["http://station-a.com/"]
 
 
 def test_process_batch_skips_extraction_and_keeps_going_when_categorization_fails(monkeypatch, caplog):
@@ -589,8 +589,8 @@ def test_process_batch_skips_extraction_and_keeps_going_when_categorization_fail
     # page's content overflowed the model's context window - must not crash
     # process_batch, and must not let extraction see a None category
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://too-long.com": "<html>too long</html>",
-        "http://fine.com": "<html>fine</html>",
+        "http://too-long.com/": "<html>too long</html>",
+        "http://fine.com/": "<html>fine</html>",
     }))
     _patch_data_service(monkeypatch)
     category_service = MagicMock()
@@ -601,17 +601,17 @@ def test_process_batch_skips_extraction_and_keeps_going_when_categorization_fail
     monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
 
     with caplog.at_level("WARNING", logger="model.orchestrator"):
-        orchestrator.process_batch(["http://too-long.com", "http://fine.com"])
+        orchestrator.process_batch(["http://too-long.com/", "http://fine.com/"])
 
-    assert "Skipping http://too-long.com - categorization failed" in caplog.text
+    assert "Skipping http://too-long.com/ - categorization failed" in caplog.text
     extraction_service.extract_information.assert_called_once()
-    assert extraction_service.extract_information.call_args.args[2] == "http://fine.com"
+    assert extraction_service.extract_information.call_args.args[2] == "http://fine.com/"
 
 
 def test_process_batch_reports_page_timing_to_monitor_service(monkeypatch):
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://too-long.com": "<html>too long</html>",
-        "http://station.com": "<html>station</html>",
+        "http://too-long.com/": "<html>too long</html>",
+        "http://station.com/": "<html>station</html>",
     }))
     _patch_data_service(monkeypatch)
     category_service = MagicMock()
@@ -623,26 +623,26 @@ def test_process_batch_reports_page_timing_to_monitor_service(monkeypatch):
     monitor_service = MagicMock()
     monkeypatch.setattr(orchestrator, "monitor_service", monitor_service)
 
-    orchestrator.process_batch(["http://too-long.com", "http://station.com"])
+    orchestrator.process_batch(["http://too-long.com/", "http://station.com/"])
 
     calls = {c.args[0]: c.args[1:] for c in monitor_service.page.call_args_list}
-    assert set(calls.keys()) == {"http://too-long.com", "http://station.com"}
+    assert set(calls.keys()) == {"http://too-long.com/", "http://station.com/"}
     # failed categorization: category is None, no extraction attempted (extract_seconds == 0.0)
-    failed_category, failed_categorize_s, failed_extract_s = calls["http://too-long.com"]
+    failed_category, failed_categorize_s, failed_extract_s = calls["http://too-long.com/"]
     assert failed_category is None
     assert failed_categorize_s >= 0
     assert failed_extract_s == 0.0
     # successful categorization: category name reported, extraction was attempted
-    ok_category, ok_categorize_s, ok_extract_s = calls["http://station.com"]
+    ok_category, ok_categorize_s, ok_extract_s = calls["http://station.com/"]
     assert ok_category == "STATION"
     assert ok_categorize_s >= 0
     assert ok_extract_s >= 0
 
 
 def test_process_batch_uses_existing_queue_when_no_urls_passed(monkeypatch):
-    fetching_service.queue_url("http://already-queued.com")
+    fetching_service.queue_url("http://already-queued.com/")
     monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
-        "http://already-queued.com": "<html></html>",
+        "http://already-queued.com/": "<html></html>",
     }))
     data_service = _patch_data_service(monkeypatch)
     monkeypatch.setattr(orchestrator, "category_service", MagicMock())
@@ -653,4 +653,24 @@ def test_process_batch_uses_existing_queue_when_no_urls_passed(monkeypatch):
     orchestrator.process_batch()
 
     data_service.save_crawl_instance.assert_called_once()
-    assert data_service.save_crawl_instance.call_args.args[0] == "http://already-queued.com"
+    assert data_service.save_crawl_instance.call_args.args[0] == "http://already-queued.com/"
+
+
+def test_process_batch_passes_url_to_categorizer(monkeypatch):
+    """The URL is a strong classification signal (P7); the classifier cannot
+    use it unless process_batch hands it over."""
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "http://a.com/presse": "<html>a</html>",
+    }))
+    _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = _make_category("STATION")
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+
+    orchestrator.process_batch(["http://a.com/presse"])
+
+    args, _ = category_service.categorize_website.call_args
+    assert args[1] == "http://a.com/presse"

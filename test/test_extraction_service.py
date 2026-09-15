@@ -3,12 +3,23 @@ from unittest.mock import MagicMock
 
 import model.analyzer.extraction_service as extraction_service
 from model.objects.category import Category, Relevancy
+from conftest import make_fake_category
 
 
 def _make_llm_returning(payload: dict):
     llm = MagicMock()
     llm.create_chat_completion.return_value = {
         "choices": [{"message": {"content": json.dumps(payload)}}]
+    }
+    return llm
+
+
+def _make_llm_returning_raw(raw: str):
+    """LLM stub returning `raw` verbatim (not JSON-encoded), so tests can
+    simulate malformed or truncated completions."""
+    llm = MagicMock()
+    llm.create_chat_completion.return_value = {
+        "choices": [{"message": {"content": raw}}]
     }
     return llm
 
@@ -174,3 +185,127 @@ def test_extract_information_returns_none_when_completion_is_unparsable_json(mon
 
     assert result is None
     assert "Extraction failed" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# generation bounds (P13) - the runaway-generation root cause
+# ---------------------------------------------------------------------------
+
+def test_extraction_passes_category_max_tokens(monkeypatch):
+    """Without max_tokens, llama-cpp generates until the context window is
+    exhausted - the cause of the observed 90-120 minute runaway calls."""
+    llm = _make_llm_returning_raw('{"name": "X"}')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    category = make_fake_category()
+
+    extraction_service.extract_information("<html>x</html>", category, "http://e.com/")
+
+    _, kwargs = llm.create_chat_completion.call_args
+    assert kwargs["max_tokens"] == category.analysis_max_tokens
+    assert kwargs["max_tokens"] is not None
+
+
+def test_extraction_passes_repeat_penalty(monkeypatch):
+    llm = _make_llm_returning_raw('{"name": "X"}')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "repeat_penalty", 1.15, raising=False)
+
+    extraction_service.extract_information("<html>x</html>", make_fake_category(), "http://e.com/")
+
+    _, kwargs = llm.create_chat_completion.call_args
+    assert kwargs["repeat_penalty"] == 1.15
+
+
+# ---------------------------------------------------------------------------
+# truncation salvage
+# ---------------------------------------------------------------------------
+
+def test_truncated_list_output_salvages_complete_objects(monkeypatch):
+    # A list extraction that hit max_tokens mid-way: two complete objects,
+    # then a truncated third. The complete ones should survive.
+    truncated = '[{"station_url": "a"}, {"station_url": "b"}, {"station_url": "c'
+    llm = _make_llm_returning_raw(truncated)
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    category = make_fake_category("LIST", fields={
+        "type": "array",
+        "items": {"type": "object", "properties": {"station_url": {"type": "string"}}},
+    })
+
+    result = extraction_service.extract_information("<html>x</html>", category, "http://e.com/")
+
+    assert result is not None
+    data, _links = result
+    assert [d["station_url"] for d in data] == ["a", "b"]
+
+
+def test_unsalvageable_output_still_returns_none(monkeypatch):
+    llm = _make_llm_returning_raw("total garbage not json")
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    result = extraction_service.extract_information("<html>x</html>", make_fake_category(), "http://e.com/")
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# admissibility gate (P10)
+# ---------------------------------------------------------------------------
+
+def test_is_admissible_accepts_when_unconfigured():
+    ok, reason = extraction_service.is_admissible({"name": "X"})
+    assert ok and reason is None
+
+
+def test_is_admissible_requires_configured_fields(monkeypatch):
+    monkeypatch.setattr(extraction_service.config, "require_fields", ["name"], raising=False)
+    assert extraction_service.is_admissible({"name": "X"})[0] is True
+    assert extraction_service.is_admissible({"name": ""})[0] is False
+    assert extraction_service.is_admissible({})[0] is False
+
+
+def test_is_admissible_requires_a_field_of_each_required_role(monkeypatch):
+    monkeypatch.setattr(extraction_service.config, "require_any_role", ["identifier"], raising=False)
+    monkeypatch.setattr(extraction_service.config, "field_semantics", {
+        "e-mail": {"role": "identifier"},
+        "telephone": {"role": "identifier"},
+        "blurb": {"role": "attribute"},
+    }, raising=False)
+
+    assert extraction_service.is_admissible({"e-mail": "a@b.c"})[0] is True
+    assert extraction_service.is_admissible({"telephone": "123"})[0] is True
+    assert extraction_service.is_admissible({"blurb": "words"})[0] is False
+
+
+def test_is_admissible_reports_a_reason(monkeypatch):
+    monkeypatch.setattr(extraction_service.config, "require_fields", ["name"], raising=False)
+    ok, reason = extraction_service.is_admissible({})
+    assert not ok and "name" in reason
+
+
+def test_inadmissible_records_are_filtered_from_list_results(monkeypatch):
+    payload = '[{"station_url": "a", "e-mail": "x@y.z"}, {"station_url": "b"}]'
+    llm = _make_llm_returning_raw(payload)
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "require_any_role", ["identifier"], raising=False)
+    monkeypatch.setattr(extraction_service.config, "field_semantics",
+                        {"e-mail": {"role": "identifier"}}, raising=False)
+    category = make_fake_category("LIST", fields={
+        "type": "array",
+        "items": {"type": "object", "properties": {"station_url": {"type": "string"}}},
+    })
+
+    data, _links = extraction_service.extract_information("<html>x</html>", category, "http://e.com/")
+
+    assert [d["station_url"] for d in data] == ["a"]
+
+
+def test_inadmissible_single_record_yields_no_data_but_keeps_links(monkeypatch):
+    llm = _make_llm_returning_raw('{"name": "Boilerplate Org"}')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "require_any_role", ["identifier"], raising=False)
+    monkeypatch.setattr(extraction_service.config, "field_semantics",
+                        {"e-mail": {"role": "identifier"}}, raising=False)
+
+    html = '<html><a href="/x">x</a></html>'
+    data, links = extraction_service.extract_information(html, make_fake_category(), "http://e.com/")
+
+    assert data is None
+    assert links == ["http://e.com/x"]

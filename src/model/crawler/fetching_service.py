@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 from playwright.async_api import async_playwright
 import model.tools.config_service as config_service
-from model.tools import data_service
+from model.tools import data_service, url_service
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +116,20 @@ async def parse_queue(max_concurrency: int = 4):
     url_queue = []
 
 def queue_url(url:str):
-    """Add a URL to the fetch queue, skipping it if already queued or already fetched."""
+    """
+    Add a URL to the fetch queue, skipping it if already queued or fetched.
+
+    The URL is canonicalized first (url_service.canonicalize), so that
+    variants naming the same page - trailing slashes, duplicate slashes,
+    tracking parameters, directory-index filenames, fragments - collapse to a
+    single queue entry and are fetched (and extracted from) only once.
+    """
     global url_queue
-    if url not in url_queue and url not in processed_urls.keys():
-        url_queue.append(url)
+    if not url:
+        return
+    canonical = url_service.canonicalize(url, drop_params=config.drop_query_params)
+    if canonical not in url_queue and canonical not in processed_urls.keys():
+        url_queue.append(canonical)
 
 def _read_starting_urls(path=config.get_starting_url_path()):
     with open(path) as f:

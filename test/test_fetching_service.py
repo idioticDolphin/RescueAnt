@@ -454,3 +454,47 @@ def test_get_crawl_time_distinguishes_between_domains():
 
     assert fetching_service.get_crawl_time("http://example.com/a") == 10.0
     assert fetching_service.get_crawl_time("http://other.com/b") == 20.0
+
+
+# ---------------------------------------------------------------------------
+# queue_url canonicalization (P2)
+# ---------------------------------------------------------------------------
+
+def test_queue_url_canonicalizes_before_queueing():
+    fetching_service.queue_url("http://www.example.com/presse/")
+    assert fetching_service.url_queue == ["http://example.com/presse"]
+
+
+def test_queue_url_collapses_trailing_slash_duplicates():
+    fetching_service.queue_url("http://example.com/presse")
+    fetching_service.queue_url("http://example.com/presse/")
+    assert fetching_service.url_queue == ["http://example.com/presse"]
+
+
+def test_queue_url_collapses_tracking_param_duplicates():
+    fetching_service.queue_url("http://example.com/a")
+    fetching_service.queue_url("http://example.com/a?utm_source=news")
+    assert fetching_service.url_queue == ["http://example.com/a"]
+
+
+def test_queue_url_collapses_duplicate_slash_variants():
+    fetching_service.queue_url("http://example.com//greifvogelhilfe")
+    fetching_service.queue_url("http://example.com/greifvogelhilfe")
+    assert len(fetching_service.url_queue) == 1
+
+
+def test_queue_url_skips_already_processed_canonical_form():
+    fetching_service.processed_urls["http://example.com/a"] = "<html></html>"
+    fetching_service.queue_url("http://www.example.com/a/")
+    assert fetching_service.url_queue == []
+
+
+def test_queue_url_ignores_empty_url():
+    fetching_service.queue_url("")
+    assert fetching_service.url_queue == []
+
+
+def test_queue_url_keeps_distinct_pages_separate():
+    fetching_service.queue_url("http://example.com/a")
+    fetching_service.queue_url("http://example.com/b")
+    assert len(fetching_service.url_queue) == 2

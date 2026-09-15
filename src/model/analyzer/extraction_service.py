@@ -2,10 +2,75 @@ import logging
 
 from model.objects.category import Category, Relevancy
 import model.analyzer.cleaning_service as cleaning_service
+import model.tools.config_service as config_service
 import model.tools.llm_service as llm_service
 import json
 
 logger = logging.getLogger(__name__)
+config = config_service.get_config()
+
+
+def is_admissible(record):
+    """
+    Decide whether an extracted record is worth persisting.
+
+    The rule is expressed entirely over *configuration* - `require_fields`
+    names fields that must be present, `require_any_role` names field roles
+    (see Config.field_semantics) of which at least one member must be
+    populated. Nothing here knows what the fields mean, so the same gate
+    works for any crawl target.
+
+    Its purpose is to reject records that are really site boilerplate: a page
+    that merely repeats the operator's name in a header, with no identifying
+    or locating information of its own, cannot be a useful entity record.
+
+    :return: (admissible, reason) - reason is None when admissible.
+    """
+    if not isinstance(record, dict):
+        return False, "record is not an object"
+
+    for field in config.require_fields:
+        if not record.get(field):
+            return False, f"missing required field {field!r}"
+
+    for role in config.require_any_role:
+        candidates = config.fields_with_role(role)
+        if candidates and not any(record.get(name) for name in candidates):
+            return False, f"no populated field with role {role!r}"
+
+    return True, None
+
+
+def _salvage_truncated_json(raw):
+    """
+    Recover whatever is parseable from a completion that was cut off.
+
+    Generation stops at max_tokens regardless of where the JSON happens to
+    be, so a long list extraction can end mid-object. Rather than discarding
+    the whole page's work, keep every complete object that precedes the
+    truncation point.
+
+    :return: parsed JSON, or None if nothing can be recovered.
+    """
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    if not text.startswith("["):
+        return None
+    decoder = json.JSONDecoder()
+    objects, index = [], 1
+    while index < len(text):
+        while index < len(text) and text[index] in ", \n\r\t":
+            index += 1
+        if index >= len(text) or text[index] == "]":
+            break
+        try:
+            obj, end = decoder.raw_decode(text, index)
+        except ValueError:
+            break  # truncated object - stop, keep what we have
+        objects.append(obj)
+        index = end
+    return objects or None
 
 
 def extract_information(html: str, category:Category, base_url: str):
@@ -54,10 +119,25 @@ def extract_information(html: str, category:Category, base_url: str):
                 "schema": schema
             },
             temperature=0,
+            # Without an explicit cap llama-cpp generates until the context
+            # window is exhausted; a degenerate repetition then costs tens of
+            # thousands of tokens (observed: 90-120 minutes, ending in
+            # unparseable truncated JSON). analysis_max_tokens comes straight
+            # from the category's configured max_tokens[...].
+            max_tokens=category.analysis_max_tokens,
+            repeat_penalty=config.repeat_penalty,
         )
         extracted = result['choices'][0]['message']['content']
         logger.debug("Extracted from %s: %s", base_url, extracted)
-        return json.loads(extracted), links
+        try:
+            data = json.loads(extracted)
+        except ValueError:
+            data = _salvage_truncated_json(extracted)
+            if data is None:
+                raise
+            logger.warning("Extraction for %s was truncated - salvaged %d complete record(s)",
+                           base_url, len(data))
+        return _filter_admissible(data, base_url), links
     except Exception as e:
         # Note: links computed above (a cheap HTML-parse, independent of the
         # LLM call) are discarded here along with the failed extraction -
@@ -65,3 +145,32 @@ def extract_information(html: str, category:Category, base_url: str):
         # documented making for this same failure mode.
         logger.warning("Extraction failed for %s (%s) - skipping", base_url, e)
         return None
+
+
+def _filter_admissible(data, base_url):
+    """
+    Drop records that fail the admissibility gate, logging why.
+
+    Returns a filtered list for list extractions, the record itself for an
+    admissible single extraction, or None when a single extraction is
+    rejected - callers then persist nothing for that page but still keep its
+    links.
+    """
+    if isinstance(data, list):
+        kept = []
+        for record in data:
+            admissible, reason = is_admissible(record)
+            if admissible:
+                kept.append(record)
+            else:
+                logger.debug("Rejected record from %s: %s", base_url, reason)
+        if len(kept) != len(data):
+            logger.info("Rejected %d of %d record(s) from %s as inadmissible",
+                        len(data) - len(kept), len(data), base_url)
+        return kept
+
+    admissible, reason = is_admissible(data)
+    if not admissible:
+        logger.info("Rejected record from %s as inadmissible: %s", base_url, reason)
+        return None
+    return data

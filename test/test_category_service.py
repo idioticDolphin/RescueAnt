@@ -105,3 +105,110 @@ def test_categorize_website_returns_none_when_model_response_matches_no_category
         result = category_service.categorize_website("<html></html>")
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# url_prior (P7) and vote-based abstention (P9)
+# ---------------------------------------------------------------------------
+
+def _configure(monkeypatch, **overrides):
+    """Apply config overrides to the live session Config for one test."""
+    for key, value in overrides.items():
+        monkeypatch.setattr(category_service.config, key, value, raising=False)
+
+
+def test_url_prior_returns_none_when_unconfigured():
+    assert category_service.url_prior("http://example.com/datenschutz") is None
+
+
+def test_url_prior_matches_configured_exclude_token(monkeypatch):
+    _configure(monkeypatch, url_tokens_exclude=["datenschutz"], url_prior_category="HUB")
+    assert category_service.url_prior("http://example.com/datenschutz.shtml").name == "HUB"
+
+
+def test_url_prior_ignores_non_matching_url(monkeypatch):
+    _configure(monkeypatch, url_tokens_exclude=["datenschutz"], url_prior_category="HUB")
+    assert category_service.url_prior("http://example.com/kontakt") is None
+
+
+def test_url_prior_ignores_token_in_host(monkeypatch):
+    _configure(monkeypatch, url_tokens_exclude=["presse"], url_prior_category="HUB")
+    assert category_service.url_prior("http://presse.example.com/station") is None
+
+
+def test_url_prior_needs_no_llm_call(monkeypatch):
+    llm = _make_llm_returning("STATION")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+    _configure(monkeypatch, url_tokens_exclude=["spenden"], url_prior_category="HUB")
+
+    result = category_service.categorize_website("<html>x</html>",
+                                                 url="http://example.com/spenden")
+
+    assert result.name == "HUB"
+    llm.create_chat_completion.assert_not_called()
+
+
+def test_url_prior_with_unknown_category_falls_through(monkeypatch):
+    llm = _make_llm_returning("STATION")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+    _configure(monkeypatch, url_tokens_exclude=["spenden"], url_prior_category="NOPE")
+
+    result = category_service.categorize_website("<html>x</html>",
+                                                 url="http://example.com/spenden")
+
+    assert result.name == "STATION"
+
+
+def test_url_is_included_in_the_prompt(monkeypatch):
+    llm = _make_llm_returning("STATION")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+
+    category_service.categorize_website("<html>body</html>", url="http://example.com/a/b")
+
+    _, kwargs = llm.create_chat_completion.call_args
+    assert "http://example.com/a/b" in kwargs["messages"][1]["content"]
+
+
+def test_categorize_still_works_without_url(monkeypatch):
+    llm = _make_llm_returning("STATION")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+    assert category_service.categorize_website("<html></html>").name == "STATION"
+
+
+def test_voting_takes_the_majority(monkeypatch):
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": c}}]} for c in ("STATION", "HUB", "STATION")
+    ]
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+    _configure(monkeypatch, category_votes=3)
+
+    assert category_service.categorize_website("<html></html>").name == "STATION"
+    assert llm.create_chat_completion.call_count == 3
+
+
+def test_split_vote_abstains_to_url_prior_category(monkeypatch):
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": c}}]} for c in ("STATION", "LIST")
+    ]
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+    _configure(monkeypatch, category_votes=2, url_prior_category="HUB")
+
+    assert category_service.categorize_website("<html></html>").name == "HUB"
+
+
+def test_single_vote_uses_temperature_zero(monkeypatch):
+    llm = _make_llm_returning("STATION")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+    _configure(monkeypatch, category_votes=1)
+
+    category_service.categorize_website("<html></html>")
+
+    _, kwargs = llm.create_chat_completion.call_args
+    assert kwargs["temperature"] == 0
+
+
+def test_majority_helper_reports_decisiveness():
+    assert category_service._majority(["a", "a", "b"]) == ("a", True)
+    assert category_service._majority(["a", "b"])[1] is False

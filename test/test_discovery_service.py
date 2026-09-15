@@ -38,8 +38,8 @@ def test_generate_queries_empty_locations_produces_no_queries():
 # ---------------------------------------------------------------------------
 
 def test_is_valid_crawl_url_accepts_http_and_https():
-    assert discovery_service._is_valid_crawl_url("http://example.com") is True
-    assert discovery_service._is_valid_crawl_url("https://example.com") is True
+    assert discovery_service._is_valid_crawl_url("http://example.com/") is True
+    assert discovery_service._is_valid_crawl_url("https://example.com/") is True
 
 
 def test_is_valid_crawl_url_rejects_other_schemes():
@@ -69,33 +69,33 @@ class _FakeProvider:
 
 
 def test_discover_urls_filters_invalid_urls():
-    provider = _FakeProvider({"q": ["http://ok.com", "mailto:a@b.com", "not a url"]})
+    provider = _FakeProvider({"q": ["http://ok.com/", "mailto:a@b.com", "not a url"]})
 
     result = discovery_service.discover_urls(provider, ["q"], results_per_query=10, politeness=0)
 
-    assert result == ["http://ok.com"]
+    assert result == ["http://ok.com/"]
 
 
 def test_discover_urls_deduplicates_and_sorts_across_queries():
     provider = _FakeProvider({
-        "q1": ["http://b.com", "http://a.com"],
-        "q2": ["http://a.com", "http://c.com"],
+        "q1": ["http://b.com/", "http://a.com/"],
+        "q2": ["http://a.com/", "http://c.com/"],
     })
 
     result = discovery_service.discover_urls(provider, ["q1", "q2"], results_per_query=10, politeness=0)
 
-    assert result == ["http://a.com", "http://b.com", "http://c.com"]
+    assert result == ["http://a.com/", "http://b.com/", "http://c.com/"]
 
 
 def test_discover_urls_skips_failing_query_without_aborting_batch():
     provider = _FakeProvider(
-        {"good": ["http://ok.com"]},
+        {"good": ["http://ok.com/"]},
         raise_for={"bad"},
     )
 
     result = discovery_service.discover_urls(provider, ["bad", "good"], results_per_query=10, politeness=0)
 
-    assert result == ["http://ok.com"]
+    assert result == ["http://ok.com/"]
     assert provider.queries_seen == ["bad", "good"]
 
 
@@ -114,19 +114,19 @@ def test_discover_urls_sleeps_between_queries_but_not_after_last(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_queue_discovered_urls_adds_new_urls_to_fetching_queue():
-    added = discovery_service.queue_discovered_urls(["http://a.com", "http://b.com"])
+    added = discovery_service.queue_discovered_urls(["http://a.com/", "http://b.com/"])
 
     assert added == 2
-    assert fetching_service.url_queue == ["http://a.com", "http://b.com"]
+    assert fetching_service.url_queue == ["http://a.com/", "http://b.com/"]
 
 
 def test_queue_discovered_urls_does_not_count_duplicates():
-    fetching_service.processed_urls["http://already-done.com"] = "<html></html>"
+    fetching_service.processed_urls["http://already-done.com/"] = "<html></html>"
 
-    added = discovery_service.queue_discovered_urls(["http://a.com", "http://a.com", "http://already-done.com"])
+    added = discovery_service.queue_discovered_urls(["http://a.com/", "http://a.com/", "http://already-done.com/"])
 
     assert added == 1
-    assert fetching_service.url_queue == ["http://a.com"]
+    assert fetching_service.url_queue == ["http://a.com/"]
 
 
 # ---------------------------------------------------------------------------
