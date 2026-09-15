@@ -422,7 +422,7 @@ def test_process_batch_only_categorizes_successfully_fetched_sites(monkeypatch):
     orchestrator.process_batch(["http://a.com/", "http://b.com/"])
 
     assert category_service.categorize_website.call_count == 1
-    category_service.categorize_website.assert_called_with("<html>a</html>")
+    category_service.categorize_website.assert_called_with("<html>a</html>", "http://a.com/")
 
 
 def test_process_batch_saves_extraction_for_single_category(monkeypatch):
