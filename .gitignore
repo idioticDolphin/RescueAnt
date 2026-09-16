@@ -249,3 +249,9 @@ __marimo__/
 /crawl.db.bak_20260822_022747
 /out/
 /.mcp.json
+
+# page store and validation-run artefacts
+store/
+store_smoke/
+smoke.db
+smoke*.log
