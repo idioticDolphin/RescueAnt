@@ -386,3 +386,33 @@ def get_site_content_paths(site:str, limit:int=8):
             """SELECT content_path FROM crawls
                WHERE site = ? AND content_path IS NOT NULL
                ORDER BY crawl_id DESC LIMIT ?""", (site, limit)).fetchall()]
+
+
+def skip_pending_over_budget(max_pages_per_site:int):
+    """
+    Abandon unprocessed pages belonging to sites that have already exceeded
+    the per-site page budget.
+
+    A crawl that follows links indiscriminately can sink most of its budget
+    into one large site - an observed run spent 424 of 527 fetched pages on a
+    single pet-supplies retailer, for one usable record. The budget stops
+    *queueing* more such pages; this stops *analysing* the ones already
+    fetched, which is where the real cost is.
+
+    Pages are marked SKIPPED (terminal) rather than deleted, so the evidence
+    of what was crawled and abandoned is preserved.
+
+    :return: number of pages abandoned.
+    """
+    if not max_pages_per_site:
+        return 0
+    placeholders = ", ".join("?" for _ in RESUMABLE_STATES)
+    with get_connection() as connection:
+        cursor = connection.execute(
+            f"""UPDATE crawls SET state = ?, last_error = 'site over page budget'
+                WHERE state IN ({placeholders})
+                  AND site IN (SELECT site FROM crawls WHERE site IS NOT NULL
+                               GROUP BY site HAVING COUNT(*) > ?)""",
+            (STATE_SKIPPED, *RESUMABLE_STATES, max_pages_per_site))
+        connection.commit()
+        return cursor.rowcount

@@ -299,6 +299,13 @@ def resume_pending():
 
     :return: number of pages processed.
     """
+    # Sites that already blew through the page budget are not worth spending
+    # further analysis on, whatever was fetched from them earlier.
+    abandoned = data_service.skip_pending_over_budget(
+        config_service.get_config().max_pages_per_site)
+    if abandoned:
+        logger.info("Abandoned %d unprocessed page(s) from sites over the page budget", abandoned)
+
     pending = data_service.get_pending_crawls()
     if not pending:
         return 0

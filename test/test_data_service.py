@@ -415,3 +415,31 @@ def test_migration_backfills_state_for_legacy_rows(temp_db):
     with data_service.get_connection() as c:
         state = c.execute("SELECT state FROM crawls WHERE crawl_id=?", (crawl_id,)).fetchone()["state"]
     assert state == data_service.STATE_FETCH_FAILED   # retryable, not silently dropped
+
+
+def test_skip_pending_over_budget_abandons_only_oversized_sites(temp_db):
+    for i in range(5):
+        cid = data_service.save_crawl_instance(f"http://big.com/{i}", 1.0, True, site="big.com")
+    small = data_service.save_crawl_instance("http://small.com/1", 1.0, True, site="small.com")
+
+    abandoned = data_service.skip_pending_over_budget(3)
+
+    assert abandoned == 5
+    remaining = {r["source_url"] for r in data_service.get_pending_crawls()}
+    assert remaining == {"http://small.com/1"}
+
+
+def test_skip_pending_over_budget_is_a_noop_when_unset(temp_db):
+    data_service.save_crawl_instance("http://big.com/1", 1.0, True, site="big.com")
+    assert data_service.skip_pending_over_budget(0) == 0
+    assert len(data_service.get_pending_crawls()) == 1
+
+
+def test_abandoned_pages_are_terminal_not_deleted(temp_db):
+    for i in range(3):
+        data_service.save_crawl_instance(f"http://big.com/{i}", 1.0, True, site="big.com")
+    data_service.skip_pending_over_budget(1)
+
+    counts = data_service.count_by_state()
+    assert counts[data_service.STATE_SKIPPED] == 3
+    assert "http://big.com/0" in data_service.get_finished_crawl_urls()
