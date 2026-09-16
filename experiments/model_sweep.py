@@ -46,27 +46,41 @@ def catalogue():
     return by_file
 
 
-def probe_context(model, candidates=(32768, 16384, 8192, 4096)):
-    """Largest context this model can load and actually generate at.
+MIN_TOKENS_PER_SECOND = 4.0
 
-    Loading succeeds well past the point where generation becomes useless:
-    llama.cpp falls back to host memory rather than failing, and the model
-    then produces nothing in two minutes. So the probe requires a token out,
-    not just a successful load.
+
+def probe_context(model, candidates=(32768, 16384, 8192, 4096)):
+    """Largest context this model can load and generate at a usable rate.
+
+    Two thresholds matter, and only the second one is any good. Loading
+    succeeds well past the point where the model is usable, because llama.cpp
+    spills to host memory rather than failing. Requiring a token out is not
+    enough either: a CPU-offloaded model still emits one, just slowly - a 9B
+    that passed a token-only probe at 32k then took over 23 minutes on a
+    benchmark the 4B finishes in four.
+
+    So the probe measures the generation rate and rejects anything under
+    MIN_TOKENS_PER_SECOND, which is the actual signature of a model that has
+    fallen off the GPU.
     """
     for ctx in candidates:
         code = (
-            "from llama_cpp import Llama;"
+            "import time;from llama_cpp import Llama;"
             f"m=Llama(model_path=r'{model}',n_ctx={ctx},n_gpu_layers=-1,verbose=False);"
-            "r=m.create_chat_completion(messages=[{'role':'user','content':'Say hi'}],max_tokens=4);"
-            "print('OK' if r['choices'][0]['message']['content'].strip() else 'EMPTY')"
+            "t=time.monotonic();"
+            "r=m.create_chat_completion("
+            "messages=[{'role':'user','content':'Count from one to twenty.'}],max_tokens=48);"
+            "d=time.monotonic()-t;"
+            "n=len(r['choices'][0]['message']['content'].split());"
+            "print(f'RATE {n/d:.2f}' if d>0 else 'RATE 0')"
         )
         try:
             out = subprocess.run([PY, "-c", code], cwd=ROOT, capture_output=True,
-                                 text=True, timeout=180).stdout
+                                 text=True, timeout=240).stdout
         except subprocess.TimeoutExpired:
             continue
-        if "OK" in out:
+        m = re.search(r"RATE ([\d.]+)", out or "")
+        if m and float(m.group(1)) >= MIN_TOKENS_PER_SECOND:
             return ctx
     return None
 
