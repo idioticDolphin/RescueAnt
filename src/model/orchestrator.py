@@ -9,6 +9,7 @@ import asyncio
 import time
 import model.analyzer.category_service as category_service
 import model.analyzer.extraction_service as extraction_service
+import model.analyzer.entity_service as entity_service
 from model.tools import page_store, url_service
 from model.objects.website import Website
 
@@ -301,3 +302,41 @@ def resume_pending():
         processed += 1
     logger.info("Resumed %d page(s)", processed)
     return processed
+
+def resolve_entities():
+    """
+    Deduplicate the observation records in `entries` into `entities`.
+
+    Runs blocking -> scoring -> clustering -> fusion over everything extracted
+    so far, using the field roles declared in the config, and replaces the
+    entity layer with the result. `entries` itself is never modified, so this
+    can be re-run after tuning weights without re-crawling.
+
+    :return: (record_count, entity_count)
+    """
+    config = config_service.get_config()
+    data_service.init_db()
+    data_service.init_entity_tables()
+
+    records = data_service.get_entries_with_source()
+    if not records:
+        logger.info("No extracted records to resolve")
+        return 0, 0
+
+    for record in records:
+        # A record found on the entity's own site outranks one copied into a
+        # third-party directory, which is often abbreviated or stale.
+        own = url_service.registrable_domain(record.get("station_url") or "")
+        source = url_service.registrable_domain(record.get("_source_url") or "")
+        record["_trust"] = 1.0 if own and own == source else 0.5
+
+    resolver = entity_service.Resolver(field_semantics=config.field_semantics)
+    clusters = resolver.cluster(records)
+    resolved = [(resolver.fuse(cluster), [r["entry_id"] for r in cluster])
+                for cluster in clusters]
+    data_service.replace_entities(resolved)
+
+    logger.info("Resolved %d record(s) into %d entit%s (%.1f%% duplicates removed)",
+                len(records), len(clusters), "y" if len(clusters) == 1 else "ies",
+                100 * (1 - len(clusters) / len(records)))
+    return len(records), len(clusters)

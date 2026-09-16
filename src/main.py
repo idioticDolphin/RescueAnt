@@ -10,6 +10,11 @@ def _parse_args():
         help="Path to a bot.config-style file (default: bot.config at the project root)",
     )
     parser.add_argument(
+        "--resolve", action="store_true",
+        help="Deduplicate already-extracted records into entities and exit "
+             "(no crawling); safe to re-run after tuning field semantics",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Show debug-level logging (raw LLM outputs, per-field config details, ...)",
     )
@@ -34,4 +39,7 @@ if __name__ == "__main__":
         config_service.load_config(config_service._read_config(Path(args.config_path)))
 
     import model.orchestrator as orchestrator
-    orchestrator.run()
+    if args.resolve:
+        orchestrator.resolve_entities()
+    else:
+        orchestrator.run()

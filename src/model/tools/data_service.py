@@ -132,6 +132,84 @@ def _migrate(connection):
         "CREATE INDEX IF NOT EXISTS idx_crawls_site ON crawls(site)")
     connection.commit()
 
+def init_entity_tables():
+    """
+    Create the deduplicated-entity tables, mirroring the entries columns.
+
+    Kept separate from `entries` deliberately: entries stay an immutable log
+    of what was observed on which page, while `entities` holds the resolved,
+    fused view. Re-running resolution therefore never destroys evidence, and
+    conflicting values are recorded rather than silently discarded.
+    """
+    columns = ",".join(db_fields)
+    with get_connection() as connection:
+        connection.executescript("""
+        CREATE TABLE IF NOT EXISTS entities (
+            entity_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            """ + columns + (", " if columns else "") + """
+            confidence REAL,
+            n_sources INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS entity_sources (
+            entity_id INTEGER NOT NULL,
+            entry_id INTEGER NOT NULL,
+            PRIMARY KEY (entity_id, entry_id),
+            FOREIGN KEY (entity_id) REFERENCES entities(entity_id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS entity_conflicts (
+            entity_id INTEGER NOT NULL,
+            field TEXT NOT NULL,
+            value TEXT,
+            FOREIGN KEY (entity_id) REFERENCES entities(entity_id) ON DELETE CASCADE
+        );
+        """)
+        connection.commit()
+
+
+def replace_entities(resolved):
+    """
+    Replace the entity layer with a freshly resolved set.
+
+    :param resolved: iterable of (fused_record, source_entry_ids). Fused
+                      records may carry _confidence/_n_sources/_conflicts keys,
+                      which are stored in their own columns/tables.
+    """
+    known = {definition.split()[0].strip('"') for definition in db_fields}
+    with get_connection() as connection:
+        connection.execute("DELETE FROM entity_conflicts")
+        connection.execute("DELETE FROM entity_sources")
+        connection.execute("DELETE FROM entities")
+        for record, entry_ids in resolved:
+            payload = {k: v for k, v in record.items()
+                       if not k.startswith("_") and k in known}
+            names = list(payload.keys())
+            column_sql = ", ".join(_quote_identifier(n) for n in names)
+            values = tuple(_to_sql_value(payload[n]) for n in names)
+            columns = (column_sql + ", " if column_sql else "") + "confidence, n_sources"
+            placeholders = ", ".join(["?"] * (len(values) + 2))
+            cursor = connection.execute(
+                f"INSERT INTO entities({columns}) VALUES ({placeholders})",
+                values + (record.get("_confidence"), record.get("_n_sources")))
+            entity_id = cursor.lastrowid
+            connection.executemany(
+                "INSERT OR IGNORE INTO entity_sources(entity_id, entry_id) VALUES (?, ?)",
+                [(entity_id, entry_id) for entry_id in entry_ids])
+            connection.executemany(
+                "INSERT INTO entity_conflicts(entity_id, field, value) VALUES (?, ?, ?)",
+                [(entity_id, c["field"], _to_sql_value(c["value"]))
+                 for c in record.get("_conflicts", [])])
+        connection.commit()
+
+
+def get_entries_with_source():
+    """Return every entry joined to the URL and category of the page it came from."""
+    with get_connection() as connection:
+        return [dict(row) for row in connection.execute("""
+            SELECT e.*, c.source_url AS _source_url, c.category AS _category
+            FROM entries e JOIN crawls c ON e.source_crawl_id = c.crawl_id
+        """)]
+
+
 def get_db_fields():
     """Return the entries-table column definitions computed by the last init_db() call."""
     return db_fields
