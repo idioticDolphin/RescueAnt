@@ -142,12 +142,16 @@ def queue_url(url:str):
     if canonical in url_queue or canonical in processed_urls.keys():
         return
 
+    site = url_service.registrable_domain(canonical)
+    if site and site in config.domain_denylist:
+        logger.debug("Skipping %s - domain is denylisted", canonical)
+        return
+
     # Per-site budget: without one, a single large site can dominate a run -
     # the previous run took 80+ pages from one host and ended up blocked by
     # its firewall. Capping pages per site is both politer and spreads the
     # crawl over more distinct sources.
     if config.max_pages_per_site:
-        site = url_service.registrable_domain(canonical)
         if site and _site_counts.get(site, 0) >= config.max_pages_per_site:
             logger.debug("Skipping %s - per-site budget of %d reached",
                          canonical, config.max_pages_per_site)

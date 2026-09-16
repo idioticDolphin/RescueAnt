@@ -570,3 +570,24 @@ async def test_blocked_fetch_stores_nothing(monkeypatch, tmp_path):
     await fetching_service.get_content("http://example.com/blocked")
 
     assert fetching_service.fetched_content == {}
+
+
+def test_denylisted_domains_are_never_queued(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "domain_denylist",
+                        ["google.com", "facebook.com"], raising=False)
+    fetching_service.queue_url("https://www.google.com/search?q=x")
+    fetching_service.queue_url("https://m.facebook.com/somepage")
+    fetching_service.queue_url("https://real-station.de/kontakt")
+    assert fetching_service.url_queue == ["https://real-station.de/kontakt"]
+
+
+def test_denylist_matches_subdomains(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "domain_denylist", ["google.com"], raising=False)
+    fetching_service.queue_url("https://maps.google.com/x")
+    assert fetching_service.url_queue == []
+
+
+def test_empty_denylist_blocks_nothing(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "domain_denylist", [], raising=False)
+    fetching_service.queue_url("https://www.google.com/x")
+    assert len(fetching_service.url_queue) == 1

@@ -204,6 +204,7 @@ def load_config(configs:dict=None):
         boilerplate_min_pages = _opt_int(configs, "boilerplate_min_pages", 4)
         boilerplate_threshold = _opt_float(configs, "boilerplate_threshold", 0.6)
         max_batch_size = _opt_int(configs, "max_batch_size", 0)
+        domain_denylist = _csv_list(configs.get("domain_denylist", ""))
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -314,6 +315,7 @@ def load_config(configs:dict=None):
             boilerplate_min_pages = boilerplate_min_pages,
             boilerplate_threshold = boilerplate_threshold,
             max_batch_size = max_batch_size,
+            domain_denylist = domain_denylist,
         )
         logger.info(
             "Config loaded: %d categories (%d relevant), discovery=%s",
