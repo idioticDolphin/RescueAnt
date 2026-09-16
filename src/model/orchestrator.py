@@ -361,6 +361,10 @@ def resume_pending():
                 category = config_service.get_config().get_category(row["category"])
             except Exception:
                 category = None  # category set no longer matches config - redo it
+        # This page is being handled from the store; without claiming the URL
+        # here, a link to it found later in the run would queue it for a fresh
+        # fetch, producing a second crawl row and a duplicate set of records.
+        fetching_service.mark_processed(row["source_url"])
         process_page(row["crawl_id"], row["source_url"], html, category)
         processed += 1
     logger.info("Resumed %d page(s)", processed)

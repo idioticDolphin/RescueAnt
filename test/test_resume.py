@@ -194,3 +194,74 @@ def test_failed_categorization_is_recorded_not_left_pending(monkeypatch):
 
     assert data_service.get_pending_crawls() == []
     assert data_service.count_by_state()[data_service.STATE_FAILED] == 1
+
+
+# ---------------------------------------------------------------------------
+# a resumed page must not also be fetched again
+#
+# Observed live: after a restart, already-processed URLs were fetched a second
+# time and produced a second crawl row and a second set of records. Two
+# mechanisms both claimed the page - resume_pending() restored it from the
+# store, while link discovery queued the same URL for a fresh fetch, because
+# only *terminal* URLs were registered as processed.
+# ---------------------------------------------------------------------------
+
+def test_a_resumed_page_is_not_queued_for_fetching_again(monkeypatch):
+    import model.crawler.fetching_service as fetching_service
+
+    _fake_services(monkeypatch)
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    digest, path = page_store.store("<html>a</html>")
+    data_service.save_crawl_instance("https://a.example/page", 1.0, True,
+                                     content_path=path, content_sha256=digest,
+                                     site="a.example")
+
+    orchestrator.resume_pending()
+
+    # a link to the same page found later in the run must be ignored
+    fetching_service.queue_url("https://a.example/page")
+    assert fetching_service.url_queue == []
+
+
+def test_a_resumed_page_is_recognised_through_url_variants(monkeypatch):
+    """The queue canonicalises before checking, so the resumed URL has to be
+    registered in the same canonical form or the guard silently misses."""
+    import model.crawler.fetching_service as fetching_service
+
+    _fake_services(monkeypatch)
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    digest, path = page_store.store("<html>a</html>")
+    data_service.save_crawl_instance("https://a.example/page", 1.0, True,
+                                     content_path=path, content_sha256=digest,
+                                     site="a.example")
+
+    orchestrator.resume_pending()
+
+    fetching_service.queue_url("https://a.example/page#section")
+    fetching_service.queue_url("https://a.example/page?utm_source=x")
+    assert fetching_service.url_queue == []
+
+
+def test_a_page_whose_content_vanished_is_still_requeued(monkeypatch):
+    """The guard must not suppress the one case that genuinely needs a
+    refetch."""
+    import model.crawler.fetching_service as fetching_service
+
+    _fake_services(monkeypatch)
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    data_service.save_crawl_instance("https://gone.example/page", 1.0, True,
+                                     content_path="no/such/file.html.gz",
+                                     content_sha256="x", site="gone.example")
+
+    orchestrator.resume_pending()
+
+    assert "https://gone.example/page" in fetching_service.url_queue

@@ -161,6 +161,24 @@ async def _fetch_all(urls, max_concurrency):
         await asyncio.gather(*(fetch_one(url) for url in urls))
         await browser.close()
 
+def mark_processed(url:str):
+    """
+    Record a URL as already handled this run, so it is never queued again.
+
+    Used for pages resumed from the page store: their content is already on
+    disk and being processed, but link discovery elsewhere in the run would
+    otherwise queue the same URL for a fresh fetch. That produced a second
+    crawl row and a second set of records for pages that were already done.
+
+    Canonicalizes first, because queue_url() canonicalizes before checking -
+    registering a raw URL here would leave the guard silently ineffective.
+    """
+    if not url:
+        return
+    processed_urls.setdefault(
+        url_service.canonicalize(url, drop_params=config.drop_query_params), None)
+
+
 def queue_url(url:str, priority:float=0.0):
     """
     Add a URL to the fetch queue, skipping it if already queued or fetched.
