@@ -682,3 +682,62 @@ def test_process_batch_passes_url_to_categorizer(monkeypatch):
 
     args, _ = category_service.categorize_website.call_args
     assert args[1] == "http://a.com/presse"
+
+
+# ---------------------------------------------------------------------------
+# bounded rounds
+# ---------------------------------------------------------------------------
+
+def test_process_batch_caps_round_at_max_batch_size(monkeypatch):
+    config = _make_orchestrator_config(max_batch_size=2)
+    monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
+    monkeypatch.setattr(fetching_service, "parse_queue",
+                        _fake_parse_queue_returning({f"http://a.com/{i}": "<html/>" for i in range(5)}))
+    _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = _make_category("STATION")
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction = MagicMock()
+    extraction.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction)
+
+    orchestrator.process_batch([f"http://a.com/{i}" for i in range(5)])
+
+    assert category_service.categorize_website.call_count == 2
+
+
+def test_process_batch_requeues_the_remainder(monkeypatch):
+    config = _make_orchestrator_config(max_batch_size=2)
+    monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
+    monkeypatch.setattr(fetching_service, "parse_queue",
+                        _fake_parse_queue_returning({f"http://a.com/{i}": "<html/>" for i in range(5)}))
+    _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = _make_category("STATION")
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction = MagicMock()
+    extraction.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction)
+
+    orchestrator.process_batch([f"http://a.com/{i}" for i in range(5)])
+
+    assert len(fetching_service.url_queue) == 3
+
+
+def test_unlimited_batch_size_processes_everything(monkeypatch):
+    config = _make_orchestrator_config(max_batch_size=0)
+    monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
+    monkeypatch.setattr(fetching_service, "parse_queue",
+                        _fake_parse_queue_returning({f"http://a.com/{i}": "<html/>" for i in range(5)}))
+    _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = _make_category("STATION")
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction = MagicMock()
+    extraction.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction)
+
+    orchestrator.process_batch([f"http://a.com/{i}" for i in range(5)])
+
+    assert category_service.categorize_website.call_count == 5
+    assert fetching_service.url_queue == []

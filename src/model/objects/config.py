@@ -81,6 +81,9 @@ class Config(BaseModel):
     strip_site_boilerplate: bool = False
     boilerplate_min_pages: int = 4
     boilerplate_threshold: float = 0.6
+    # Maximum URLs fetched-and-processed in one round (0 = unlimited). Keeps
+    # analysis in step with fetching, which is orders of magnitude faster.
+    max_batch_size: int = 0
 
     def get_field_role(self, field_name: str) -> str | None:
         """Return the declared role of a field, or None if undeclared."""

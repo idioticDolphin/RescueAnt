@@ -177,6 +177,17 @@ def process_batch(urls:list[str]|None=None):
     if urls is not None:
         for url in urls:
             fetching_service.queue_url(url)
+
+    # Fetching is far cheaper than analysis, so an unbounded round fetches
+    # thousands of pages and then processes them one slow page at a time.
+    # They are durable either way, but the useful output (entries) lags far
+    # behind the crawling, and stopping mid-round leaves most of the work
+    # unfinished. Capping the round keeps fetching and processing in step.
+    config = config_service.get_config()
+    remainder = []
+    if config.max_batch_size and len(fetching_service.url_queue) > config.max_batch_size:
+        remainder = fetching_service.url_queue[config.max_batch_size:]
+        fetching_service.url_queue = fetching_service.url_queue[:config.max_batch_size]
     batch = fetching_service.url_queue
     round_number = monitor_service.round_start(len(batch))
     logger.info("Processing batch of %d URL(s) (round %d)", len(batch), round_number)
@@ -208,6 +219,12 @@ def process_batch(urls:list[str]|None=None):
     ### Categorization + extraction, page by page
     for crawl_id, website in fetched:
         process_page(crawl_id, website.url, website.html)
+
+    # Anything held back from this round goes to the back of the queue, behind
+    # the links this round discovered.
+    for url in remainder:
+        if url not in fetching_service.url_queue:
+            fetching_service.url_queue.append(url)
 
     monitor_service.round_end()
 
