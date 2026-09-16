@@ -606,3 +606,116 @@ def test_requeueing_keeps_the_best_priority(monkeypatch):
     fetching_service.queue_url("http://a.com/x", priority=2.0)
     assert fetching_service.url_priorities["http://a.com/x"] == 7.0
     assert len(fetching_service.url_queue) == 1
+
+
+# ---------------------------------------------------------------------------
+# parse_queue resilience
+#
+# A 3.3-hour run ended on "Connection.init: Connection closed while reading
+# from the driver" raised by async_playwright().__aenter__. The browser driver
+# is a separate process and can die at any time; when it does, the crawl must
+# lose that batch at worst, not the run.
+# ---------------------------------------------------------------------------
+
+def _fake_playwright_factory(fake_page):
+    """Build an async_playwright() stand-in that serves the given page."""
+    fake_browser = MagicMock()
+    fake_browser.new_page = _async_mock(fake_page)
+    fake_browser.close = _async_mock(None)
+    fake_chromium = MagicMock()
+    fake_chromium.launch = _async_mock(fake_browser)
+    obj = MagicMock()
+    obj.chromium = fake_chromium
+    return _FakePlaywrightContextManager(obj)
+
+
+def _working_page(html="<html>fetched</html>"):
+    page = MagicMock()
+    page.goto = _async_mock(None)
+    page.content = _async_mock(html)
+    page.close = _async_mock(None)
+    return page
+
+
+@pytest.mark.asyncio
+async def test_parse_queue_retries_after_a_driver_failure(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+
+    attempts = []
+
+    def flaky():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise Exception("Connection closed while reading from the driver")
+        return _fake_playwright_factory(_working_page())
+
+    monkeypatch.setattr(fetching_service, "async_playwright", flaky)
+    monkeypatch.setattr(fetching_service, "_RETRY_BACKOFF_SECONDS", 0)
+    fetching_service.url_queue = ["http://example.com/a"]
+
+    await fetching_service.parse_queue()
+
+    assert len(attempts) == 2
+    assert fetching_service.processed_urls["http://example.com/a"] == "<html>fetched</html>"
+    assert fetching_service.url_queue == []
+
+
+@pytest.mark.asyncio
+async def test_parse_queue_does_not_refetch_what_the_failed_attempt_got(monkeypatch):
+    """Pages fetched before the driver died are already stored; re-fetching
+    them would waste the politeness budget and hit sites twice."""
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+
+    fetched = []
+
+    async def counting_get_content(url, browser=None):
+        fetched.append(url)
+        fetching_service.processed_urls[url] = "<html>x</html>"
+
+    monkeypatch.setattr(fetching_service, "get_content", counting_get_content)
+
+    attempts = []
+
+    def flaky():
+        attempts.append(1)
+        if len(attempts) == 1:
+            # "a" was already fetched when the driver died mid-batch
+            fetching_service.processed_urls["http://example.com/a"] = "<html>x</html>"
+            raise Exception("driver died")
+        return _fake_playwright_factory(_working_page())
+
+    monkeypatch.setattr(fetching_service, "async_playwright", flaky)
+    monkeypatch.setattr(fetching_service, "_RETRY_BACKOFF_SECONDS", 0)
+    fetching_service.url_queue = ["http://example.com/a", "http://example.com/b"]
+
+    await fetching_service.parse_queue()
+
+    assert "http://example.com/a" not in fetched
+    assert "http://example.com/b" in fetched
+
+
+@pytest.mark.asyncio
+async def test_parse_queue_gives_up_without_raising(monkeypatch):
+    """After the last attempt the crawl must continue: process_batch() still
+    has to persist and process whatever was fetched, and the run must not die
+    on a transient browser fault."""
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+
+    attempts = []
+
+    def always_fails():
+        attempts.append(1)
+        raise Exception("driver died")
+
+    monkeypatch.setattr(fetching_service, "async_playwright", always_fails)
+    monkeypatch.setattr(fetching_service, "_RETRY_BACKOFF_SECONDS", 0)
+    fetching_service.url_queue = ["http://example.com/a"]
+
+    await fetching_service.parse_queue()  # must not raise
+
+    assert len(attempts) == fetching_service._FETCH_ATTEMPTS
+    # the unfetched URL is left queued so a later round can retry it
+    assert fetching_service.url_queue == ["http://example.com/a"]

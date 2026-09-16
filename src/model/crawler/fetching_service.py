@@ -107,12 +107,49 @@ async def get_content(url, browser=None):
     processed_urls[url] = html
     return html
 
+# The browser driver is a separate process that can die mid-batch, taking the
+# whole crawl with it ("Connection closed while reading from the driver" ended
+# one 3.3-hour run). Restarting it costs seconds; losing the run costs hours.
+_FETCH_ATTEMPTS = 3
+_RETRY_BACKOFF_SECONDS = 5
+
+
 async def parse_queue(max_concurrency: int = 4):
     """
     Crawl everything currently in the queue, reusing one browser instance.
     Politeness delay is enforced per-domain, so different domains can
     still be fetched concurrently while same-domain requests are spaced out.
+
+    A failing browser session is retried with a fresh one, skipping pages the
+    failed attempt already fetched. If every attempt fails the queue is left
+    intact for a later round rather than raising: the caller still has pages
+    to persist and process, and a transient browser fault must not end the run.
     """
+    global url_queue
+    for attempt in range(1, _FETCH_ATTEMPTS + 1):
+        pending = [url for url in url_queue if url not in processed_urls]
+        if not pending:
+            break
+        try:
+            await _fetch_all(pending, max_concurrency)
+            break
+        except Exception as e:
+            if attempt == _FETCH_ATTEMPTS:
+                logger.error(
+                    "Browser session failed %d time(s) (%s) - leaving %d URL(s) "
+                    "queued for a later round.", attempt, e, len(pending))
+                return
+            logger.warning(
+                "Browser session failed (%s) - restarting it, attempt %d of %d.",
+                e, attempt + 1, _FETCH_ATTEMPTS)
+            if _RETRY_BACKOFF_SECONDS:
+                await asyncio.sleep(_RETRY_BACKOFF_SECONDS)
+
+    url_queue = []
+
+
+async def _fetch_all(urls, max_concurrency):
+    """Fetch the given URLs through one browser instance."""
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         semaphore = asyncio.Semaphore(max_concurrency)
@@ -121,11 +158,8 @@ async def parse_queue(max_concurrency: int = 4):
             async with semaphore:
                 await get_content(url, browser=browser)
 
-        global url_queue
-        await asyncio.gather(*(fetch_one(url) for url in url_queue))
+        await asyncio.gather(*(fetch_one(url) for url in urls))
         await browser.close()
-
-    url_queue = []
 
 def queue_url(url:str, priority:float=0.0):
     """
