@@ -117,6 +117,12 @@ def extract_information(html: str, category:Category, base_url: str):
     llm = llm_service.get_model(category.analysis_model_id)
     schema = category.fields
     prompt = f"{category.analysis_prompt} The return schema is {schema}"
+    # A page too large for prompt + reply is refused outright by llama-cpp,
+    # losing it entirely; keep the head, which is where its own content is.
+    site_content = llm_service.fit_to_context(
+        llm, site_content,
+        llm_service.get_context(category.analysis_model_id),
+        category.analysis_max_tokens)
 
     try:
         result = llm_service.complete(

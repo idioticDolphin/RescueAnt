@@ -81,6 +81,10 @@ def categorize_website(html, url=None):
     if url:
         site_content = f"URL: {url}\n{site_content}"
     max_tokens = config.category_max_tokens
+    # An oversized page is refused outright rather than classified, so a huge
+    # page would otherwise end up uncategorised and its links never followed.
+    site_content = llm_service.fit_to_context(
+        llm, site_content, llm_service.get_context(llm_id), max_tokens)
     votes = max(1, config.category_votes)
 
     try:

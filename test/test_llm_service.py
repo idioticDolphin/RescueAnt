@@ -230,3 +230,81 @@ def test_complete_tolerates_chunks_without_content():
     clock = iter([0.0] * 10).__next__
     out = llm_service.complete(llm, messages=[], timeout_seconds=60, clock=clock)
     assert out["choices"][0]["message"]["content"] == "hi"
+
+
+# ---------------------------------------------------------------------------
+# fitting input to the context window
+#
+# "Requested tokens (35519) exceed context window of 32768" aborted extraction
+# outright: the page was lost even though its first few thousand tokens held
+# everything worth having. Input has to be trimmed to leave room for the
+# reply instead.
+# ---------------------------------------------------------------------------
+
+class _TokenizingLlama:
+    """Tokenizes on whitespace - enough to exercise the budget arithmetic."""
+
+    def __init__(self):
+        self.tokenize_calls = 0
+
+    def tokenize(self, raw, add_bos=True, special=False):
+        self.tokenize_calls += 1
+        return raw.decode("utf-8", "replace").split()
+
+
+def test_fit_to_context_leaves_short_text_alone():
+    llm = _TokenizingLlama()
+    text = "a b c"
+    assert llm_service.fit_to_context(llm, text, context=100, reserve=10) == text
+
+
+def test_fit_to_context_trims_text_that_would_overflow():
+    llm = _TokenizingLlama()
+    text = " ".join(str(i) for i in range(500))
+    out = llm_service.fit_to_context(llm, text, context=100, reserve=40)
+    assert len(out) < len(text)
+    # what survives is a prefix: the head of a page holds its own content,
+    # the tail is usually navigation and legal chrome
+    assert text.startswith(out.rstrip())
+
+
+def test_fit_to_context_keeps_the_result_within_budget():
+    llm = _TokenizingLlama()
+    text = " ".join(str(i) for i in range(500))
+    out = llm_service.fit_to_context(llm, text, context=100, reserve=40)
+    assert len(llm.tokenize(out.encode("utf-8"))) <= 60
+
+
+def test_fit_to_context_is_a_noop_without_a_context_size():
+    """Categories that configure no context must behave exactly as before."""
+    llm = _TokenizingLlama()
+    text = " ".join(str(i) for i in range(500))
+    assert llm_service.fit_to_context(llm, text, context=0, reserve=40) == text
+    assert llm.tokenize_calls == 0
+
+
+def test_fit_to_context_survives_a_model_without_a_tokenizer():
+    """Never let a trimming helper be the thing that breaks a call."""
+    text = "some text"
+    assert llm_service.fit_to_context(object(), text, context=10, reserve=5) == text
+
+
+def test_fit_to_context_handles_a_reserve_larger_than_the_context():
+    """Misconfiguration must degrade to a small prompt, not a negative slice."""
+    llm = _TokenizingLlama()
+    out = llm_service.fit_to_context(llm, "a b c d e", context=10, reserve=99)
+    assert out == "" or len(out) < len("a b c d e")
+
+
+def test_get_context_returns_the_registered_context_size(_isolate_llm_service_state):
+    """Callers need the context size to budget their prompt, and must be able
+    to ask for it without loading the model."""
+    model_id = llm_service.get_model_id("models/a.gguf", 4096)
+    assert llm_service.get_context(model_id) == 4096
+    assert len(_isolate_llm_service_state) == 0  # still not loaded
+
+
+def test_get_context_of_an_unknown_id_is_zero(_isolate_llm_service_state):
+    """Zero disables trimming, which is the safe default for a caller that
+    cannot find out the budget."""
+    assert llm_service.get_context(99) == 0

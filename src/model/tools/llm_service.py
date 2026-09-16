@@ -44,6 +44,60 @@ def get_model(id: int):
     return _initialized_models[id]
 
 
+def get_context(id: int) -> int:
+    """Return the context size a model id was registered with, without loading
+    it. Callers budget their prompt against this; 0 means "unknown", which
+    disables trimming."""
+    spec = _model_specs.get(id)
+    return spec[1] if spec else 0
+
+
+def fit_to_context(llm, text, context, reserve):
+    """
+    Trim text so the prompt plus the reserved reply still fits the context.
+
+    llama-cpp refuses the whole call when they don't ("Requested tokens
+    (35519) exceed context window of 32768"), losing the page entirely - even
+    though its first few thousand tokens usually held everything worth having.
+    Trimming keeps a prefix: a page's own content comes first, navigation and
+    legal chrome come last.
+
+    :param context: the model's context size; 0 disables trimming.
+    :param reserve: tokens to keep free for the reply.
+    """
+    if not context or not text:
+        return text
+    tokenize = getattr(llm, "tokenize", None)
+    if tokenize is None:
+        return text
+
+    # Leave a small margin for the chat template's own wrapper tokens. Scaled
+    # down for small contexts so the margin can't swallow the whole budget.
+    margin = min(_CONTEXT_MARGIN_TOKENS, context // 10)
+    budget = max(0, context - reserve - margin)
+    try:
+        tokens = tokenize(text.encode("utf-8"))
+        if len(tokens) <= budget:
+            return text
+        # Cut by character ratio rather than detokenising: it needs no
+        # detokenise API, and overshooting slightly is harmless.
+        keep = int(len(text) * budget / len(tokens))
+        trimmed = text[:keep]
+        while trimmed and len(tokenize(trimmed.encode("utf-8"))) > budget:
+            trimmed = trimmed[: int(len(trimmed) * 0.9)]
+    except Exception as e:
+        logger.warning("Could not measure prompt length (%s) - passing it through.", e)
+        return text
+
+    logger.info("Trimmed prompt from %d to %d characters to fit the context window.",
+                len(text), len(trimmed))
+    return trimmed
+
+
+# Chat templates add role markers and control tokens around the prompt.
+_CONTEXT_MARGIN_TOKENS = 256
+
+
 def complete(llm, messages, timeout_seconds=0, clock=None, **kwargs):
     """
     Run a chat completion under an optional wall-clock budget.
