@@ -786,3 +786,65 @@ def test_a_non_http_scheme_is_left_alone(monkeypatch):
     fetching_service.queue_url("ftp://a.example/file")
 
     assert fetching_service.url_queue == ["ftp://a.example/file"]
+
+
+# ---------------------------------------------------------------------------
+# multiple seed files
+#
+# Seeds arrive in themed sets - a regional directory here, a species-specific
+# network there - and keeping them in separate files lets a deployment mix and
+# match without editing anyone else's list.
+# ---------------------------------------------------------------------------
+
+def test_seeds_are_read_from_several_files(monkeypatch, tmp_path):
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    a = tmp_path / "a.csv"; a.write_text("https://a.example/\n")
+    b = tmp_path / "b.csv"; b.write_text("https://b.example/\n")
+
+    fetching_service._read_starting_urls([str(a), str(b)])
+
+    assert "https://a.example/" in fetching_service.url_queue
+    assert "https://b.example/" in fetching_service.url_queue
+
+
+def test_a_single_seed_path_still_works(monkeypatch, tmp_path):
+    """The config may name one file or several; both have to behave."""
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    a = tmp_path / "a.csv"; a.write_text("https://a.example/\n")
+
+    fetching_service._read_starting_urls(str(a))
+
+    assert fetching_service.url_queue == ["https://a.example/"]
+
+
+def test_a_missing_seed_file_does_not_stop_the_others(monkeypatch, tmp_path):
+    """A deployment that references an optional seed list it does not ship
+    should still start, with the omission logged."""
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    a = tmp_path / "a.csv"; a.write_text("https://a.example/\n")
+
+    fetching_service._read_starting_urls([str(a), str(tmp_path / "nope.csv")])
+
+    assert fetching_service.url_queue == ["https://a.example/"]
+
+
+def test_blank_lines_and_comments_in_a_seed_file_are_ignored(monkeypatch, tmp_path):
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    a = tmp_path / "a.csv"
+    a.write_text("# regional directories\nhttps://a.example/\n\n   \nhttps://b.example/\n")
+
+    fetching_service._read_starting_urls([str(a)])
+
+    assert fetching_service.url_queue == ["https://a.example/", "https://b.example/"]

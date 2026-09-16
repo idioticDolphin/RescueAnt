@@ -114,7 +114,11 @@ def load_config(configs:dict=None):
         configs = _read_config()
     categories = []
     try:
-        starting_url_path = configs["starting_url_file"]
+        # One file or several: seeds arrive in themed sets and a deployment
+        # should be able to mix them without editing anyone else's list.
+        starting_url_path = _csv_list(configs["starting_url_file"])
+        if len(starting_url_path) == 1:
+            starting_url_path = starting_url_path[0]
         database_path = configs["database"]
 
         try:

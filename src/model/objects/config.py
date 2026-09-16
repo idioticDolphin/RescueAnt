@@ -19,7 +19,7 @@ class Config(BaseModel):
     category_model_id: int
     politeness: int
     skip_tags: list[str]
-    starting_url_path: str
+    starting_url_path: str | list[str]
     database_path: str
     search_provider: SearchProvider | None = None
     search_query_path: str | None = None

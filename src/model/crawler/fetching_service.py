@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 import time
@@ -238,9 +239,32 @@ def queue_url(url:str, priority:float=0.0):
     url_priorities[canonical] = priority
 
 def _read_starting_urls(path=config.get_starting_url_path()):
-    with open(path) as f:
-        urls = f.readlines()
-    for url in urls: queue_url(url.strip(), priority=100.0)
+    """Queue the seed URLs from one file or several.
+
+    Seeds arrive in themed sets - a regional directory here, a species network
+    there - so a deployment can keep them in separate files and mix them
+    without editing anyone else's list. A file that is named but not shipped is
+    logged and skipped rather than stopping the run.
+
+    Blank lines and lines starting with '#' are ignored, so the lists can carry
+    section comments.
+    """
+    paths = [path] if isinstance(path, (str, bytes, os.PathLike)) else list(path)
+    for one in paths:
+        try:
+            with open(one, encoding="utf-8") as f:
+                lines = f.readlines()
+        except OSError as e:
+            logger.warning("Could not read seed file %s (%s) - skipping it.", one, e)
+            continue
+        queued = 0
+        for line in lines:
+            url = line.strip()
+            if not url or url.startswith("#"):
+                continue
+            queue_url(url, priority=100.0)
+            queued += 1
+        logger.info("Seeded %d URL(s) from %s", queued, one)
 
 def get_crawl_time(url:str):
     """Return the monotonic timestamp of the most recent request to url's domain, or 0.0 if none was made."""
