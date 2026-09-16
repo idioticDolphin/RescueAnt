@@ -199,6 +199,7 @@ def load_config(configs:dict=None):
             "grammar_constrained_extraction", "True") == "True"
         category_votes = max(1, _opt_int(configs, "category_votes", 1))
         page_store_path = configs.get("page_store_path", "store")
+        max_pages_per_site = _opt_int(configs, "max_pages_per_site", 0)
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -304,6 +305,7 @@ def load_config(configs:dict=None):
             grammar_constrained_extraction = grammar_constrained_extraction,
             category_votes = category_votes,
             page_store_path = page_store_path,
+            max_pages_per_site = max_pages_per_site,
         )
         logger.info(
             "Config loaded: %d categories (%d relevant), discovery=%s",

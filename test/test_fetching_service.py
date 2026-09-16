@@ -498,3 +498,39 @@ def test_queue_url_keeps_distinct_pages_separate():
     fetching_service.queue_url("http://example.com/a")
     fetching_service.queue_url("http://example.com/b")
     assert len(fetching_service.url_queue) == 2
+
+
+# ---------------------------------------------------------------------------
+# per-site budget
+# ---------------------------------------------------------------------------
+
+def test_no_site_budget_by_default():
+    for i in range(10):
+        fetching_service.queue_url(f"http://example.com/{i}")
+    assert len(fetching_service.url_queue) == 10
+
+
+def test_site_budget_caps_pages_per_registrable_domain(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "max_pages_per_site", 3, raising=False)
+    monkeypatch.setattr(fetching_service, "_site_counts", {})
+    for i in range(10):
+        fetching_service.queue_url(f"http://example.com/{i}")
+    assert len(fetching_service.url_queue) == 3
+
+
+def test_site_budget_is_per_site_not_global(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "max_pages_per_site", 2, raising=False)
+    monkeypatch.setattr(fetching_service, "_site_counts", {})
+    for i in range(5):
+        fetching_service.queue_url(f"http://a.com/{i}")
+        fetching_service.queue_url(f"http://b.com/{i}")
+    assert len(fetching_service.url_queue) == 4
+
+
+def test_site_budget_treats_subdomains_as_one_site(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "max_pages_per_site", 2, raising=False)
+    monkeypatch.setattr(fetching_service, "_site_counts", {})
+    fetching_service.queue_url("http://rlp.nabu.de/a")
+    fetching_service.queue_url("http://www.nabu.de/b")
+    fetching_service.queue_url("http://shop.nabu.de/c")
+    assert len(fetching_service.url_queue) == 2

@@ -70,6 +70,10 @@ class Config(BaseModel):
     # Directory holding fetched page bodies, so a run can be resumed and
     # pages can be re-processed without refetching.
     page_store_path: str = "store"
+    # Maximum pages to queue per registrable domain (0 = unlimited). Keeps one
+    # large site from dominating a run, and keeps request volume per host
+    # within what site operators tolerate.
+    max_pages_per_site: int = 0
 
     def get_field_role(self, field_name: str) -> str | None:
         """Return the declared role of a field, or None if undeclared."""

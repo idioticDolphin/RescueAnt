@@ -13,6 +13,7 @@ url_queue = [] # save all urls not yet crawled
 processed_urls = {}
 _robots_cache = {}
 _last_request_time:dict[str, float] = {}
+_site_counts:dict[str, int] = {}  # pages queued per registrable domain
 config = config_service.get_config()
 politeness_delay = config.get_politeness()
 
@@ -128,8 +129,23 @@ def queue_url(url:str):
     if not url:
         return
     canonical = url_service.canonicalize(url, drop_params=config.drop_query_params)
-    if canonical not in url_queue and canonical not in processed_urls.keys():
-        url_queue.append(canonical)
+    if canonical in url_queue or canonical in processed_urls.keys():
+        return
+
+    # Per-site budget: without one, a single large site can dominate a run -
+    # the previous run took 80+ pages from one host and ended up blocked by
+    # its firewall. Capping pages per site is both politer and spreads the
+    # crawl over more distinct sources.
+    if config.max_pages_per_site:
+        site = url_service.registrable_domain(canonical)
+        if site and _site_counts.get(site, 0) >= config.max_pages_per_site:
+            logger.debug("Skipping %s - per-site budget of %d reached",
+                         canonical, config.max_pages_per_site)
+            return
+        if site:
+            _site_counts[site] = _site_counts.get(site, 0) + 1
+
+    url_queue.append(canonical)
 
 def _read_starting_urls(path=config.get_starting_url_path()):
     with open(path) as f:
