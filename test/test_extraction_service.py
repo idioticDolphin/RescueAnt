@@ -309,3 +309,18 @@ def test_inadmissible_single_record_yields_no_data_but_keeps_links(monkeypatch):
 
     assert data is None
     assert links == ["http://e.com/x"]
+
+
+def test_require_any_role_is_a_union_not_an_intersection(monkeypatch):
+    """A record with a locator but no identifier still qualifies when both
+    roles are listed - listing two roles must not demand one of each."""
+    monkeypatch.setattr(extraction_service.config, "require_any_role",
+                        ["identifier", "locator"], raising=False)
+    monkeypatch.setattr(extraction_service.config, "field_semantics", {
+        "e-mail": {"role": "identifier"},
+        "address": {"role": "locator"},
+    }, raising=False)
+
+    assert extraction_service.is_admissible({"address": "Kirchstr. 1"})[0] is True
+    assert extraction_service.is_admissible({"e-mail": "a@b.c"})[0] is True
+    assert extraction_service.is_admissible({"name": "only a name"})[0] is False

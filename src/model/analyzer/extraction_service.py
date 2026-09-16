@@ -33,10 +33,16 @@ def is_admissible(record):
         if not record.get(field):
             return False, f"missing required field {field!r}"
 
-    for role in config.require_any_role:
-        candidates = config.fields_with_role(role)
+    if config.require_any_role:
+        # "any of these roles" - a record qualifies if it carries at least one
+        # populated field drawn from the union of the listed roles. Requiring
+        # one of *each* role would reject perfectly good records that happen
+        # to give, say, a phone number but no postal address.
+        candidates = [name for role in config.require_any_role
+                      for name in config.fields_with_role(role)]
         if candidates and not any(record.get(name) for name in candidates):
-            return False, f"no populated field with role {role!r}"
+            roles = ", ".join(config.require_any_role)
+            return False, f"no populated field with any of the roles: {roles}"
 
     return True, None
 
