@@ -161,6 +161,15 @@ async def _fetch_all(urls, max_concurrency):
         await asyncio.gather(*(fetch_one(url) for url in urls))
         await browser.close()
 
+def _scheme_twin(url:str):
+    """The same URL under the other web scheme, or None if it has neither."""
+    if url.startswith("https://"):
+        return "http://" + url[len("https://"):]
+    if url.startswith("http://"):
+        return "https://" + url[len("http://"):]
+    return None
+
+
 def mark_processed(url:str):
     """
     Record a URL as already handled this run, so it is never queued again.
@@ -195,11 +204,18 @@ def queue_url(url:str, priority:float=0.0):
     if not url:
         return
     canonical = url_service.canonicalize(url, drop_params=config.drop_query_params)
-    if canonical in url_queue:
-        url_priorities[canonical] = max(url_priorities.get(canonical, priority), priority)
-        return
-    if canonical in processed_urls.keys():
-        return
+    # http:// and https:// of the same address are one page. Left unmerged,
+    # a site is crawled twice and can even be classified differently each
+    # time (observed: the same homepage came back LIST over http and STATION
+    # over https). The scheme is not rewritten - sites that only serve http
+    # must stay fetchable - only this "already done?" test ignores it.
+    twin = _scheme_twin(canonical)
+    for known in (canonical, twin):
+        if known and known in url_queue:
+            url_priorities[known] = max(url_priorities.get(known, priority), priority)
+            return
+        if known and known in processed_urls:
+            return
 
     site = url_service.registrable_domain(canonical)
     if site and site in config.domain_denylist:

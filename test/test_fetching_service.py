@@ -719,3 +719,70 @@ async def test_parse_queue_gives_up_without_raising(monkeypatch):
     assert len(attempts) == fetching_service._FETCH_ATTEMPTS
     # the unfetched URL is left queued so a later round can retry it
     assert fetching_service.url_queue == ["http://example.com/a"]
+
+
+# ---------------------------------------------------------------------------
+# http/https are the same page
+#
+# Observed live: http://aktionsbuendnis-fuchs.de/ and
+# https://aktionsbuendnis-fuchs.de/ were fetched as two separate pages, and
+# the model classified one LIST and the other STATION - so the same site both
+# duplicated its record and disagreed with itself about what it was.
+#
+# The scheme is not forced, because sites that only serve http still have to
+# be fetchable; only the "have we already done this one" test ignores it.
+# ---------------------------------------------------------------------------
+
+def test_an_https_url_is_skipped_when_the_http_one_was_fetched(monkeypatch):
+    monkeypatch.setattr(fetching_service, "processed_urls", {"http://a.example/": "<html/>"})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    fetching_service.queue_url("https://a.example/")
+
+    assert fetching_service.url_queue == []
+
+
+def test_an_http_url_is_skipped_when_the_https_one_was_fetched(monkeypatch):
+    monkeypatch.setattr(fetching_service, "processed_urls", {"https://a.example/": "<html/>"})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    fetching_service.queue_url("http://a.example/")
+
+    assert fetching_service.url_queue == []
+
+
+def test_the_scheme_twin_of_a_queued_url_is_not_queued_again(monkeypatch):
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    fetching_service.queue_url("https://a.example/page", priority=1.0)
+    fetching_service.queue_url("http://a.example/page", priority=5.0)
+
+    assert len(fetching_service.url_queue) == 1
+    # and the better score still wins, as for any other repeat offer
+    assert fetching_service.url_priorities["https://a.example/page"] == 5.0
+
+
+def test_different_hosts_are_still_queued_separately(monkeypatch):
+    monkeypatch.setattr(fetching_service, "processed_urls", {"https://a.example/": "<html/>"})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    fetching_service.queue_url("https://b.example/")
+
+    assert fetching_service.url_queue == ["https://b.example/"]
+
+
+def test_a_non_http_scheme_is_left_alone(monkeypatch):
+    """The twin rule is about http/https only; it must not rewrite anything
+    else it is handed."""
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "url_queue", [])
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    fetching_service.queue_url("ftp://a.example/file")
+
+    assert fetching_service.url_queue == ["ftp://a.example/file"]
