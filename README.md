@@ -1,13 +1,37 @@
 # RescueAnt
 
-This web scraping tool is being developed as part of a bachelor thesis project.
-It aims to automatically find rescue station data for the website of Wildtanic e.V..
+RescueAnt finds animal rescue organisations on the open web and turns them
+into a structured database. It began as a bachelor thesis project (since
+submitted) and is now being developed toward a **first beta release** - see
+[CHANGELOG.md](CHANGELOG.md) for what has changed since, and for the
+accuracy bar the beta is waiting on.
 
-It crawls a list of starting URLs (and, optionally, URLs found via a
-search-engine API), categorizes each page with a local LLM, and extracts
-structured data (name, address, contact info, ...) from the pages that
-turn out to be animal rescue stations, storing everything in a local
-sqlite database.
+It crawls a list of seed URLs (and, optionally, URLs found via a search
+engine), classifies each page with a local LLM, extracts structured data
+(name, address, contact details, accepted animals, ...) from the pages worth
+mining, and resolves the resulting records into deduplicated entities in a
+local sqlite database.
+
+Three properties are worth knowing up front:
+
+- **It is interruptible.** Every fetched page is stored on disk, so a run can
+  be stopped at any moment and resumed exactly where it left off, without
+  refetching anything. Analysis can also be re-run over stored pages after a
+  prompt or schema change - see "Reprocessing" below.
+- **It is configured, not coded.** The page taxonomy, the extraction schema,
+  the field semantics that drive deduplication, and the URL/domain lexicons
+  all live in config files. Retargeting it at a different kind of entity
+  means swapping those files, not editing `src/`.
+- **It is domain- and language-neutral in its mechanics.** Matching and
+  fusion are driven by declared field *roles*, never field names; comparisons
+  use Unicode case folding and character n-grams rather than English-specific
+  tokenisation.
+
+> **Scope note.** The crawler collects contact details of organisations from
+> their own public websites. That is personal data in the GDPR sense, so
+> `experiments/data/` is gitignored and crawl databases are not committed.
+> Respect `robots.txt` (enforced), keep `politeness` sane, and check your own
+> legal basis before publishing anything it collects.
 
 ## Requirements
 
@@ -15,10 +39,28 @@ sqlite database.
 - A C/C++ toolchain (needed to build `llama-cpp-python` if no prebuilt
   wheel is available for your platform)
 - ~3 GB free disk space for the default LLM model, plus space for the
-  Playwright browser
+  Playwright browser and the page store (roughly 1 MB per 20 pages crawled,
+  gzipped)
 - A GGUF-format LLM that supports grammar-constrained / JSON-schema-constrained
   chat completions (the default `bot.config` uses
   [Qwen3.5-4B-UD-Q4_K_XL](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF))
+
+### On model size
+
+Bigger is not better here, and this was measured rather than assumed. On an
+8 GB card, against 50 hand-labelled pages over the 12-category taxonomy:
+
+| Model | On disk | Context | Accuracy | Speed |
+|---|---|---|---|---|
+| Qwen3.5-2B UD-Q4_K_XL | 1.25 GB | 32k | 42% | - |
+| **Qwen3.5-4B UD-Q4_K_XL** (default) | 2.71 GB | 32k | **92%** | 4.3 s/page |
+| Qwen3.5-9B Q4_K_M | 5.29 GB | 12k | 80% | 4.5 s/page |
+
+The 9B is worse *and* no faster: 8 GB of VRAM forces it onto a cruder
+quantisation and a smaller context, and the extra parameters do not pay for
+that. With more VRAM the trade may well go the other way - re-run
+`experiments/categorization_benchmark.py --model <gguf>` on your own hardware
+before assuming either result transfers.
 - Docker and Docker Compose, to run the self-hosted SearXNG instance used
   for search-based discovery (skip this if you set `discover_urls = False`,
   or point `bot.config` at a different search provider - see "Search
@@ -78,27 +120,59 @@ sqlite database.
    verify it's working, and how to use a different provider instead. Skip
    this step if you set `discover_urls = False` in `bot.config`.
 
-6. **Review/adjust `bot.config`**
+6. **Review/adjust the configuration**
 
-   A working example is committed at the repo root. Fields you're most
-   likely to want to change for your own setup:
+   Configuration is split across several files, pulled together by
+   `include` directives at the top of `bot.config`. Later files override
+   keys from the files they include, so a deployment can keep its own
+   overrides in one place:
+
+   ```
+   bot.config                         run settings + includes the rest
+   config/taxonomy.config             page categories, prompts, referrer weights
+   config/schema.config               extraction schema + field semantics
+   config/lexicon/multilingual.config URL tokens, domain denylist
+   ```
+
+   **Retargeting the crawler at a different kind of entity** means editing
+   `taxonomy.config` (what page types exist and how to recognise them) and
+   `schema.config` (what to extract and what each field *means*). No code
+   changes are involved.
+
+   Run settings you're most likely to change, in `bot.config`:
 
    | Field | Purpose |
    |---|---|
-   | `starting_url_file` | file with one seed URL per line to start crawling from (see `starting_urls.csv`) |
-   | `database` | path to the sqlite database file that gets created |
-   | `discover_urls` | `True`/`False` - whether to also discover new URLs via a search API once the fetch queue runs dry (see "Search engines" below) |
-   | `search_provider`, `search_base_url`, ... | search API configuration, only needed if `discover_urls = True` - see "Search engines" below |
-   | `search_query_file` | query-template file for search-based discovery (see `search_queries.csv`) |
-   | `discovery_batch_size` | how many queries `orchestrator.run_discovery()` runs each time the fetch queue empties out (queries are consumed gradually, batch by batch, not all at once) |
-   | `max_discovery_batches`, `max_rounds`, `max_runtime_seconds` | stop `orchestrator.run()` early - see "Stopping conditions" below |
+   | `starting_url_file` | one seed file, or several - `"a.csv", "b.csv"`. Blank lines and `#` comments are ignored |
+   | `database` | path to the sqlite database that gets created |
+   | `page_store_path` | where fetched page bodies are kept, for resume and reprocessing |
    | `politeness` | minimum seconds between two requests to the same domain |
-   | `categories`, `relevancy[...]`, `prompt[...]`, `fields`, ... | what page categories exist, which are worth extracting data from, and what fields to extract - see the comments in `bot.config` for the full per-category syntax |
-   | `category_model_path`, `model_path[...]` | path(s) to the GGUF model(s) used for categorization/extraction |
+   | `max_pages_per_site` | hard ceiling on pages fetched from one registrable domain |
+   | `max_extractions_per_site` | how many times one site may be mined for records before further pages are classified but not extracted (listing pages are exempt) |
+   | `max_batch_size` | pages fetched per round, so analysis keeps pace with fetching |
+   | `discovery_when_below` | reach for search discovery once the best queued link scores below this - **not** only when the queue is empty |
+   | `discover_urls`, `search_*` | search configuration - see "Search engines" below |
+   | `llm_call_timeout_seconds`, `min_generation_tokens_per_second` | backstop against stalled generation; the budget scales with each category's token allowance |
+   | `strip_site_boilerplate`, `boilerplate_*` | remove a site's recurring chrome before classifying/extracting |
+   | `category_model_path`, `model_path[...]` | GGUF model(s) for classification/extraction |
+
+   And in the included files:
+
+   | Field | File | Purpose |
+   |---|---|---|
+   | `categories`, `category_prompt` | taxonomy | the page taxonomy and how the model is asked to apply it |
+   | `relevancy[X]`, `prompt[X]`, `max_tokens[X]` | taxonomy | per-category: extract, follow links only, or ignore |
+   | `referrer_weights` | taxonomy | how much a link inherits from the category of the page offering it |
+   | `fields`, `field[name]` | schema | what to extract, and each field's role/weight/normaliser/fusion strategy |
+   | `require_fields`, `require_any_role` | schema | the admissibility gate a record must pass to be stored |
+   | `url_tokens[...]`, `domain_denylist` | lexicon | path tokens and domains to prefer or refuse |
 
 7. **Provide seed data**
 
-   - `starting_urls.csv`: one URL per line, crawled on the very first run.
+   - `starting_urls.csv` and `starting_urls_other.csv`: one URL per line.
+     Keeping seeds in themed sets (regional directories in one file,
+     species-specific networks in another) lets you add your own without
+     editing anyone else's list.
    - `search_queries.csv` (only needed if `discover_urls = True`): one
      keyword template or `location: <name>` line per line - see the
      comments at the top of the file, or
@@ -181,12 +255,14 @@ a GPU depends on which `llama-cpp-python` build is installed:
 
 ## Search engines
 
-Search-based discovery (`discover_urls = True`) is only reached once the
-fetch queue - seeded from `starting_url_file`, and kept alive by links found
-on pages already being crawled - runs completely dry (see "Running" below
-for the full picture). At that point `orchestrator.run_discovery()` runs
-`discovery_batch_size` queries from `search_query_file` and queues whatever
-URLs they turn up.
+Search-based discovery (`discover_urls = True`) fires once nothing promising
+is left in the fetch queue - when the best queued link's score falls below
+`discovery_when_below` (see "Running" below for why that is a threshold
+rather than an empty queue). At that point `orchestrator.run_discovery()`
+runs `discovery_batch_size` queries from `search_query_file` and queues
+whatever URLs they turn up, at `discovery_priority` - far above any
+link-derived score, because a search hit answers the configured query
+directly.
 
 ### SearXNG (the default - free, self-hosted, no API key)
 
@@ -290,16 +366,70 @@ and every single query would print hundreds of lines of its own internal
 logging.
 
 This runs `model.orchestrator.run()`, which initializes the database,
-seeds the fetch queue from `starting_url_file`, and then works through two
-phases:
+finishes any work left over from a previous run, seeds the fetch queue, and
+then alternates between two phases:
 
-1. **Crawl what's already known.** Repeatedly fetch/categorize/extract
-   batches from the fetch queue - which keeps growing on its own as
-   extraction finds links on the pages it visits - until it runs dry.
-2. **Discover more, gradually.** Only once that queue is empty does it pull
-   in a batch of `discovery_batch_size` search queries and queue their
-   results, then goes back to step 1. If a batch doesn't turn up anything
-   new, the next batch is tried, and so on.
+1. **Crawl what looks promising.** Repeatedly fetch/classify/extract batches
+   from the fetch queue - which keeps growing on its own as pages yield
+   links. The queue is ordered by a score each link inherits from the
+   category of the page that offered it, so a link found on a directory of
+   stations outranks one found on a privacy policy.
+2. **Discover more, gradually.** Once nothing *promising* is queued - the
+   best queued score has fallen below `discovery_when_below` - it runs
+   `discovery_batch_size` search queries and queues their results at high
+   priority, then returns to step 1.
+
+> The trigger in step 2 is a **score threshold, not an empty queue**. Waiting
+> for the queue to empty sounds equivalent and is not: once link-following
+> reaches the open web the queue never empties, so discovery would never fire
+> again and the crawler would spend the rest of its life on whatever
+> low-value links it happened to find. This cost one early run every single
+> target page it might have found.
+
+### Resuming an interrupted run
+
+Just start it again. Every page body is written to the page store the moment
+its fetch succeeds, and each page carries an explicit lifecycle state
+(`FETCHED` &rarr; `CATEGORIZED` &rarr; `EXTRACTED`), so a run that is killed
+mid-batch loses nothing:
+
+```
+Resuming 853 unprocessed page(s) from a previous run
+```
+
+Pages fetched but not yet classified are picked up from disk with no network
+traffic at all. Only a page whose stored body has gone missing is requeued
+for a refetch.
+
+### Reprocessing without recrawling
+
+Because the bodies are kept, analysis can be re-run against the exact same
+corpus after changing a prompt, a schema, a token budget or a model - which
+is what makes such comparisons controlled rather than confounded by a
+re-crawl:
+
+```bash
+python src/main.py bot.config --reprocess extract      # re-extract, keep classifications
+python src/main.py bot.config --reprocess categorize   # re-classify and re-extract
+python src/main.py bot.config --reprocess categorize --category ADVICE
+python src/main.py bot.config --reprocess extract --site example.org
+```
+
+`--category` and `--site` narrow it. That matters: a prompt change usually
+moves *one* boundary, and re-running the whole corpus can take hours to
+re-answer questions that were already right.
+
+### Deduplicating into entities
+
+```bash
+python src/main.py bot.config --resolve
+```
+
+`entries` stays an immutable log of what was observed on which page;
+`entities` holds the resolved, fused view, with conflicting values recorded
+in `entity_conflicts` rather than silently dropped. Re-running resolution
+therefore never destroys evidence, and is safe after tuning `field[...]`
+semantics in `config/schema.config`.
 
 ### Stopping conditions
 
@@ -460,23 +590,57 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb
 
 ```
 src/
-  main.py                 entry point - runs the full crawl workflow
+  main.py                 entry point - crawl, --resolve, or --reprocess
   model/
     orchestrator.py       ties the whole workflow together
-    crawler/               fetching (Playwright) and URL discovery
-    analyzer/               HTML cleaning, page categorization, data extraction
-    tools/                 config loading, sqlite persistence, LLM loading
-    objects/                shared data types (Config, Category, Website, SearchProvider)
-  view/, controller/       reserved for a future UI
-test/                      pytest suite, mirrors the src/ package layout
-bot.config                 runtime configuration (see step 6 above)
-starting_urls.csv          seed URLs for crawling
-search_queries.csv         query templates for search-based discovery
-examples/                  small config + seed files to try the whole workflow with
-docker-compose.yml         runs the self-hosted SearXNG instance (see "Search engines")
-searxng/                   SearXNG configuration (settings.yml), bind-mounted into the container
-experiments/                data-collection scripts + their CSV output (see "Experiments & notebooks")
-notebooks/                  analysis notebooks + exported figures (see "Experiments & notebooks")
-sessions/                   per-run monitoring logs (gitignored, see "Session monitoring")
-download-models.sh         downloads the default LLM model into models/
+    crawler/              fetching (Playwright), frontier, URL discovery
+    analyzer/             cleaning, boilerplate stripping, classification,
+                          extraction, entity resolution
+    tools/                config loading, sqlite persistence, page store,
+                          LLM loading, URL canonicalisation, monitoring
+    objects/              shared data types (Config, Category, SearchProvider)
+  view/, controller/      reserved for a future UI
+test/                     pytest suite, mirrors the src/ package layout
+bot.config                run settings; includes the files below
+config/
+  taxonomy.config         page categories, prompts, referrer weights
+  schema.config           extraction schema + field semantics
+  lexicon/                URL tokens and domain denylist, per language/locale
+starting_urls.csv         seed URLs
+starting_urls_other.csv   further seeds (regional directories, species networks)
+search_queries.csv        query templates for search-based discovery
+store/                    fetched page bodies, content-addressed (gitignored)
+models/                   GGUF models (gitignored)
+examples/                 small config + seed files to try the workflow with
+docker-compose.yml        runs the self-hosted SearXNG instance
+searxng/                  SearXNG configuration, bind-mounted into the container
+experiments/              measurement scripts + CSV output
+notebooks/                analysis notebooks + exported figures
+sessions/                 per-run monitoring logs (gitignored)
+download-models.sh        downloads the default LLM model into models/
 ```
+
+## Evaluating a change
+
+`experiments/categorization_benchmark.py` replays hand-labelled pages from
+the page store through the classifier and scores them - offline, with no
+network and no re-crawl, so a prompt or model change is measured against the
+exact pages that motivated it:
+
+```bash
+python experiments/categorization_benchmark.py
+python experiments/categorization_benchmark.py --model models/other.gguf --context 12288
+```
+
+Two things about it are worth copying if you build your own evaluation:
+
+- **The labels record what the crawler actually produced**, so a regression in
+  the other direction is visible, not just an improvement in the one being
+  chased.
+- **Cases are split by site, never by page.** Pages from one site share
+  boilerplate and layout, so a page-level split flatters badly - the same URL
+  features looked far more predictive under one than they turned out to be.
+
+`experiments/evaluate_dedup.py <db>` scores entity resolution on a database,
+and `experiments/compare_runs.py <db> <db>` puts two runs side by side on
+durability, deduplication and output quality.
