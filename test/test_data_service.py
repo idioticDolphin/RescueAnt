@@ -573,3 +573,44 @@ def test_resetting_leaves_pages_without_stored_content_alone(monkeypatch):
         row = c.execute("SELECT state FROM crawls WHERE crawl_id = ?",
                         (failed,)).fetchone()
     assert row["state"] == data_service.STATE_FETCH_FAILED
+
+
+def test_reprocess_can_be_limited_to_one_category(monkeypatch):
+    """After a prompt change that moves one boundary, only the pages sitting
+    on the wrong side of it need re-classifying. Re-running the whole corpus
+    costs hours and re-answers questions that were already right."""
+    _init_with_fields(monkeypatch, "name")
+    advice = data_service.save_crawl_instance(
+        "https://a.example/1", 0.0, True, content_path="a/1.gz",
+        content_sha256="x", site="a.example")
+    station = data_service.save_crawl_instance(
+        "https://b.example/1", 0.0, True, content_path="b/1.gz",
+        content_sha256="y", site="b.example")
+    for crawl_id, name in ((advice, "ADVICE"), (station, "STATION")):
+        data_service.save_site_category(crawl_id, name)
+        data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+
+    reset = data_service.reset_states_for_reprocess(
+        data_service.STATE_FETCHED, category="ADVICE")
+
+    assert reset == 1
+    with data_service.get_connection() as c:
+        rows = {r["crawl_id"]: dict(r) for r in
+                c.execute("SELECT crawl_id, state, category FROM crawls")}
+    assert rows[advice]["category"] is None
+    assert rows[advice]["state"] == data_service.STATE_FETCHED
+    # the category that was not named is untouched
+    assert rows[station]["category"] == "STATION"
+    assert rows[station]["state"] == data_service.STATE_EXTRACTED
+
+
+def test_reprocess_without_a_category_filter_still_takes_everything(monkeypatch):
+    _init_with_fields(monkeypatch, "name")
+    for i, name in enumerate(("ADVICE", "STATION")):
+        crawl_id = data_service.save_crawl_instance(
+            f"https://x{i}.example/", 0.0, True, content_path=f"x{i}.gz",
+            content_sha256=str(i), site=f"x{i}.example")
+        data_service.save_site_category(crawl_id, name)
+        data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+
+    assert data_service.reset_states_for_reprocess(data_service.STATE_FETCHED) == 2

@@ -439,7 +439,7 @@ def resolve_entities():
     return len(records), len(clusters)
 
 
-def reprocess(stage="extract", where_site=None):
+def reprocess(stage="extract", where_site=None, where_category=None):
     """
     Re-run analysis over already-stored pages, without any network traffic.
 
@@ -451,13 +451,17 @@ def reprocess(stage="extract", where_site=None):
     :param stage: "extract" re-runs extraction only (keeping categories);
                    "categorize" re-runs classification as well.
     :param where_site: limit to one registrable domain.
+    :param where_category: limit to pages currently in this category - the
+                            surgical form, for when a prompt change moves one
+                            boundary and the rest of the corpus is still right.
     :return: number of pages queued for reprocessing.
     """
     data_service.init_db()
     page_store.configure(config_service.get_config().page_store_path)
     target = (data_service.STATE_CATEGORIZED if stage == "extract"
               else data_service.STATE_FETCHED)
-    reset = data_service.reset_states_for_reprocess(target, site=where_site)
+    reset = data_service.reset_states_for_reprocess(
+        target, site=where_site, category=where_category)
     logger.info("Reset %d page(s) to %s for reprocessing", reset, target)
     processed = resume_pending()
     logger.info("Reprocessed %d page(s) with no refetching", processed)

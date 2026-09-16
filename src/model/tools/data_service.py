@@ -351,13 +351,18 @@ def get_crawl_urls():
             "SELECT source_url FROM crawls"
         ).fetchall()]
 
-def reset_states_for_reprocess(target_state:str, site:str=None):
+def reset_states_for_reprocess(target_state:str, site:str=None, category:str=None):
     """
     Move already-processed pages back to an earlier lifecycle state so they
     are picked up again by resume_pending().
 
     Only pages whose stored content is still referenced are eligible - there
     is nothing to reprocess without a body. Returns the number of rows reset.
+
+    :param category: limit to pages currently in this category. After a prompt
+                      change that moves one boundary, only the pages on the
+                      wrong side of it need re-classifying; re-running the whole
+                      corpus costs hours and re-answers questions already right.
     """
     clauses = ["state = ?", "content_path IS NOT NULL"]
     params = [STATE_EXTRACTED]
@@ -379,6 +384,9 @@ def reset_states_for_reprocess(target_state:str, site:str=None):
     if site:
         clauses.append("site = ?")
         params.append(site)
+    if category:
+        clauses.append("category = ?")
+        params.append(category)
     with get_connection() as connection:
         cursor = connection.execute(
             f"UPDATE crawls SET {assignment} WHERE {' AND '.join(clauses)}",
