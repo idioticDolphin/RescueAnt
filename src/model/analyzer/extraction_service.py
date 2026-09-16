@@ -198,6 +198,10 @@ def scrub_implausible(record):
         normalizer = semantics.get("normalize")
         if not normalizer:
             continue
+        # Tidy before judging: a value whose only fault is our own heading
+        # marker is a good value, and should not be thrown away for it.
+        value = entity_service.tidy(value, normalizer)
+        cleaned[name] = value
         if not entity_service.is_plausible(value, normalizer):
             cleaned[name] = ""
             dropped.append(name)

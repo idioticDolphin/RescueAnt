@@ -120,3 +120,40 @@ def test_clean_deduplication_defaults_to_false():
     html = "<p>Home</p><p>Home</p>"
     result = cleaning_service.clean(html)
     assert result.splitlines().count("Home") == 2
+
+
+# ---------------------------------------------------------------------------
+# tel: links duplicate their own text
+#
+# Observed in live output: phone fields containing
+#   '## 0176-55376864 (tel:+4917655376864)'
+# The number is correct but arrives wrapped in this module's own markup - the
+# heading marker and the inlined href. A tel: href never carries information
+# the link text lacks, so inlining it only gives the model noise to copy.
+# ---------------------------------------------------------------------------
+
+def test_a_tel_link_keeps_its_text_without_the_href():
+    html = '<p>Notruf: <a href="tel:+4917655376864">0176-55376864</a></p>'
+    out = cleaning_service.clean(html)
+    assert "0176-55376864" in out
+    assert "tel:" not in out
+
+
+def test_a_mailto_link_keeps_its_href():
+    """Addresses are routinely obfuscated in the visible text, so here the
+    href is the more reliable of the two."""
+    html = '<p><a href="mailto:info@example.org">write to us</a></p>'
+    out = cleaning_service.clean(html)
+    assert "info@example.org" in out
+
+
+def test_an_ordinary_link_still_carries_its_href():
+    html = '<p><a href="https://example.org/x">more</a></p>'
+    out = cleaning_service.clean(html)
+    assert "https://example.org/x" in out
+
+
+def test_a_tel_link_with_no_text_still_yields_the_number():
+    html = '<p><a href="tel:+4917655376864"></a></p>'
+    out = cleaning_service.clean(html)
+    assert "+4917655376864" in out

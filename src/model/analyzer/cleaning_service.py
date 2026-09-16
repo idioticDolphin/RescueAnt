@@ -45,6 +45,14 @@ def clean(html, deduplicate=False):
         link_text = a.get_text(strip=True)
         if not href or href.startswith("#"):
             continue
+        # A tel: href only restates its own link text, so inlining it hands
+        # the model a second copy to fold into the field it extracts
+        # (observed: '0176-55376864 (tel:+4917655376864)' stored as a phone
+        # number). mailto: is kept, because visible text is routinely
+        # obfuscated while the href is not.
+        if href.lower().startswith("tel:") and link_text:
+            a.replace_with(link_text)
+            continue
         a.replace_with(f"{link_text} ({href})" if link_text else f"({href})")
 
     # Mark list items explicitly

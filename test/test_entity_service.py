@@ -305,3 +305,40 @@ def test_url_plausibility():
     assert entity_service.is_plausible("https://example.org", "url") is True
     assert entity_service.is_plausible("example.org/path", "url") is True
     assert entity_service.is_plausible("not a url at all", "url") is False
+
+
+# ---------------------------------------------------------------------------
+# tidying typed values
+#
+# The cleaner marks headings with '#' so the model can see page structure.
+# When a phone number *is* a heading, that marker came back inside the field:
+# '## 0172/3553314'. The value is right; only our own markup is in the way.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("raw,expected", [
+    ("## 0172/3553314", "0172/3553314"),
+    ("# 06131 477638", "06131 477638"),
+    ("- 0170 911 543 50", "0170 911 543 50"),
+    ("  06004-2749  ", "06004-2749"),
+])
+def test_typed_values_lose_leading_markup(raw, expected):
+    assert entity_service.tidy(raw, "phone") == expected
+
+
+def test_tidying_leaves_an_untyped_value_untouched():
+    """Free text may legitimately begin with a dash or a hash."""
+    assert entity_service.tidy("# Opening hours", None) == "# Opening hours"
+    assert entity_service.tidy("- Mon to Fri", "casefold") == "- Mon to Fri"
+
+
+def test_tidying_an_email_strips_surrounding_markup():
+    assert entity_service.tidy("## info@example.org", "email") == "info@example.org"
+
+
+def test_tidying_handles_empty_and_none():
+    assert entity_service.tidy("", "phone") == ""
+    assert entity_service.tidy(None, "phone") is None
+
+
+def test_a_value_that_is_only_markup_becomes_empty():
+    assert entity_service.tidy("##", "phone") == ""

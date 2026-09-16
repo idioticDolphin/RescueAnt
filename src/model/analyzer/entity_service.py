@@ -50,6 +50,30 @@ _URL_SHAPE = re.compile(r"^(\w+://)?[^\s/]+\.[^\s/]{2,}(/|$)")
 _MIN_PHONE_DIGITS = 6
 
 
+# Markers this project's own cleaner adds so the model can see page structure
+# (headings, list items). They are ours, not the page's, so removing them from
+# a typed value is tidying rather than editing the source data.
+_OUR_MARKUP = re.compile(r"^[\s#\-*>]+")
+
+
+def tidy(value, normalizer):
+    """
+    Strip this project's own structural markup from a typed value.
+
+    When a phone number is itself a heading, the cleaner's '## ' marker comes
+    back inside the extracted field ('## 0172/3553314'). The value is correct;
+    only our markup is in the way, so it is removed rather than the value
+    being thrown away.
+
+    Only fields that declare a shape are tidied. Free text may legitimately
+    begin with a dash or a hash, and rewriting it would be editing content.
+    """
+    if value is None or not normalizer or normalizer == "casefold":
+        return value
+    text = str(value)
+    return _OUR_MARKUP.sub("", text).strip()
+
+
 def is_plausible(value, normalizer):
     """
     Is this value capable of being what its field claims to be?
