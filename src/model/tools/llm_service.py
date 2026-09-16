@@ -1,4 +1,5 @@
 import logging
+import time
 
 from llama_cpp import Llama
 
@@ -41,6 +42,70 @@ def get_model(id: int):
         model_path, context = _model_specs[id]
         _initialized_models[id] = _load(model_path, context)
     return _initialized_models[id]
+
+
+def complete(llm, messages, timeout_seconds=0, clock=None, **kwargs):
+    """
+    Run a chat completion under an optional wall-clock budget.
+
+    max_tokens caps how much a call generates but not how long that takes: on
+    a contended GPU a capped call can still run for tens of minutes. One
+    observed extraction spent 1852 seconds on a single large page and returned
+    nothing usable, while the rest of the crawl waited.
+
+    With no budget (timeout_seconds <= 0) this is the plain blocking call.
+    With a budget it streams instead, so generation can actually be abandoned
+    mid-flight - stopping the model rather than merely ignoring its answer -
+    and returns whatever was produced so far. The return value has the same
+    shape as the blocking call, plus a "truncated" flag.
+    """
+    if timeout_seconds and timeout_seconds > 0:
+        return _complete_streaming(llm, messages, timeout_seconds,
+                                   clock or time.monotonic, **kwargs)
+    result = llm.create_chat_completion(messages=messages, **kwargs)
+    if isinstance(result, dict):
+        result.setdefault("truncated", False)
+    return result
+
+
+def _complete_streaming(llm, messages, timeout_seconds, clock, **kwargs):
+    started = clock()
+    parts = []
+    truncated = False
+    stream = llm.create_chat_completion(messages=messages, stream=True, **kwargs)
+    try:
+        for chunk in stream:
+            piece = _chunk_text(chunk)
+            if piece:
+                parts.append(piece)
+            if clock() - started > timeout_seconds:
+                truncated = True
+                break
+    finally:
+        # Abandoning the generator without closing it leaves the model
+        # generating into a buffer nobody reads.
+        close = getattr(stream, "close", None)
+        if close is not None:
+            close()
+
+    if truncated:
+        logger.warning(
+            "Abandoned generation after %.0fs budget (kept %d characters).",
+            timeout_seconds, sum(len(p) for p in parts),
+        )
+    return {
+        "choices": [{"message": {"content": "".join(parts)}}],
+        "truncated": truncated,
+    }
+
+
+def _chunk_text(chunk):
+    """Pull the text out of a streaming delta, tolerating role-only and
+    finish-reason chunks that carry no content."""
+    try:
+        return chunk["choices"][0].get("delta", {}).get("content") or ""
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return ""
 
 
 def init_model(model_path, context):

@@ -120,3 +120,113 @@ def test_distinct_specs_get_distinct_ids(_isolate_llm_service_state):
     b = svc.get_model_id("models/b.gguf", 2048)
     same = svc.get_model_id("models/a.gguf", 2048)
     assert a != b and a == same
+
+
+# ---------------------------------------------------------------------------
+# call deadlines
+#
+# A single extraction call was observed running for 30 minutes on a large,
+# irrelevant page (dogorama.app/de-de/ernaehrungsberater: 1852s) and returning
+# nothing usable. max_tokens caps the token count but not wall-clock time, and
+# on a loaded GPU a capped call can still take tens of minutes. complete()
+# enforces an actual time budget by streaming and abandoning generation once
+# the deadline passes.
+# ---------------------------------------------------------------------------
+
+class _FakeLlama:
+    """Records how it was called and replays a scripted stream."""
+
+    def __init__(self, chunks=(), blocking_result=None):
+        self._chunks = list(chunks)
+        self._blocking_result = blocking_result or {
+            "choices": [{"message": {"content": "blocking"}}]
+        }
+        self.calls = []
+        self.stream_closed = False
+
+    def create_chat_completion(self, **kwargs):
+        self.calls.append(kwargs)
+        if not kwargs.get("stream"):
+            return self._blocking_result
+        return self._make_stream()
+
+    def _make_stream(self):
+        outer = self
+
+        def gen():
+            try:
+                for chunk in outer._chunks:
+                    yield {"choices": [{"delta": {"content": chunk}}]}
+            finally:
+                outer.stream_closed = True
+
+        return gen()
+
+
+def test_complete_without_a_timeout_uses_the_blocking_call():
+    """Zero/absent budget must keep the previous behaviour exactly - streaming
+    has overhead and the blocking path is well understood."""
+    llm = _FakeLlama()
+    out = llm_service.complete(llm, messages=[{"role": "user", "content": "x"}],
+                               timeout_seconds=0, temperature=0)
+    assert out["choices"][0]["message"]["content"] == "blocking"
+    assert llm.calls[0].get("stream") is not True
+    # caller kwargs are passed straight through
+    assert llm.calls[0]["temperature"] == 0
+
+
+def test_complete_with_a_timeout_streams_and_returns_the_blocking_shape():
+    """Callers index result['choices'][0]['message']['content']; the streaming
+    path must produce that same shape so call sites stay unchanged."""
+    llm = _FakeLlama(chunks=["Hel", "lo", " world"])
+    clock = iter([0.0, 0.1, 0.2, 0.3, 0.4]).__next__
+    out = llm_service.complete(llm, messages=[], timeout_seconds=30, clock=clock)
+    assert out["choices"][0]["message"]["content"] == "Hello world"
+    assert out["truncated"] is False
+    assert llm.calls[0]["stream"] is True
+
+
+def test_complete_abandons_generation_once_the_deadline_passes():
+    llm = _FakeLlama(chunks=[f"tok{i}" for i in range(100)])
+    # start at 0, then jump past a 10s budget on the third token
+    clock = iter([0.0, 1.0, 2.0] + [999.0] * 200).__next__
+    out = llm_service.complete(llm, messages=[], timeout_seconds=10, clock=clock)
+    text = out["choices"][0]["message"]["content"]
+    assert out["truncated"] is True
+    # it kept what it had rather than throwing the partial answer away
+    assert text.startswith("tok0")
+    # and it stopped early instead of draining all 100 chunks
+    assert len(text) < len("".join(f"tok{i}" for i in range(100)))
+
+
+def test_complete_closes_the_stream_when_it_gives_up():
+    """An abandoned generator would otherwise keep the model busy; the GPU is
+    the crawl's scarcest resource."""
+    llm = _FakeLlama(chunks=[f"tok{i}" for i in range(100)])
+    clock = iter([0.0] + [999.0] * 200).__next__
+    llm_service.complete(llm, messages=[], timeout_seconds=5, clock=clock)
+    assert llm.stream_closed is True
+
+
+def test_complete_that_finishes_in_time_is_not_marked_truncated():
+    llm = _FakeLlama(chunks=["a", "b"])
+    clock = iter([0.0, 0.1, 0.2, 0.3]).__next__
+    out = llm_service.complete(llm, messages=[], timeout_seconds=60, clock=clock)
+    assert out["truncated"] is False
+    assert out["choices"][0]["message"]["content"] == "ab"
+
+
+def test_complete_tolerates_chunks_without_content():
+    """llama-cpp emits role-only and finish-reason deltas with no 'content'."""
+    llm = _FakeLlama()
+    llm._chunks = []
+
+    def gen():
+        yield {"choices": [{"delta": {"role": "assistant"}}]}
+        yield {"choices": [{"delta": {"content": "hi"}}]}
+        yield {"choices": [{"delta": {}, "finish_reason": "stop"}]}
+
+    llm.create_chat_completion = lambda **kw: gen() if kw.get("stream") else None
+    clock = iter([0.0] * 10).__next__
+    out = llm_service.complete(llm, messages=[], timeout_seconds=60, clock=clock)
+    assert out["choices"][0]["message"]["content"] == "hi"

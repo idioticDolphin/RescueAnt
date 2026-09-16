@@ -119,11 +119,16 @@ def extract_information(html: str, category:Category, base_url: str):
     prompt = f"{category.analysis_prompt} The return schema is {schema}"
 
     try:
-        result = llm.create_chat_completion(
+        result = llm_service.complete(
+            llm,
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Website content:\n{site_content}"}
             ],
+            # A token cap alone does not bound wall-clock time; without this a
+            # single page held the whole crawl for 30 minutes and yielded
+            # nothing. Partial output is still salvaged below.
+            timeout_seconds=config.llm_call_timeout_seconds,
             response_format={
                 "type": "json_object",
                 "schema": schema

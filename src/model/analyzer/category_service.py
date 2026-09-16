@@ -86,11 +86,13 @@ def categorize_website(html, url=None):
     try:
         results = []
         for vote in range(votes):
-            result = llm.create_chat_completion(
+            result = llm_service.complete(
+                llm,
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": f"Website content:\n{site_content}"}
                 ],
+                timeout_seconds=config.llm_call_timeout_seconds,
                 grammar=grammar,
                 # A single vote is deterministic; only sample when voting.
                 temperature=0 if votes == 1 else 0.7,
