@@ -15,6 +15,7 @@ _robots_cache = {}
 _last_request_time:dict[str, float] = {}
 _site_counts:dict[str, int] = {}  # pages queued per registrable domain
 fetched_content:dict[str, tuple] = {}  # url -> (sha256, page_store path)
+url_priorities:dict[str, float] = {}   # url -> frontier score (higher first)
 config = config_service.get_config()
 politeness_delay = config.get_politeness()
 
@@ -126,7 +127,7 @@ async def parse_queue(max_concurrency: int = 4):
 
     url_queue = []
 
-def queue_url(url:str):
+def queue_url(url:str, priority:float=0.0):
     """
     Add a URL to the fetch queue, skipping it if already queued or fetched.
 
@@ -134,12 +135,18 @@ def queue_url(url:str):
     variants naming the same page - trailing slashes, duplicate slashes,
     tracking parameters, directory-index filenames, fragments - collapse to a
     single queue entry and are fetched (and extracted from) only once.
+
+    :param priority: frontier score; higher is crawled sooner. A URL already
+                      queued keeps the best score it has been offered.
     """
     global url_queue
     if not url:
         return
     canonical = url_service.canonicalize(url, drop_params=config.drop_query_params)
-    if canonical in url_queue or canonical in processed_urls.keys():
+    if canonical in url_queue:
+        url_priorities[canonical] = max(url_priorities.get(canonical, priority), priority)
+        return
+    if canonical in processed_urls.keys():
         return
 
     site = url_service.registrable_domain(canonical)
@@ -160,11 +167,12 @@ def queue_url(url:str):
             _site_counts[site] = _site_counts.get(site, 0) + 1
 
     url_queue.append(canonical)
+    url_priorities[canonical] = priority
 
 def _read_starting_urls(path=config.get_starting_url_path()):
     with open(path) as f:
         urls = f.readlines()
-    for url in urls: queue_url(url.strip())
+    for url in urls: queue_url(url.strip(), priority=100.0)
 
 def get_crawl_time(url:str):
     """Return the monotonic timestamp of the most recent request to url's domain, or 0.0 if none was made."""

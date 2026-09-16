@@ -184,6 +184,10 @@ def process_batch(urls:list[str]|None=None):
     # behind the crawling, and stopping mid-round leaves most of the work
     # unfinished. Capping the round keeps fetching and processing in step.
     config = config_service.get_config()
+    # Best-first: take the most promising URLs when the round is capped,
+    # rather than whatever happened to be discovered earliest.
+    fetching_service.url_queue.sort(
+        key=lambda u: fetching_service.url_priorities.get(u, 0.0), reverse=True)
     remainder = []
     if config.max_batch_size and len(fetching_service.url_queue) > config.max_batch_size:
         remainder = fetching_service.url_queue[config.max_batch_size:]
@@ -279,8 +283,15 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
         else:
             data_service.save_extraction(crawl_id, extracted_data)
             logger.info("Extracted %d field(s) from %s", len(extracted_data), url)
+        # Links inherit a score from the page that offered them: pages found
+        # via a productive page are likelier to be productive themselves.
+        weight = config_service.get_config().referrer_weights.get(category.name, 0.0)
+        cfg = config_service.get_config()
         for link in links:
-            fetching_service.queue_url(link)
+            fetching_service.queue_url(link, priority=url_service.score_url(
+                link, referrer_category_weight=weight,
+                identity_tokens=cfg.url_tokens_identity,
+                exclude_tokens=cfg.url_tokens_exclude))
     else:
         logger.debug("No data extracted from %s (category=%s)", url, category.name)
 

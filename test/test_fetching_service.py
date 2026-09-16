@@ -591,3 +591,18 @@ def test_empty_denylist_blocks_nothing(monkeypatch):
     monkeypatch.setattr(fetching_service.config, "domain_denylist", [], raising=False)
     fetching_service.queue_url("https://www.google.com/x")
     assert len(fetching_service.url_queue) == 1
+
+
+def test_queue_url_records_priority(monkeypatch):
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+    fetching_service.queue_url("http://a.com/x", priority=3.5)
+    assert fetching_service.url_priorities["http://a.com/x"] == 3.5
+
+
+def test_requeueing_keeps_the_best_priority(monkeypatch):
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+    fetching_service.queue_url("http://a.com/x", priority=1.0)
+    fetching_service.queue_url("http://a.com/x", priority=7.0)
+    fetching_service.queue_url("http://a.com/x", priority=2.0)
+    assert fetching_service.url_priorities["http://a.com/x"] == 7.0
+    assert len(fetching_service.url_queue) == 1

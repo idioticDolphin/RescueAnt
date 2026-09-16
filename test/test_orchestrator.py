@@ -741,3 +741,27 @@ def test_unlimited_batch_size_processes_everything(monkeypatch):
 
     assert category_service.categorize_website.call_count == 5
     assert fetching_service.url_queue == []
+
+
+def test_process_batch_prefers_high_priority_urls_when_capped(monkeypatch):
+    """Frontier ordering: with a capped round, the most promising URLs go
+    first rather than whatever was discovered earliest."""
+    config = _make_orchestrator_config(max_batch_size=1)
+    monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
+    monkeypatch.setattr(fetching_service, "url_priorities",
+                        {"http://a.com/dull": 0.0, "http://a.com/promising": 9.0})
+    fetching_service.url_queue = ["http://a.com/dull", "http://a.com/promising"]
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning(
+        {"http://a.com/dull": "<html/>", "http://a.com/promising": "<html/>"}))
+    data_service = _patch_data_service(monkeypatch)
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = _make_category("STATION")
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction = MagicMock()
+    extraction.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction)
+
+    orchestrator.process_batch()
+
+    crawled = [c.args[0] for c in data_service.save_crawl_instance.call_args_list]
+    assert crawled == ["http://a.com/promising"]

@@ -88,6 +88,10 @@ class Config(BaseModel):
     # networks, consent/CDN infrastructure). Deployment-specific, so it lives
     # in configuration rather than in code.
     domain_denylist: list[str] = []
+    # Frontier weight contributed by the category of the page a link was found
+    # on: links from productive pages are crawled first. Category names are
+    # user-defined, so this mapping is configuration.
+    referrer_weights: dict[str, float] = {}
 
     def get_field_role(self, field_name: str) -> str | None:
         """Return the declared role of a field, or None if undeclared."""

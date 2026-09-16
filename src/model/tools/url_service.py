@@ -159,3 +159,32 @@ def same_site(a: str, b: str) -> bool:
     """True if two URLs share a registrable domain (and it is non-empty)."""
     da = registrable_domain(a)
     return bool(da) and da == registrable_domain(b)
+
+
+def score_url(url, referrer_category_weight=0.0, identity_tokens=(), exclude_tokens=()):
+    """
+    Score how promising a URL looks, for ordering the crawl frontier.
+
+    A breadth-first crawl of a link graph diffuses into the general web: an
+    observed run, once its seed listings were exhausted, spent its budget on
+    consent-framework and government sites reached through privacy-policy
+    links. Ordering the frontier keeps a bounded run on the pages most likely
+    to be worth analysing.
+
+    Signals, all cheap and domain-neutral:
+      - how productive the page that linked here was (caller supplies the
+        weight, so the meaning of each category stays configuration)
+      - whether the path contains configured identity tokens (contact, about)
+        or excluded ones (privacy, shop, press)
+      - depth, as a mild tie-breaker toward shallower pages
+
+    :return: a float; higher is crawled sooner.
+    """
+    tokens = path_tokens(url)
+    score = referrer_category_weight
+    if identity_tokens:
+        score += 2.0 * len(tokens & set(identity_tokens))
+    if exclude_tokens:
+        score -= 1.5 * len(tokens & set(exclude_tokens))
+    score -= 0.25 * url_depth(url)
+    return score

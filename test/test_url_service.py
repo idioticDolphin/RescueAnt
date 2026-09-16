@@ -128,3 +128,39 @@ def test_url_depth_root_is_zero():
 
 def test_url_depth_counts_segments():
     assert url_service.url_depth("http://example.com/a/b/c") == 3
+
+
+# ---------------------------------------------------------------------------
+# score_url (frontier ordering)
+# ---------------------------------------------------------------------------
+
+def test_identity_tokens_raise_the_score():
+    plain = url_service.score_url("http://e.com/x", identity_tokens=["kontakt"])
+    contact = url_service.score_url("http://e.com/kontakt", identity_tokens=["kontakt"])
+    assert contact > plain
+
+
+def test_exclude_tokens_lower_the_score():
+    plain = url_service.score_url("http://e.com/x", exclude_tokens=["datenschutz"])
+    junk = url_service.score_url("http://e.com/datenschutz", exclude_tokens=["datenschutz"])
+    assert junk < plain
+
+
+def test_referrer_weight_is_carried_through():
+    low = url_service.score_url("http://e.com/x", referrer_category_weight=0.0)
+    high = url_service.score_url("http://e.com/x", referrer_category_weight=5.0)
+    assert high - low == 5.0
+
+
+def test_deeper_urls_score_slightly_lower():
+    shallow = url_service.score_url("http://e.com/a")
+    deep = url_service.score_url("http://e.com/a/b/c/d")
+    assert deep < shallow
+
+
+def test_productive_referrer_outranks_junk_path_on_shallow_page():
+    from_list = url_service.score_url("http://e.com/station", referrer_category_weight=4.0,
+                                      exclude_tokens=["presse"])
+    junk = url_service.score_url("http://e.com/presse", referrer_category_weight=4.0,
+                                 exclude_tokens=["presse"])
+    assert from_list > junk
