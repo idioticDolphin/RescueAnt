@@ -375,6 +375,22 @@ def reset_states_for_reprocess(target_state:str, site:str=None):
         return cursor.rowcount
 
 
+def count_extracted_pages_for_site(site:str) -> int:
+    """How many pages of this site have already yielded at least one record.
+
+    Backs the per-site extraction budget. Counted from the database rather
+    than from memory so the budget survives a restart, and counting only
+    pages that actually produced something means a page that yielded nothing
+    has not spent any of it."""
+    if not site:
+        return 0
+    with get_connection() as connection:
+        return connection.execute(
+            """SELECT COUNT(DISTINCT c.crawl_id) FROM crawls c
+               JOIN entries e ON e.source_crawl_id = c.crawl_id
+               WHERE c.site = ?""", (site,)).fetchone()[0]
+
+
 def get_all_content_paths():
     """Return (source_url, content_path) for every page whose body was stored.
 

@@ -6,6 +6,8 @@ import pytest
 
 import model.orchestrator as orchestrator
 import model.crawler.fetching_service as fetching_service
+import model.tools.config_service as config_service
+from conftest import make_fake_category
 from model.objects.category import Category, Relevancy
 
 
@@ -48,6 +50,7 @@ def _make_links_only_category(name="HUB"):
 def _patch_data_service(monkeypatch):
     data_service = MagicMock()
     data_service.save_crawl_instance.side_effect = range(1, 1000)
+    data_service.count_extracted_pages_for_site.return_value = 0
     monkeypatch.setattr(orchestrator, "data_service", data_service)
     return data_service
 
@@ -70,6 +73,7 @@ def _make_orchestrator_config(**overrides):
     config.max_rounds = 0
     config.max_runtime_seconds = 0
     config.max_batch_size = 0
+    config.max_extractions_per_site = 0
     config.discovery_priority = 50.0
     config.discovery_when_below = None
     config.referrer_weights = {}
@@ -825,3 +829,121 @@ def test_promising_frontier_does_not_trigger_discovery(monkeypatch):
     orchestrator.run()
 
     assert not discovery_calls
+
+
+# ---------------------------------------------------------------------------
+# per-site extraction budget
+#
+# Observed at depth: tina-uvb.de produced 20 records from 20 pages, all one
+# entity; musella-stiftung.li 20 from 20; natur-zuerst.de 21 from 21. The
+# classifier is inconsistent about which subpages introduce the organisation
+# (/geldspenden came back STATION while /sachspenden came back HUB), so the
+# prompt alone cannot stop this. A site that has already yielded its details
+# a few times has nothing left to give, and 33% of all extraction calls in
+# one run went to pages past that point.
+#
+# Listing pages are exempt: each yields *different* entities, so capping them
+# would discard real data rather than redundancy.
+# ---------------------------------------------------------------------------
+
+def _config_with_extraction_budget(monkeypatch, budget):
+    cfg = config_service.get_config().model_copy(
+        update={"max_extractions_per_site": budget})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+    return cfg
+
+
+def test_extraction_is_skipped_once_a_site_has_given_enough(monkeypatch):
+    _config_with_extraction_budget(monkeypatch, 3)
+    category = make_fake_category("STATION")
+
+    extraction_service = MagicMock()
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+    monkeypatch.setattr(orchestrator, "category_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
+    data_service = MagicMock()
+    data_service.count_extracted_pages_for_site.return_value = 3
+    monkeypatch.setattr(orchestrator, "data_service", data_service)
+    monkeypatch.setattr(orchestrator, "url_service", MagicMock())
+
+    orchestrator.process_page(1, "https://a.example/page20", "<html/>", category)
+
+    extraction_service.extract_information.assert_not_called()
+
+
+def test_a_site_under_budget_is_still_extracted(monkeypatch):
+    _config_with_extraction_budget(monkeypatch, 3)
+    category = make_fake_category("STATION")
+
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = ({"name": "A"}, [])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+    monkeypatch.setattr(orchestrator, "category_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
+    data_service = MagicMock()
+    data_service.count_extracted_pages_for_site.return_value = 2
+    monkeypatch.setattr(orchestrator, "data_service", data_service)
+    monkeypatch.setattr(orchestrator, "url_service", MagicMock())
+
+    orchestrator.process_page(1, "https://a.example/page3", "<html/>", category)
+
+    extraction_service.extract_information.assert_called_once()
+
+
+def test_a_listing_page_is_never_capped(monkeypatch):
+    """Each listing page yields different entities; capping them would throw
+    away real data."""
+    _config_with_extraction_budget(monkeypatch, 3)
+    category = make_fake_category("LIST").model_copy(update={"is_list_category": True})
+
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = ([{"name": "A"}], [])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+    monkeypatch.setattr(orchestrator, "category_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
+    data_service = MagicMock()
+    data_service.count_extracted_pages_for_site.return_value = 99
+    monkeypatch.setattr(orchestrator, "data_service", data_service)
+    monkeypatch.setattr(orchestrator, "url_service", MagicMock())
+
+    orchestrator.process_page(1, "https://a.example/list", "<html/>", category)
+
+    extraction_service.extract_information.assert_called_once()
+
+
+def test_no_budget_configured_means_no_cap(monkeypatch):
+    _config_with_extraction_budget(monkeypatch, 0)
+    category = make_fake_category("STATION")
+
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = ({"name": "A"}, [])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+    monkeypatch.setattr(orchestrator, "category_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
+    data_service = MagicMock()
+    data_service.count_extracted_pages_for_site.return_value = 500
+    monkeypatch.setattr(orchestrator, "data_service", data_service)
+    monkeypatch.setattr(orchestrator, "url_service", MagicMock())
+
+    orchestrator.process_page(1, "https://a.example/page", "<html/>", category)
+
+    extraction_service.extract_information.assert_called_once()
+
+
+def test_a_capped_page_still_reaches_a_terminal_state(monkeypatch):
+    """Otherwise it stays pending forever and every restart retries it."""
+    _config_with_extraction_budget(monkeypatch, 1)
+    category = make_fake_category("STATION")
+
+    monkeypatch.setattr(orchestrator, "extraction_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "category_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
+    data_service = MagicMock()
+    data_service.count_extracted_pages_for_site.return_value = 5
+    data_service.STATE_EXTRACTED = "EXTRACTED"
+    monkeypatch.setattr(orchestrator, "data_service", data_service)
+    monkeypatch.setattr(orchestrator, "url_service", MagicMock())
+
+    orchestrator.process_page(1, "https://a.example/page", "<html/>", category)
+
+    data_service.set_crawl_state.assert_any_call(1, "EXTRACTED")

@@ -464,3 +464,34 @@ def test_get_all_content_paths_returns_url_and_path_pairs(monkeypatch):
     assert ("https://b.example/two", "cc/dd/two.html.gz") in pairs
     assert all(p for _, p in pairs)
     assert len(pairs) == 2
+
+
+def test_count_extracted_records_for_site_counts_pages_that_yielded_records(monkeypatch):
+    """The per-site extraction budget needs to know how many times a site has
+    already been mined, and that has to survive a restart - so it is counted
+    from the database, not from memory."""
+    _init_with_fields(monkeypatch, "name")
+    a1 = data_service.save_crawl_instance("https://a.example/1", 0.0, True, site="a.example")
+    a2 = data_service.save_crawl_instance("https://a.example/2", 0.0, True, site="a.example")
+    b1 = data_service.save_crawl_instance("https://b.example/1", 0.0, True, site="b.example")
+    data_service.save_extraction(a1, {"name": "A"})
+    data_service.save_extraction(a2, {"name": "A"})
+    data_service.save_extraction(b1, {"name": "B"})
+
+    assert data_service.count_extracted_pages_for_site("a.example") == 2
+    assert data_service.count_extracted_pages_for_site("b.example") == 1
+    assert data_service.count_extracted_pages_for_site("c.example") == 0
+
+
+def test_count_extracted_pages_ignores_pages_that_yielded_nothing(monkeypatch):
+    """A page that produced no record has not used up any of the budget."""
+    _init_with_fields(monkeypatch, "name")
+    data_service.save_crawl_instance("https://a.example/empty", 0.0, True, site="a.example")
+
+    assert data_service.count_extracted_pages_for_site("a.example") == 0
+
+
+def test_count_extracted_pages_for_a_missing_site_is_zero(monkeypatch):
+    _init_with_fields(monkeypatch, "name")
+    assert data_service.count_extracted_pages_for_site(None) == 0
+    assert data_service.count_extracted_pages_for_site("") == 0

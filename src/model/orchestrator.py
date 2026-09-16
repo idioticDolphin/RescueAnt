@@ -10,6 +10,7 @@ import time
 import model.analyzer.category_service as category_service
 import model.analyzer.extraction_service as extraction_service
 import model.analyzer.entity_service as entity_service
+import model.analyzer.cleaning_service as cleaning_service
 from model.tools import page_store, url_service
 from model.objects.website import Website
 
@@ -285,6 +286,30 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
         data_service.set_crawl_state(crawl_id, data_service.STATE_CATEGORIZED)
         logger.info("Categorized %s as %s", url, category.name)
 
+    # A site that has already given up its details a few times has nothing
+    # left to give. The classifier cannot be relied on to notice this: it is
+    # inconsistent about which subpages introduce an organisation (observed on
+    # one site, /geldspenden came back STATION while /sachspenden came back
+    # HUB), and sites were producing twenty records that resolved to one
+    # entity. Listing pages are exempt - each yields *different* entities, so
+    # capping them would discard real data rather than redundancy.
+    cfg = config_service.get_config()
+    if cfg.max_extractions_per_site and not category.is_list_category:
+        site = url_service.registrable_domain(url)
+        already = data_service.count_extracted_pages_for_site(site)
+        if already >= cfg.max_extractions_per_site:
+            # The page's own links are still followed - a shelter's subpages
+            # routinely link to other shelters, and parsing them costs an
+            # HTML parse rather than an LLM call.
+            links = cleaning_service.extract_links(html, url) if category.process_links else []
+            logger.debug("Not extracting from %s - %s already yielded %d page(s) "
+                         "of records; following %d link(s)",
+                         url, site, already, len(links))
+            _queue_links(links, category, cfg)
+            monitor_service.page(url, category.name, categorize_seconds, 0.0)
+            data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+            return
+
     extract_start = time.monotonic()
     extracted = extraction_service.extract_information(html, category, url)
     monitor_service.page(url, category.name, categorize_seconds, time.monotonic() - extract_start)
@@ -307,19 +332,24 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
         else:
             data_service.save_extraction(crawl_id, extracted_data)
             logger.info("Extracted %d field(s) from %s", len(extracted_data), url)
-        # Links inherit a score from the page that offered them: pages found
-        # via a productive page are likelier to be productive themselves.
-        weight = config_service.get_config().referrer_weights.get(category.name, 0.0)
-        cfg = config_service.get_config()
-        for link in links:
-            fetching_service.queue_url(link, priority=url_service.score_url(
-                link, referrer_category_weight=weight,
-                identity_tokens=cfg.url_tokens_identity,
-                exclude_tokens=cfg.url_tokens_exclude))
+        _queue_links(links, category, config_service.get_config())
     else:
         logger.debug("No data extracted from %s (category=%s)", url, category.name)
 
     data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+
+
+def _queue_links(links, category, cfg):
+    """Queue a page's outbound links, scored by the page that offered them.
+
+    Links inherit a score from their referrer: pages found via a productive
+    page are likelier to be productive themselves."""
+    weight = cfg.referrer_weights.get(category.name, 0.0)
+    for link in links:
+        fetching_service.queue_url(link, priority=url_service.score_url(
+            link, referrer_category_weight=weight,
+            identity_tokens=cfg.url_tokens_identity,
+            exclude_tokens=cfg.url_tokens_exclude))
 
 
 def resume_pending():
