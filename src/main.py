@@ -15,6 +15,13 @@ def _parse_args():
              "(no crawling); safe to re-run after tuning field semantics",
     )
     parser.add_argument(
+        "--reprocess", choices=("extract", "categorize"), default=None,
+        help="Re-run analysis over already-stored pages without refetching",
+    )
+    parser.add_argument(
+        "--site", default=None, help="Limit --reprocess to one registrable domain",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Show debug-level logging (raw LLM outputs, per-field config details, ...)",
     )
@@ -41,5 +48,7 @@ if __name__ == "__main__":
     import model.orchestrator as orchestrator
     if args.resolve:
         orchestrator.resolve_entities()
+    elif args.reprocess:
+        orchestrator.reprocess(stage=args.reprocess, where_site=args.site)
     else:
         orchestrator.run()

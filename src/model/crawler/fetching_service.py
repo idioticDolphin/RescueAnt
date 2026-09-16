@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 from playwright.async_api import async_playwright
 import model.tools.config_service as config_service
-from model.tools import data_service, url_service
+from model.tools import data_service, page_store, url_service
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,7 @@ processed_urls = {}
 _robots_cache = {}
 _last_request_time:dict[str, float] = {}
 _site_counts:dict[str, int] = {}  # pages queued per registrable domain
+fetched_content:dict[str, tuple] = {}  # url -> (sha256, page_store path)
 config = config_service.get_config()
 politeness_delay = config.get_politeness()
 
@@ -92,6 +93,15 @@ async def get_content(url, browser=None):
         if own_browser:
             await browser.close()
             await playwright.stop()
+
+    # Persist immediately, not after the whole batch: a batch can be thousands
+    # of pages, and anything fetched but not yet written to disk is lost if the
+    # process stops. Storing here makes every completed fetch durable the
+    # moment it happens.
+    if html:
+        digest, path = page_store.store(html)
+        if path:
+            fetched_content[url] = (digest, path)
 
     processed_urls[url] = html
     return html

@@ -350,3 +350,26 @@ def get_crawl_urls():
         return [row["source_url"] for row in connection.execute(
             "SELECT source_url FROM crawls"
         ).fetchall()]
+
+def reset_states_for_reprocess(target_state:str, site:str=None):
+    """
+    Move already-processed pages back to an earlier lifecycle state so they
+    are picked up again by resume_pending().
+
+    Only pages whose stored content is still referenced are eligible - there
+    is nothing to reprocess without a body. Returns the number of rows reset.
+    """
+    clauses = ["state = ?", "content_path IS NOT NULL"]
+    params = [STATE_EXTRACTED]
+    if target_state == STATE_FETCHED:
+        clauses[0] = "state IN (?, ?)"
+        params = [STATE_EXTRACTED, STATE_CATEGORIZED]
+    if site:
+        clauses.append("site = ?")
+        params.append(site)
+    with get_connection() as connection:
+        cursor = connection.execute(
+            f"UPDATE crawls SET state = ? WHERE {' AND '.join(clauses)}",
+            [target_state] + params)
+        connection.commit()
+        return cursor.rowcount

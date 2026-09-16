@@ -1,3 +1,4 @@
+import itertools
 import time
 from unittest.mock import MagicMock
 
@@ -362,9 +363,16 @@ def test_run_stops_after_max_runtime_seconds(monkeypatch):
     fetching_service.url_queue = ["http://never-ending.com/"]
     process_batch_calls = []
 
+    # Drive a fake clock rather than sleeping: Windows' timer granularity is
+    # ~15.6ms, so a real sleep(0.06) can return in under the 0.05s budget and
+    # make this test flaky.
+    # first read is the run's start_time, the next is the post-batch limit
+    # check - one simulated second later, well past the 0.05s budget.
+    clock = itertools.count(0.0, 1.0)
+    monkeypatch.setattr(orchestrator.time, "monotonic", lambda: next(clock))
+
     def fake_process_batch():
         process_batch_calls.append(True)
-        time.sleep(0.06)
 
     monkeypatch.setattr(orchestrator, "process_batch", fake_process_batch)
 

@@ -190,7 +190,11 @@ def process_batch(urls:list[str]|None=None):
         # at content that isn't on disk. The row's state stays non-terminal
         # until the page is actually processed, so an interruption here leaves
         # resumable work rather than a page marked done that never was.
-        digest, content_path = page_store.store(html)
+        # Already persisted at fetch time (fetching_service.get_content); reuse
+        # that path rather than storing the same bytes twice.
+        digest, content_path = fetching_service.fetched_content.get(url, (None, None))
+        if fetch_success and content_path is None:
+            digest, content_path = page_store.store(html)
         crawl_id = data_service.save_crawl_instance(
             url, crawl_time, fetch_success,
             content_path=content_path, content_sha256=digest,
@@ -340,3 +344,28 @@ def resolve_entities():
                 len(records), len(clusters), "y" if len(clusters) == 1 else "ies",
                 100 * (1 - len(clusters) / len(records)))
     return len(records), len(clusters)
+
+
+def reprocess(stage="extract", where_site=None):
+    """
+    Re-run analysis over already-stored pages, without any network traffic.
+
+    Because every fetched body is kept in the page store, categorization and
+    extraction can be redone after changing a prompt, a model, a token budget
+    or the schema - on exactly the same corpus, which is what makes such
+    comparisons controlled rather than confounded by a re-crawl.
+
+    :param stage: "extract" re-runs extraction only (keeping categories);
+                   "categorize" re-runs classification as well.
+    :param where_site: limit to one registrable domain.
+    :return: number of pages queued for reprocessing.
+    """
+    data_service.init_db()
+    page_store.configure(config_service.get_config().page_store_path)
+    target = (data_service.STATE_CATEGORIZED if stage == "extract"
+              else data_service.STATE_FETCHED)
+    reset = data_service.reset_states_for_reprocess(target, site=where_site)
+    logger.info("Reset %d page(s) to %s for reprocessing", reset, target)
+    processed = resume_pending()
+    logger.info("Reprocessed %d page(s) with no refetching", processed)
+    return processed

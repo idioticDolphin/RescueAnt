@@ -534,3 +534,39 @@ def test_site_budget_treats_subdomains_as_one_site(monkeypatch):
     fetching_service.queue_url("http://www.nabu.de/b")
     fetching_service.queue_url("http://shop.nabu.de/c")
     assert len(fetching_service.url_queue) == 2
+
+
+@pytest.mark.asyncio
+async def test_successful_fetch_is_persisted_immediately(monkeypatch, tmp_path):
+    """A batch can be thousands of pages; anything fetched but not yet written
+    to disk is lost if the process stops mid-batch."""
+    monkeypatch.setattr(fetching_service.page_store, "STORE_ROOT", tmp_path / "store")
+    monkeypatch.setattr(fetching_service, "fetched_content", {})
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+
+    async def no_wait(url):
+        return None
+    monkeypatch.setattr(fetching_service, "_wait_politely", no_wait)
+
+    fake_page = MagicMock()
+    fake_page.goto = _async_mock(None)
+    fake_page.content = _async_mock("<html>persisted</html>")
+    fake_page.close = _async_mock(None)
+    fake_browser = MagicMock()
+    fake_browser.new_page = _async_mock(fake_page)
+
+    await fetching_service.get_content("http://example.com/p", browser=fake_browser)
+
+    _digest, path = fetching_service.fetched_content["http://example.com/p"]
+    assert fetching_service.page_store.load(path) == "<html>persisted</html>"
+
+
+@pytest.mark.asyncio
+async def test_blocked_fetch_stores_nothing(monkeypatch, tmp_path):
+    monkeypatch.setattr(fetching_service.page_store, "STORE_ROOT", tmp_path / "store")
+    monkeypatch.setattr(fetching_service, "fetched_content", {})
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": False)
+
+    await fetching_service.get_content("http://example.com/blocked")
+
+    assert fetching_service.fetched_content == {}
