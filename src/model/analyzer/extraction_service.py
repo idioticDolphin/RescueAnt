@@ -123,7 +123,7 @@ def extract_information(html: str, category:Category, base_url: str):
     site_content = llm_service.fit_to_context(
         llm, site_content,
         llm_service.get_context(category.analysis_model_id),
-        category.analysis_max_tokens)
+        category.analysis_max_tokens, overhead=prompt)
 
     try:
         result = llm_service.complete(

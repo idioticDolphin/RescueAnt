@@ -74,7 +74,7 @@ def get_context(id: int) -> int:
     return spec[1] if spec else 0
 
 
-def fit_to_context(llm, text, context, reserve):
+def fit_to_context(llm, text, context, reserve, overhead=None):
     """
     Trim text so the prompt plus the reserved reply still fits the context.
 
@@ -86,6 +86,10 @@ def fit_to_context(llm, text, context, reserve):
 
     :param context: the model's context size; 0 disables trimming.
     :param reserve: tokens to keep free for the reply.
+    :param overhead: other prompt text that shares the same window - the
+                      system message carrying the category definitions runs to
+                      several hundred tokens, and budgeting only the page let
+                      the total overflow anyway.
     """
     if not context or not text:
         return text
@@ -98,6 +102,8 @@ def fit_to_context(llm, text, context, reserve):
     margin = min(_CONTEXT_MARGIN_TOKENS, context // 10)
     budget = max(0, context - reserve - margin)
     try:
+        if overhead:
+            budget = max(0, budget - len(tokenize(str(overhead).encode("utf-8"))))
         tokens = tokenize(text.encode("utf-8"))
         if len(tokens) <= budget:
             return text

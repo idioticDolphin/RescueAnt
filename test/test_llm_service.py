@@ -347,3 +347,33 @@ def test_budget_without_a_token_cap_falls_back_to_the_floor():
 
 def test_budget_tolerates_a_nonsensical_throughput():
     assert llm_service.budget_seconds(8000, floor=120, tokens_per_second=0) == 120
+
+
+def test_fit_to_context_also_reserves_room_for_the_instructions():
+    """The page text is not the whole prompt: the system message carries the
+    category definitions, some 700 tokens of them. Budgeting only the page
+    let the total overflow anyway - "Requested tokens (12447) exceed context
+    window of 12288" - and the page was lost exactly as before.
+    """
+    llm = _TokenizingLlama()
+    page = " ".join(str(i) for i in range(500))
+    instructions = " ".join("word" for _ in range(300))
+
+    out = llm_service.fit_to_context(llm, page, context=1000, reserve=40,
+                                     overhead=instructions)
+
+    total = len(llm.tokenize((out + instructions).encode("utf-8")))
+    assert total <= 1000 - 40
+
+
+def test_fit_to_context_without_overhead_is_unchanged():
+    llm = _TokenizingLlama()
+    assert llm_service.fit_to_context(llm, "a b c", context=100, reserve=10) == "a b c"
+
+
+def test_overhead_larger_than_the_context_does_not_produce_a_negative_budget():
+    llm = _TokenizingLlama()
+    huge = " ".join("word" for _ in range(500))
+    out = llm_service.fit_to_context(llm, "a b c", context=100, reserve=10,
+                                     overhead=huge)
+    assert out == ""

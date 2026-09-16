@@ -84,7 +84,8 @@ def categorize_website(html, url=None):
     # An oversized page is refused outright rather than classified, so a huge
     # page would otherwise end up uncategorised and its links never followed.
     site_content = llm_service.fit_to_context(
-        llm, site_content, llm_service.get_context(llm_id), max_tokens)
+        llm, site_content, llm_service.get_context(llm_id), max_tokens,
+        overhead=prompt)
     votes = max(1, config.category_votes)
 
     try:

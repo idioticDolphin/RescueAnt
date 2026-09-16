@@ -151,6 +151,10 @@ def main():
     for url, path in stored:
         seen[url] = path
     stored = list(seen.items())
+    # Point back at the primary database: boilerplate learning reads through
+    # data_service, and leaving it on an old-schema database silently disabled
+    # template stripping for the whole benchmark.
+    data_service.DATABASE_PATH = Path(args.db[0])
     cases = CASES[: args.limit] if args.limit else CASES
 
     rows, confusion, elapsed = [], Counter(), []
