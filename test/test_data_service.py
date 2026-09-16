@@ -495,3 +495,46 @@ def test_count_extracted_pages_for_a_missing_site_is_zero(monkeypatch):
     _init_with_fields(monkeypatch, "name")
     assert data_service.count_extracted_pages_for_site(None) == 0
     assert data_service.count_extracted_pages_for_site("") == 0
+
+
+def test_resetting_to_fetched_also_clears_the_stored_category(monkeypatch):
+    """`--reprocess categorize` has to actually re-categorize.
+
+    resume_pending() reuses a stored category whenever that category still
+    exists in the config, so resetting only the lifecycle state left the old
+    answer in place: 818 pages were reset and none was re-categorized, because
+    every old category name survived into the new taxonomy.
+    """
+    _init_with_fields(monkeypatch, "name")
+    crawl_id = data_service.save_crawl_instance(
+        "https://a.example/1", 0.0, True, content_path="a/b/c.gz",
+        content_sha256="x", site="a.example")
+    data_service.save_site_category(crawl_id, "STATION")
+    data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+
+    data_service.reset_states_for_reprocess(data_service.STATE_FETCHED)
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT state, category FROM crawls WHERE crawl_id = ?",
+                        (crawl_id,)).fetchone()
+    assert row["state"] == data_service.STATE_FETCHED
+    assert row["category"] is None
+
+
+def test_resetting_to_categorized_keeps_the_category(monkeypatch):
+    """Re-extracting must not throw away a classification that is still good -
+    that is the whole point of the cheaper stage."""
+    _init_with_fields(monkeypatch, "name")
+    crawl_id = data_service.save_crawl_instance(
+        "https://a.example/1", 0.0, True, content_path="a/b/c.gz",
+        content_sha256="x", site="a.example")
+    data_service.save_site_category(crawl_id, "STATION")
+    data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+
+    data_service.reset_states_for_reprocess(data_service.STATE_CATEGORIZED)
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT state, category FROM crawls WHERE crawl_id = ?",
+                        (crawl_id,)).fetchone()
+    assert row["state"] == data_service.STATE_CATEGORIZED
+    assert row["category"] == "STATION"

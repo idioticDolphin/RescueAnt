@@ -361,15 +361,22 @@ def reset_states_for_reprocess(target_state:str, site:str=None):
     """
     clauses = ["state = ?", "content_path IS NOT NULL"]
     params = [STATE_EXTRACTED]
+    # Going back to FETCHED means "classify this again", so the stored answer
+    # has to go with it. resume_pending() reuses a stored category whenever
+    # that category still exists in the config, so resetting only the state
+    # left the old answer in place - 818 pages reset, none re-categorized,
+    # because every old category name survived into the new taxonomy.
+    assignment = "state = ?"
     if target_state == STATE_FETCHED:
         clauses[0] = "state IN (?, ?)"
         params = [STATE_EXTRACTED, STATE_CATEGORIZED]
+        assignment = "state = ?, category = NULL"
     if site:
         clauses.append("site = ?")
         params.append(site)
     with get_connection() as connection:
         cursor = connection.execute(
-            f"UPDATE crawls SET state = ? WHERE {' AND '.join(clauses)}",
+            f"UPDATE crawls SET {assignment} WHERE {' AND '.join(clauses)}",
             [target_state] + params)
         connection.commit()
         return cursor.rowcount
