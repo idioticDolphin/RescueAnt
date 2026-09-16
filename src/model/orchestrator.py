@@ -128,12 +128,36 @@ def run():
             return True
         return False
 
-    while True:
+    def _frontier_is_unproductive():
+        """True when nothing queued looks worth crawling.
+
+        Discovery used to fire only on a literally empty queue. Once
+        link-following reaches the open web the queue never empties, so
+        discovery never ran again and the crawl churned low-value pages
+        indefinitely. Exhaustion has to mean "no promising work left".
+        """
         if not fetching_service.url_queue:
+            return True
+        threshold = config.discovery_when_below
+        if not isinstance(threshold, (int, float)):
+            return False
+        best = max((fetching_service.url_priorities.get(u, 0.0)
+                    for u in fetching_service.url_queue), default=0.0)
+        return best < threshold
+
+    while True:
+        if _frontier_is_unproductive():
             discovery_budget_left = not config.max_discovery_batches or discovery_batches_used < config.max_discovery_batches
             if not discovery_queries or not discovery_budget_left:
                 if discovery_queries and not discovery_budget_left:
                     stop_reason = f"reached max_discovery_batches ({config.max_discovery_batches})"
+                if fetching_service.url_queue:
+                    # No discovery left, but there is still (low-value) work.
+                    process_batch()
+                    rounds += 1
+                    if _time_or_round_limit_reached():
+                        break
+                    continue
                 break  # nothing left to crawl, and no (more) discovery queries allowed
             run_discovery()
             discovery_batches_used += 1

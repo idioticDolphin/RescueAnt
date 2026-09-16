@@ -106,7 +106,10 @@ def queue_discovered_urls(urls: Iterable[str]) -> int:
     added = 0
     for url in urls:
         before = len(fetching_service.url_queue)
-        fetching_service.queue_url(url)
+        # Search hits answer the configured queries directly, so they are the
+        # most promising thing in the frontier - not just another link.
+        fetching_service.queue_url(
+            url, priority=config_service.get_config().discovery_priority)
         if len(fetching_service.url_queue) > before:
             added += 1
     return added

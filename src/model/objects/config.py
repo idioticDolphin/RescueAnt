@@ -92,6 +92,11 @@ class Config(BaseModel):
     # on: links from productive pages are crawled first. Category names are
     # user-defined, so this mapping is configuration.
     referrer_weights: dict[str, float] = {}
+    # Frontier score given to search-discovered URLs.
+    discovery_priority: float = 50.0
+    # Run discovery once the best queued score falls below this (None = only
+    # when the queue is literally empty).
+    discovery_when_below: float | None = None
 
     def get_field_role(self, field_name: str) -> str | None:
         """Return the declared role of a field, or None if undeclared."""

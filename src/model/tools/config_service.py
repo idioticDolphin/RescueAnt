@@ -322,6 +322,9 @@ def load_config(configs:dict=None):
             max_batch_size = max_batch_size,
             domain_denylist = domain_denylist,
             referrer_weights = referrer_weights,
+            discovery_priority = _opt_float(configs, "discovery_priority", 50.0),
+            discovery_when_below = (_opt_float(configs, "discovery_when_below", 0.0)
+                                    if "discovery_when_below" in configs else None),
         )
         logger.info(
             "Config loaded: %d categories (%d relevant), discovery=%s",

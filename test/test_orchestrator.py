@@ -69,6 +69,10 @@ def _make_orchestrator_config(**overrides):
     config.max_discovery_batches = 0
     config.max_rounds = 0
     config.max_runtime_seconds = 0
+    config.max_batch_size = 0
+    config.discovery_priority = 50.0
+    config.discovery_when_below = None
+    config.referrer_weights = {}
     for key, value in overrides.items():
         setattr(config, key, value)
     return config
@@ -765,3 +769,59 @@ def test_process_batch_prefers_high_priority_urls_when_capped(monkeypatch):
 
     crawled = [c.args[0] for c in data_service.save_crawl_instance.call_args_list]
     assert crawled == ["http://a.com/promising"]
+
+
+def test_discovery_runs_when_frontier_is_unproductive(monkeypatch):
+    """Discovery used to fire only on an empty queue; once link-following
+    reaches the open web the queue never empties, so it never ran again."""
+    config = _make_orchestrator_config(discover_urls=True, discovery_when_below=0.5,
+                                       max_rounds=1, max_discovery_batches=1)
+    monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
+    monkeypatch.setattr(orchestrator, "init", lambda: None)
+    monkeypatch.setattr(orchestrator, "discovery_queries", ["q1"])
+    fetching_service.url_queue = ["http://junk.com/a"]
+    monkeypatch.setattr(fetching_service, "url_priorities", {"http://junk.com/a": 0.0})
+
+    discovery_calls = []
+    monkeypatch.setattr(orchestrator, "run_discovery",
+                        lambda: discovery_calls.append(True))
+    monkeypatch.setattr(orchestrator, "process_batch", lambda: None)
+
+    orchestrator.run()
+
+    assert discovery_calls, "discovery should fire when nothing queued looks promising"
+
+
+def test_low_value_queue_is_still_processed_when_discovery_is_exhausted(monkeypatch):
+    config = _make_orchestrator_config(discover_urls=True, discovery_when_below=0.5,
+                                       max_rounds=1)
+    monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
+    monkeypatch.setattr(orchestrator, "init", lambda: None)
+    monkeypatch.setattr(orchestrator, "discovery_queries", [])   # nothing left to discover
+    fetching_service.url_queue = ["http://junk.com/a"]
+    monkeypatch.setattr(fetching_service, "url_priorities", {"http://junk.com/a": 0.0})
+
+    batches = []
+    monkeypatch.setattr(orchestrator, "process_batch", lambda: batches.append(True))
+
+    orchestrator.run()
+
+    assert batches, "remaining work must still be crawled once discovery is exhausted"
+
+
+def test_promising_frontier_does_not_trigger_discovery(monkeypatch):
+    config = _make_orchestrator_config(discover_urls=True, discovery_when_below=0.5,
+                                       max_rounds=1, max_discovery_batches=1)
+    monkeypatch.setattr(orchestrator.config_service, "get_config", lambda: config)
+    monkeypatch.setattr(orchestrator, "init", lambda: None)
+    monkeypatch.setattr(orchestrator, "discovery_queries", ["q1"])
+    fetching_service.url_queue = ["http://good.com/a"]
+    monkeypatch.setattr(fetching_service, "url_priorities", {"http://good.com/a": 9.0})
+
+    discovery_calls = []
+    monkeypatch.setattr(orchestrator, "run_discovery", lambda: discovery_calls.append(True))
+    monkeypatch.setattr(orchestrator, "process_batch", lambda: None)
+
+    orchestrator.run()
+
+    assert not discovery_calls
