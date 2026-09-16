@@ -368,8 +368,13 @@ def reset_states_for_reprocess(target_state:str, site:str=None):
     # because every old category name survived into the new taxonomy.
     assignment = "state = ?"
     if target_state == STATE_FETCHED:
-        clauses[0] = "state IN (?, ?)"
-        params = [STATE_EXTRACTED, STATE_CATEGORIZED]
+        # FETCHED is included deliberately: a page can sit in FETCHED while
+        # still carrying a category, which is what an interrupted reprocess
+        # leaves behind. Skipping those left them holding a stale label, and
+        # resume_pending() then extracted them under it instead of
+        # classifying them again - 101 extractions at 37s each, all wasted.
+        clauses[0] = "state IN (?, ?, ?)"
+        params = [STATE_EXTRACTED, STATE_CATEGORIZED, STATE_FETCHED]
         assignment = "state = ?, category = NULL"
     if site:
         clauses.append("site = ?")

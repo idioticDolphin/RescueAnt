@@ -538,3 +538,38 @@ def test_resetting_to_categorized_keeps_the_category(monkeypatch):
                         (crawl_id,)).fetchone()
     assert row["state"] == data_service.STATE_CATEGORIZED
     assert row["category"] == "STATION"
+
+
+def test_resetting_to_fetched_also_reclaims_pages_already_in_fetched(monkeypatch):
+    """A page can sit in FETCHED *carrying* a category - that is what an
+    interrupted reprocess leaves behind. Resetting only EXTRACTED and
+    CATEGORIZED rows left those holding a stale label, and resume_pending()
+    then extracted them under it rather than classifying them again."""
+    _init_with_fields(monkeypatch, "name")
+    stale = data_service.save_crawl_instance(
+        "https://a.example/stale", 0.0, True, content_path="a/b/c.gz",
+        content_sha256="x", site="a.example")
+    data_service.save_site_category(stale, "STATION")
+    data_service.set_crawl_state(stale, data_service.STATE_FETCHED)
+
+    data_service.reset_states_for_reprocess(data_service.STATE_FETCHED)
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT state, category FROM crawls WHERE crawl_id = ?",
+                        (stale,)).fetchone()
+    assert row["category"] is None
+    assert row["state"] == data_service.STATE_FETCHED
+
+
+def test_resetting_leaves_pages_without_stored_content_alone(monkeypatch):
+    """There is nothing to reprocess without a body; a failed fetch must stay
+    a failed fetch so it is retried rather than silently marked ready."""
+    _init_with_fields(monkeypatch, "name")
+    failed = data_service.save_crawl_instance("https://a.example/gone", 0.0, False)
+
+    data_service.reset_states_for_reprocess(data_service.STATE_FETCHED)
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT state FROM crawls WHERE crawl_id = ?",
+                        (failed,)).fetchone()
+    assert row["state"] == data_service.STATE_FETCH_FAILED
