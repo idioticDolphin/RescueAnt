@@ -1,10 +1,9 @@
 # RescueAnt
 
 RescueAnt finds animal rescue organisations on the open web and turns them
-into a structured database. It began as a bachelor thesis project (since
-submitted) and is now being developed toward a **first beta release** - see
-[CHANGELOG.md](CHANGELOG.md) for what has changed since, and for the
-accuracy bar the beta is waiting on.
+into a structured database. It runs entirely on your own machine - the only
+network traffic is to the sites being crawled, and to your own search
+instance if you enable discovery.
 
 It crawls a list of seed URLs (and, optionally, URLs found via a search
 engine), classifies each page with a local LLM, extracts structured data
@@ -44,11 +43,16 @@ Three properties are worth knowing up front:
 - A GGUF-format LLM that supports grammar-constrained / JSON-schema-constrained
   chat completions (the default `bot.config` uses
   [Qwen3.5-4B-UD-Q4_K_XL](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF))
+- Docker and Docker Compose, to run the self-hosted SearXNG instance used
+  for search-based discovery (skip this if you set `discover_urls = False`,
+  or point `bot.config` at a different search provider - see "Search
+  engines" below)
 
 ### On model size
 
-Bigger is not better here, and this was measured rather than assumed. On an
-8 GB card, against 50 hand-labelled pages over the 12-category taxonomy:
+A larger model is not automatically a better choice, because VRAM is the
+binding constraint. On an 8 GB card, scored on 50 labelled pages across the
+12-category taxonomy:
 
 | Model | On disk | Context | Accuracy | Speed |
 |---|---|---|---|---|
@@ -56,15 +60,13 @@ Bigger is not better here, and this was measured rather than assumed. On an
 | **Qwen3.5-4B UD-Q4_K_XL** (default) | 2.71 GB | 32k | **92%** | 4.3 s/page |
 | Qwen3.5-9B Q4_K_M | 5.29 GB | 12k | 80% | 4.5 s/page |
 
-The 9B is worse *and* no faster: 8 GB of VRAM forces it onto a cruder
-quantisation and a smaller context, and the extra parameters do not pay for
-that. With more VRAM the trade may well go the other way - re-run
-`experiments/categorization_benchmark.py --model <gguf>` on your own hardware
-before assuming either result transfers.
-- Docker and Docker Compose, to run the self-hosted SearXNG instance used
-  for search-based discovery (skip this if you set `discover_urls = False`,
-  or point `bot.config` at a different search provider - see "Search
-  engines" below)
+At 8 GB a 9B model only fits at a coarser quantisation and a reduced context,
+and those costs outweigh the extra parameters. With more VRAM the trade
+changes - score any candidate on your own hardware before switching:
+
+```bash
+python experiments/categorization_benchmark.py --model models/<your>.gguf
+```
 
 ## Setup
 
@@ -379,12 +381,12 @@ then alternates between two phases:
    `discovery_batch_size` search queries and queues their results at high
    priority, then returns to step 1.
 
-> The trigger in step 2 is a **score threshold, not an empty queue**. Waiting
-> for the queue to empty sounds equivalent and is not: once link-following
-> reaches the open web the queue never empties, so discovery would never fire
-> again and the crawler would spend the rest of its life on whatever
-> low-value links it happened to find. This cost one early run every single
-> target page it might have found.
+> **Tuning `discovery_when_below`.** The trigger is a score threshold, not an
+> empty queue - once link-following reaches the open web the queue never
+> empties, so a crawler waiting for that would never search again. Raise the
+> threshold to reach for search sooner and spend less time on marginal links;
+> lower it to exhaust the link graph more thoroughly first. Set it above your
+> highest link score and the crawler searches almost exclusively.
 
 ### Resuming an interrupted run
 
@@ -488,10 +490,11 @@ started emitting it - older sessions plot everything else, just not that.
 `python experiments/compare_gold_to_crawl_db.py [gold_csv_path] [db_path]`
 cross-checks `experiments/data/extraction_gold_labels.csv` against what a
 *real* crawl actually stored for those same URLs, as opposed to
-`collect_extraction_correctness.py`'s isolated re-fetch-and-re-run - the
-two can disagree (a real, observed case: the isolated experiment
-under-extracted a LIST page 1/9 while the same page's real crawl got 9/9,
-see the script's docstring). Gold URLs not yet covered by the given
+`collect_extraction_correctness.py`'s isolated re-fetch-and-re-run. The two
+can disagree, sometimes substantially - an isolated re-run sees a page
+without the site context a real crawl has built up, so prefer this script
+when you want to know what the crawler actually produced. Gold URLs not yet
+covered by the given
 database are reported, not treated as an error, so it's safe to re-run
 against a growing/changing crawl database.
 `experiments/compare_categorization_gold_to_crawl_db.py [gold_csv_path]
@@ -540,10 +543,10 @@ also see coverage.
 analysis notebooks used to characterize the crawler's behavior - page
 category distribution, per-step (fetch/categorize/extract) timing, the
 effect of grammar-constrained vs. free-form extraction on latency, and
-search-discovery yield over successive query batches. They're written for
-a bachelor thesis audience: each notebook documents its research question,
-methodology and limitations alongside the plots, and exports each figure
-as both PDF (for LaTeX) and PNG into `notebooks/figures/`. One notebook
+search-discovery yield over successive query batches. Each notebook states
+the question it answers, its method and its limitations alongside the plots,
+and exports every figure as both PDF and PNG into `notebooks/figures/`. One
+notebook
 differs from the rest: `session_monitoring.ipynb` plots a real, uncontrolled
 `src/main.py` run rather than a fixed reproducible sample - see "Session
 monitoring" above.
@@ -632,14 +635,14 @@ python experiments/categorization_benchmark.py
 python experiments/categorization_benchmark.py --model models/other.gguf --context 12288
 ```
 
-Two things about it are worth copying if you build your own evaluation:
+Two conventions to keep if you extend the case list for your own domain:
 
-- **The labels record what the crawler actually produced**, so a regression in
-  the other direction is visible, not just an improvement in the one being
-  chased.
-- **Cases are split by site, never by page.** Pages from one site share
-  boilerplate and layout, so a page-level split flatters badly - the same URL
-  features looked far more predictive under one than they turned out to be.
+- **Record what the classifier previously returned** alongside the expected
+  label, so a change that fixes one case and breaks another shows both.
+- **Split cases by site, never by page.** Pages from one site share
+  boilerplate and layout, so holding out individual pages while their
+  siblings remain in the set makes a change look far more effective than it
+  is.
 
 `experiments/evaluate_dedup.py <db>` scores entity resolution on a database,
 and `experiments/compare_runs.py <db> <db>` puts two runs side by side on

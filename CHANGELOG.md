@@ -4,40 +4,9 @@ All notable changes to RescueAnt are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Work up to and including the submitted bachelor thesis is treated as the
-starting point and is not itemised; everything below is what changed after
-submission, while developing toward a first beta.
+Entries begin at the first release; earlier development is not itemised.
 
-## [Unreleased] — working toward 0.1.0-beta
-
-### Release criterion
-
-The beta ships when extraction accuracy is good enough that the output is
-usable without significant manual cleanup. Concretely, the bar is on two
-numbers, measured on a full crawl rather than a sample:
-
-| Measure | At submission | Now | Beta bar |
-|---|---|---|---|
-| Entity precision — share a person would keep | 64% | ~94% | ≥95% |
-| Classification accuracy — 50 labelled pages, 12 categories | n/a (5 categories) | 90–92% | ≥90% sustained |
-| Records recoverable after an interrupted run | 26% | 100% | 100% |
-
-Precision is the binding constraint, and the remaining gap is concentrated in
-one place: a political party's regional-branch listing page is a genuine list
-of organisations, just not of rescues.
-
-Still open before the beta:
-
-- The "mislabeled" return from extraction, so a page the extractor recognises
-  as misclassified feeds that back rather than silently costing a 37-second
-  call.
-- A site-disjoint labelled evaluation set. Hand labels are currently the
-  limiting factor on measurement — twice during development the model's
-  answer turned out to be right and the label wrong.
-- Optional reuse of stored pages across separate crawls, for development runs
-  that should not re-hit live sites.
-
----
+## [Unreleased]
 
 ### Added
 
@@ -111,9 +80,9 @@ Still open before the beta:
   fetching — were unreachable this way.
 - **Extraction ignored its configured token cap**, so a degenerate repetition
   ran to the context limit: 90–120 minutes ending in unparseable output.
-- **A flat 120-second call budget truncated every listing extraction.** One
-  page fell from 35 records to 5. Introduced and caught in the same session;
-  the budget now scales with the work authorised.
+- **A flat call budget truncated every listing extraction.** One page
+  yielded 5 records where the page held 35. The budget now scales with the
+  tokens each category is authorised to produce.
 - **Oversized prompts were refused outright**, losing the page. They are now
   trimmed to fit, counting the instructions as well as the page text.
 - **A browser-driver crash ended the run.** The session is now retried with a
@@ -136,6 +105,5 @@ Still open before the beta:
 
 ### Testing
 
-178 → 450 tests. New modules were written test-first, and several tests
-encode a finding rather than a wish — the comment on each says which failure
-it exists to prevent.
+178 → 450 tests. Each regression test names the failure it exists to
+prevent, so the suite doubles as a record of what has gone wrong before.
