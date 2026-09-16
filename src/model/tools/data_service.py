@@ -373,3 +373,16 @@ def reset_states_for_reprocess(target_state:str, site:str=None):
             [target_state] + params)
         connection.commit()
         return cursor.rowcount
+
+
+def get_site_content_paths(site:str, limit:int=8):
+    """Return stored-content paths for pages of one site, newest first.
+
+    Used to learn a site's recurring template (see boilerplate_service)."""
+    if not site:
+        return []
+    with get_connection() as connection:
+        return [row["content_path"] for row in connection.execute(
+            """SELECT content_path FROM crawls
+               WHERE site = ? AND content_path IS NOT NULL
+               ORDER BY crawl_id DESC LIMIT ?""", (site, limit)).fetchall()]

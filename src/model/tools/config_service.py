@@ -200,6 +200,9 @@ def load_config(configs:dict=None):
         category_votes = max(1, _opt_int(configs, "category_votes", 1))
         page_store_path = configs.get("page_store_path", "store")
         max_pages_per_site = _opt_int(configs, "max_pages_per_site", 0)
+        strip_site_boilerplate = configs.get("strip_site_boilerplate", "False") == "True"
+        boilerplate_min_pages = _opt_int(configs, "boilerplate_min_pages", 4)
+        boilerplate_threshold = _opt_float(configs, "boilerplate_threshold", 0.6)
 
         category_prompt = configs["category_prompt"]
         category_max_tokens = int(configs["category_max_tokens"])
@@ -306,6 +309,9 @@ def load_config(configs:dict=None):
             category_votes = category_votes,
             page_store_path = page_store_path,
             max_pages_per_site = max_pages_per_site,
+            strip_site_boilerplate = strip_site_boilerplate,
+            boilerplate_min_pages = boilerplate_min_pages,
+            boilerplate_threshold = boilerplate_threshold,
         )
         logger.info(
             "Config loaded: %d categories (%d relevant), discovery=%s",

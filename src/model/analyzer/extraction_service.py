@@ -1,6 +1,7 @@
 import logging
 
 from model.objects.category import Category, Relevancy
+import model.analyzer.boilerplate_service as boilerplate_service
 import model.analyzer.cleaning_service as cleaning_service
 import model.tools.config_service as config_service
 import model.tools.llm_service as llm_service
@@ -110,6 +111,9 @@ def extract_information(html: str, category:Category, base_url: str):
         return None, links
 
     site_content = cleaning_service.clean(html)
+    # Drop the site's recurring chrome so the model sees this page's own
+    # content, not the operator's identity block repeated site-wide.
+    site_content = boilerplate_service.strip_for(site_content, base_url, config)
     llm = llm_service.get_model(category.analysis_model_id)
     schema = category.fields
     prompt = f"{category.analysis_prompt} The return schema is {schema}"

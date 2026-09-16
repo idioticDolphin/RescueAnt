@@ -75,6 +75,13 @@ class Config(BaseModel):
     # within what site operators tolerate.
     max_pages_per_site: int = 0
 
+    # --- Boilerplate stripping (P8) --------------------------------------
+    # Remove lines that recur across a site's pages (headers/footers carrying
+    # the operator's identity block) before classifying or extracting.
+    strip_site_boilerplate: bool = False
+    boilerplate_min_pages: int = 4
+    boilerplate_threshold: float = 0.6
+
     def get_field_role(self, field_name: str) -> str | None:
         """Return the declared role of a field, or None if undeclared."""
         return (self.field_semantics.get(field_name) or {}).get("role")

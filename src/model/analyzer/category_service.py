@@ -6,7 +6,7 @@ import model.tools.llm_service as llm_service
 from model.tools import url_service
 from llama_cpp import LlamaGrammar
 
-from model.analyzer import cleaning_service
+from model.analyzer import boilerplate_service, cleaning_service
 from model.objects.category import Category
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,7 @@ def categorize_website(html, url=None):
     prompt = f"{config.get_category_prompt()} The categories are {category_string}"
     grammar = LlamaGrammar.from_string(f'root ::= {category_string}')
     site_content = cleaning_service.clean(html, deduplicate=True)
+    site_content = boilerplate_service.strip_for(site_content, url, config)
     if url:
         site_content = f"URL: {url}\n{site_content}"
     max_tokens = config.category_max_tokens
