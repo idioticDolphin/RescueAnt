@@ -34,57 +34,111 @@ CASES = [
     ("dogorama.app/de-de/hundepensionen",                "COMMERCIAL"),
     ("dogorama.app/de-de/ernaehrungsberater",            "COMMERCIAL"),
     ("about.google/locations",                           "IRRELEVANT"),
-    ("falabr.cgu.gov.br/web/orgao",                      "IRRELEVANT"),
+    # An index of Brazilian government agencies. Labelled IRRELEVANT at
+    # first; AUTHORITY is what it actually is, and the model said so.
+    ("falabr.cgu.gov.br/web/orgao",                      "AUTHORITY"),
+    # memon.eu sells "vitalisation" products; labelled IRRELEVANT at first and
+    # corrected to COMMERCIAL after reading the page - the model was right.
+    ("memon.eu/",                                        "COMMERCIAL"),
 
-    # --- genuine listings of rescue organisations (were LIST: keep them) ---
+    # --- genuine listings of rescue organisations ---
     ("vbu-ffm.de/pflegestationen.shtml",                 "LIST"),
     ("rlp.nabu.de/tiere-und-pflanzen/tieren-helfen/pflege-und-auffangstationen", "LIST"),
     ("deutsche-wildtierrettung.de/wildtierauffangstationen", "LIST"),
 
-    # --- a shelter's own main page (were STATION: keep them) ---
-    ("tierheim-ostermuenchen.de/unser-tierheim",         "STATION"),
-    ("tierheim-marburg.de/",                             "STATION"),
-    ("tierheim-bergheim.de/",                            "STATION"),
-    ("franziskustierheim.de/",                           "STATION"),
-    ("hamburger-tierschutzverein.de/",                   "STATION"),
+    # --- genuine wildlife rescue: the primary target ---
+    ("greifvogelhilfe.de/greifvogelhilfe",               "STATION"),
+    ("wildtierzentrum.de/",                              "STATION"),
+    ("eichhoernchen-schutz.de/",                         "STATION"),
+    ("reptilienauffangstation.de/",                      "STATION"),
 
-    # --- subpages of shelter sites (all were STATION: the duplication source) ---
+    # --- pet shelters: rehoming domestic animals, not wildlife rescue ---
+    ("tierheim-marburg.de/",                             "SHELTER"),
+    ("tierheim-bergheim.de/",                            "SHELTER"),
+    ("franziskustierheim.de/",                           "SHELTER"),
+    ("hamburger-tierschutzverein.de/",                   "SHELTER"),
+    ("tierheim-mainz.de/",                               "SHELTER"),
+    ("tierheim-wetterau-ev.de/",                         "SHELTER"),
+    ("tierheim-ostermuenchen.de/unser-tierheim",         "SHELTER"),
+
+    # --- lifetime care without rehoming ---
+    ("elztal-gnadenhof.de.tl/",                          "SANCTUARY"),
+
+    # --- veterinary practices ---
+    ("tierklinik-hofheim.de/",                           "VET"),
+    ("vetpuls.de/",                                      "VET"),
+    ("tiermed-muenchen.de/",                             "VET"),
+
+    # --- what-to-do guidance: the densest source of links to real stations ---
+    # Titled "Verletztes Wildtier | Pflegestellen bundesweit": it is a
+    # nationwide station list, so LIST is right and my first label was not.
+    ("wildtierschutz-deutschland.de/verletztes-wildtier", "LIST"),
+    ("wildtierschutz-deutschland.de/verletztes-wildtier-gefunden", "ADVICE"),
+
+    # --- campaigning bodies that do not take animals in ---
+    # Two political parties and three conservation foundations reached the
+    # entity table as rescue stations.
+    ("tierschutzpartei.de/",                             "ADVOCACY"),
+    ("klimaliste-berlin.de/",                            "ADVOCACY"),
+    ("sozis-tiere.de/",                                  "ADVOCACY"),
+    ("naturefund.de/",                                   "ADVOCACY"),
+    ("natur-zuerst.de/",                                 "ADVOCACY"),
+
+    # --- individual animals ---
+    # One sanctuary's per-resident pages came back STATION, LIST, HUB,
+    # IRRELEVANT and COMMERCIAL - at random - and seven individual animals
+    # ended up in the output as rescue stations.
+    ("elztal-gnadenhof.de.tl/Amely.htm",                 "ANIMAL"),
+    ("elztal-gnadenhof.de.tl/Bob.htm",                   "ANIMAL"),
+    ("elztal-gnadenhof.de.tl/Sina.htm",                  "ANIMAL"),
+    ("elztal-gnadenhof.de.tl/Alca.htm",                  "ANIMAL"),
+    ("elztal-gnadenhof.de.tl/Gypsy.htm",                 "ANIMAL"),
+    ("tierheim-ostermuenchen.de/hund",                   "ANIMAL"),
+    ("hamburger-tierschutzverein.de/tiervermittlung/hunde", "ANIMAL"),
+    ("tierheim-marburg.de/k/hunde",                      "ANIMAL"),
+    ("franziskustierheim.de/tiervermittlung/hunde-17.html", "ANIMAL"),
+
+    # --- subpages of relevant sites: followed, never mined ---
     ("tierheim-ostermuenchen.de/stellenangebote",        "HUB"),
     ("tierheim-ostermuenchen.de/aktuelles",              "HUB"),
-    ("tierheim-ostermuenchen.de/hund",                   "HUB"),
-    ("tierheim-ostermuenchen.de/katze",                  "HUB"),
     ("tierheim-ostermuenchen.de/gassigeher-und-katzenstreichler", "HUB"),
-    ("tierheim-ostermuenchen.de/vermisste-tiere",        "HUB"),
     ("tierheim-ostermuenchen.de/unsere-vereinszeitung",  "HUB"),
-    ("tierheim-marburg.de/k/hunde",                      "HUB"),
-    ("tierschutzverein-muenchen.de/tiervermittlung/tierheim/hunde", "HUB"),
-    ("hamburger-tierschutzverein.de/tiervermittlung/hunde", "HUB"),
     ("tiermed-muenchen.de/stellenangebote",              "HUB"),
     ("tiermed-muenchen.de/team2",                        "HUB"),
-    ("franziskustierheim.de/tiervermittlung/hunde-17.html", "HUB"),
-
-    # --- not rescue organisations at all (were STATION) ---
-    # memon.eu sells "vitalisation" products; labelled IRRELEVANT at first,
-    # corrected to COMMERCIAL after looking at the page - both are non-
-    # extracting, so the distinction only affects referrer weight.
-    ("memon.eu/",                                        "COMMERCIAL"),
 ]
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="crawl.db")
+    # Several databases, because the labelled pages were collected across
+    # more than one run and the page store on disk is shared between them.
+    ap.add_argument("--db", nargs="+",
+                    default=["crawl.db", "crawl_third_taxonomy_baseline.db",
+                             "crawl_second_hub.db"])
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
 
     config_service.load_config()
     config = config_service.get_config()
-    data_service.DATABASE_PATH = Path(args.db)
     page_store.configure(config.page_store_path)
     # Templates are learned from stored pages, exactly as in a live run.
     boilerplate_service.forget_all()
 
-    stored = data_service.get_all_content_paths()
+    stored = []
+    for db in args.db:
+        if not Path(db).exists():
+            continue
+        data_service.DATABASE_PATH = Path(db)
+        try:
+            stored.extend(data_service.get_all_content_paths())
+        except Exception as e:
+            # Databases from before the page store exists have no such column.
+            print(f"(skipping {db}: {e})")
+    # Keep the newest copy of each URL: later runs replace earlier ones.
+    seen = {}
+    for url, path in stored:
+        seen[url] = path
+    stored = list(seen.items())
     cases = CASES[: args.limit] if args.limit else CASES
 
     rows, confusion = [], Counter()
