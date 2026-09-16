@@ -28,6 +28,18 @@ predicted_category, correct, fetch_success), same shape as
 categorization_accuracy.csv minus categorize_seconds (a real crawl session's
 per-page categorization time lives in that session's _page_timing.csv via
 analyze_session.py, not here) - plus a summary printed to stdout.
+
+!! STALE TAXONOMY !!
+These labels were assigned under the original five categories
+(STATION / LIST / HUB / IRRELEVANT). The crawler now uses twelve, and most of
+these labels are wrong under it: a pet shelter labelled STATION is SHELTER, a
+page of animals offered for adoption is ANIMAL, a campaigning body is
+ADVOCACY. Scoring against this file reports accuracy against a taxonomy the
+crawler no longer uses.
+
+The current classification ground truth is the labelled case list in
+experiments/categorization_benchmark.py. This file is kept because its URLs
+are still a useful sample to relabel from, not because its labels are usable.
 """
 import csv
 import sqlite3
@@ -43,7 +55,7 @@ OUTPUT_PATH = DATA_DIR / "categorization_gold_vs_real_crawl.csv"
 
 def _read_gold_labels(path):
     rows = []
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             url = row["url"].strip()
             true_category = row["true_category"].strip()

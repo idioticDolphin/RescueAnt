@@ -1,0 +1,42 @@
+# Model catalogue for download-models.sh
+#
+# name,repo,file,role
+#
+#   name  what the file is saved as under models/
+#   repo  Hugging Face repository id
+#   file  filename within that repository
+#   role  "default" is fetched when download-models.sh is run with no
+#         arguments; "candidate" is fetched only when asked for by name or
+#         with --all, and exists so alternatives can be benchmarked against
+#         the default on your own hardware.
+#
+# Every entry must be a GGUF that llama.cpp can load and that supports
+# grammar-constrained generation, since both classification and extraction
+# rely on it.
+#
+# To evaluate a candidate before switching:
+#
+#   ./download-models.sh gemma-3-4b
+#   python experiments/categorization_benchmark.py --model models/gemma-3-4b-it-UD-Q4_K_XL.gguf
+#   python experiments/extraction_benchmark.py     --model models/gemma-3-4b-it-UD-Q4_K_XL.gguf
+#
+# then point category_model_path / model_path[...] at the winner. The two
+# benchmarks measure different things and can disagree: classification is
+# grammar-constrained to a category name, so a model's tendency to drift into
+# English costs nothing there, while extraction reproduces text from the page
+# and that tendency shows up directly.
+
+qwen3.5-4b,unsloth/Qwen3.5-4B-GGUF,Qwen3.5-4B-UD-Q4_K_XL.gguf,default
+
+# --- candidates, roughly 2.5-5.6 GB each ------------------------------------
+# Sized for an 8 GB card. Anything past ~5 GB only fits at a reduced context,
+# which on this workload has cost more than the extra parameters returned.
+
+gemma-3-4b,unsloth/gemma-3-4b-it-GGUF,gemma-3-4b-it-UD-Q4_K_XL.gguf,candidate
+llama-3.1-8b,unsloth/Llama-3.1-8B-Instruct-GGUF,Llama-3.1-8B-Instruct-UD-Q4_K_XL.gguf,candidate
+eurollm-9b,bartowski/EuroLLM-9B-Instruct-GGUF,EuroLLM-9B-Instruct-Q4_K_M.gguf,candidate
+ministral-3-8b,unsloth/Ministral-3-8B-Instruct-2512-GGUF,Ministral-3-8B-Instruct-2512-UD-Q4_K_XL.gguf,candidate
+granite-4.2-8b,ibm-granite/granite-4.2-8b-GGUF,granite-4.2-8b-Q4_K_M.gguf,candidate
+teuken-7b,mradermacher/Teuken-7B-instruct-commercial-v0.4-GGUF,Teuken-7B-instruct-commercial-v0.4.Q4_K_M.gguf,candidate
+qwen3.5-2b,unsloth/Qwen3.5-2B-GGUF,Qwen3.5-2B-UD-Q4_K_XL.gguf,candidate
+qwen3.5-9b,unsloth/Qwen3.5-9B-GGUF,Qwen3.5-9B-Q4_K_M.gguf,candidate

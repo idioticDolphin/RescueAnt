@@ -28,6 +28,18 @@ not the default. Runtime is correspondingly slower and less predictable
 minutes.
 
 Usage: python experiments/collect_categorization_accuracy.py [gold_csv_path] [max_content_chars]
+
+!! STALE TAXONOMY !!
+These labels were assigned under the original five categories
+(STATION / LIST / HUB / IRRELEVANT). The crawler now uses twelve, and most of
+these labels are wrong under it: a pet shelter labelled STATION is SHELTER, a
+page of animals offered for adoption is ANIMAL, a campaigning body is
+ADVOCACY. Scoring against this file reports accuracy against a taxonomy the
+crawler no longer uses.
+
+The current classification ground truth is the labelled case list in
+experiments/categorization_benchmark.py. This file is kept because its URLs
+are still a useful sample to relabel from, not because its labels are usable.
 """
 import asyncio
 import csv
@@ -44,7 +56,7 @@ MAX_CONCURRENCY = 4
 
 def _read_gold_labels(path):
     rows = []
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             url = row["url"].strip()
             true_category = row["true_category"].strip()

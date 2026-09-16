@@ -32,7 +32,10 @@ def read_gold_labels(path):
     """Return {source_url: [gold_entry_dict, ...]} from a gold-labels CSV (see extraction_gold_labels.csv)."""
     import csv
     by_url = defaultdict(list)
-    with open(path) as f:
+    # utf-8 explicitly: the labels contain German umlauts, and on a
+    # platform whose default encoding is not utf-8 they arrive mojibake'd.
+    # That silently scored every accepted_animals comparison at 0.
+    with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             url = row["source_url"].strip()
             if not url:

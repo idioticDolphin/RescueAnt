@@ -101,14 +101,18 @@ python experiments/categorization_benchmark.py --model models/<your>.gguf
 4. **Download the LLM model**
 
    ```bash
-   ./download-models.sh
+   ./download-models.sh              # the default model
+   ./download-models.sh --list       # the whole catalogue
+   ./download-models.sh gemma-3-4b   # a named alternative
    ```
 
-   This downloads the default model into `models/` (gitignored). If you
-   want to use a different GGUF model, download it yourself and point
-   `bot.config`'s `category_model_path`/`model_path[...]` entries at it
-   instead - relative paths are resolved from the project root, the same
-   place `download-models.sh` writes to.
+   Models are listed in `models.csv` and downloaded into `models/`
+   (gitignored); downloads resume if interrupted and already-present files
+   are skipped. Add a model by adding a line to `models.csv` - the script
+   needs no change.
+
+   To use one, point `category_model_path` / `model_path[...]` at it.
+   Relative paths resolve from the project root, where the script writes.
 
 5. **Start the search engine used for discovery**
 
@@ -502,6 +506,12 @@ against a growing/changing crawl database.
 scoring a real session's stored category per URL instead of re-running
 `categorize_website()` in isolation.
 
+> **`categorization_gold_labels.csv` is labelled against an older, smaller
+> taxonomy** and its labels do not map onto the categories the crawler uses
+> now. The current classification ground truth is the case list inside
+> `experiments/categorization_benchmark.py`. The CSV is kept because its URLs
+> remain a useful sample to relabel from.
+
 For a real session captured *before* `model.orchestrator` started emitting
 per-page timing (see "Session monitoring" above), `experiments/parse_run_log_timing.py
 <log_file> <label>` reconstructs per-page `categorize_seconds`/
@@ -620,7 +630,8 @@ searxng/                  SearXNG configuration, bind-mounted into the container
 experiments/              measurement scripts + CSV output
 notebooks/                analysis notebooks + exported figures
 sessions/                 per-run monitoring logs (gitignored)
-download-models.sh        downloads the default LLM model into models/
+models.csv                model catalogue for download-models.sh
+download-models.sh        downloads models listed in models.csv
 ```
 
 ## Evaluating a change
