@@ -443,3 +443,24 @@ def test_abandoned_pages_are_terminal_not_deleted(temp_db):
     counts = data_service.count_by_state()
     assert counts[data_service.STATE_SKIPPED] == 3
     assert "http://big.com/0" in data_service.get_finished_crawl_urls()
+
+
+def test_get_all_content_paths_returns_url_and_path_pairs(monkeypatch):
+    """Offline replay (re-categorising or re-extracting stored pages without
+    re-crawling) needs the whole store addressed by URL, not one site at a
+    time."""
+    _init_with_fields(monkeypatch, "name")
+    data_service.save_crawl_instance(
+        "https://a.example/one", 0.0, True, content_path="aa/bb/one.html.gz",
+        content_sha256="aa", site="a.example")
+    data_service.save_crawl_instance(
+        "https://b.example/two", 0.0, True, content_path="cc/dd/two.html.gz",
+        content_sha256="cc", site="b.example")
+    # a page that was never stored (e.g. the fetch failed) must not appear
+    data_service.save_crawl_instance("https://c.example/none", 0.0, False)
+
+    pairs = data_service.get_all_content_paths()
+    assert ("https://a.example/one", "aa/bb/one.html.gz") in pairs
+    assert ("https://b.example/two", "cc/dd/two.html.gz") in pairs
+    assert all(p for _, p in pairs)
+    assert len(pairs) == 2

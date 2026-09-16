@@ -375,6 +375,17 @@ def reset_states_for_reprocess(target_state:str, site:str=None):
         return cursor.rowcount
 
 
+def get_all_content_paths():
+    """Return (source_url, content_path) for every page whose body was stored.
+
+    Lets a prompt or taxonomy change be replayed against the exact pages that
+    motivated it, offline and without re-crawling."""
+    with get_connection() as connection:
+        return [(row["source_url"], row["content_path"]) for row in connection.execute(
+            """SELECT source_url, content_path FROM crawls
+               WHERE content_path IS NOT NULL ORDER BY crawl_id""").fetchall()]
+
+
 def get_site_content_paths(site:str, limit:int=8):
     """Return stored-content paths for pages of one site, newest first.
 
