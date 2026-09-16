@@ -134,8 +134,13 @@ def extract_information(html: str, category:Category, base_url: str):
             ],
             # A token cap alone does not bound wall-clock time; without this a
             # single page held the whole crawl for 30 minutes and yielded
-            # nothing. Partial output is still salvaged below.
-            timeout_seconds=config.llm_call_timeout_seconds,
+            # nothing. The budget scales with the tokens this category is
+            # allowed to produce, so a long listing is not cut short by a cap
+            # sized for a single record. Partial output is still salvaged.
+            timeout_seconds=llm_service.budget_seconds(
+                category.analysis_max_tokens,
+                config.llm_call_timeout_seconds,
+                config.min_generation_tokens_per_second),
             response_format={
                 "type": "json_object",
                 "schema": schema

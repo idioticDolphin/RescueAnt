@@ -44,6 +44,28 @@ def get_model(id: int):
     return _initialized_models[id]
 
 
+def budget_seconds(max_tokens, floor, tokens_per_second):
+    """
+    How long a call producing `max_tokens` tokens may reasonably take.
+
+    A flat wall-clock cap cannot serve both a 400-token record extraction and
+    an 8000-token listing: the cap that bounds the first truncates the second.
+    Measured: a flat 120s cut every LIST extraction in one run, taking one
+    listing page from 19 records to 5.
+
+    The guard is meant to catch generation that has stalled or gone
+    degenerate, so it is expressed as a minimum acceptable throughput, with a
+    floor covering the fixed costs before the first token appears.
+
+    :param floor: minimum budget; 0 disables budgeting entirely.
+    """
+    if not floor or floor <= 0:
+        return 0
+    if not max_tokens or not tokens_per_second or tokens_per_second <= 0:
+        return floor
+    return max(floor, max_tokens / tokens_per_second)
+
+
 def get_context(id: int) -> int:
     """Return the context size a model id was registered with, without loading
     it. Callers budget their prompt against this; 0 means "unknown", which

@@ -96,7 +96,9 @@ def categorize_website(html, url=None):
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": f"Website content:\n{site_content}"}
                 ],
-                timeout_seconds=config.llm_call_timeout_seconds,
+                timeout_seconds=llm_service.budget_seconds(
+                    max_tokens, config.llm_call_timeout_seconds,
+                    config.min_generation_tokens_per_second),
                 grammar=grammar,
                 # A single vote is deterministic; only sample when voting.
                 temperature=0 if votes == 1 else 0.7,

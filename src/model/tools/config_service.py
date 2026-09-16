@@ -194,6 +194,7 @@ def load_config(configs:dict=None):
         require_any_role = _csv_list(configs.get("require_any_role", ""))
         field_semantics = _parse_field_semantics(configs)
         llm_call_timeout_seconds = _opt_float(configs, "llm_call_timeout_seconds", 0)
+        min_generation_tokens_per_second = _opt_float(configs, "min_generation_tokens_per_second", 0)
         repeat_penalty = _opt_float(configs, "repeat_penalty", 1.0)
         grammar_constrained_extraction = configs.get(
             "grammar_constrained_extraction", "True") == "True"
@@ -311,6 +312,7 @@ def load_config(configs:dict=None):
             require_any_role = require_any_role,
             field_semantics = field_semantics,
             llm_call_timeout_seconds = llm_call_timeout_seconds,
+            min_generation_tokens_per_second = min_generation_tokens_per_second,
             repeat_penalty = repeat_penalty,
             grammar_constrained_extraction = grammar_constrained_extraction,
             category_votes = category_votes,

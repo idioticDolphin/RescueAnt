@@ -308,3 +308,42 @@ def test_get_context_of_an_unknown_id_is_zero(_isolate_llm_service_state):
     """Zero disables trimming, which is the safe default for a caller that
     cannot find out the budget."""
     assert llm_service.get_context(99) == 0
+
+
+# ---------------------------------------------------------------------------
+# sizing the budget to the work
+#
+# A flat 120s cap was a regression: it is generous for a 400-token station
+# extraction and brutal for an 8000-token listing. In the first run with it
+# enabled, *every* LIST extraction hit the cap - vbu-ffm.de/pflegestationen
+# fell from 19 records to 5. The guard exists to catch generation that has
+# stalled or gone degenerate, not generation that is legitimately long, so
+# the budget has to scale with the tokens the call was authorised to produce.
+# ---------------------------------------------------------------------------
+
+def test_budget_scales_with_the_authorised_token_count():
+    short = llm_service.budget_seconds(400, floor=120, tokens_per_second=10)
+    long = llm_service.budget_seconds(8000, floor=120, tokens_per_second=10)
+    assert long > short
+    assert long == 800
+
+
+def test_budget_never_falls_below_the_floor():
+    """A small call still deserves a grace period - model load, prompt
+    ingestion and a cold cache all happen before the first token."""
+    assert llm_service.budget_seconds(50, floor=120, tokens_per_second=10) == 120
+
+
+def test_budget_is_disabled_when_the_floor_is_disabled():
+    """Zero must keep meaning "no budget", so the feature stays opt-in."""
+    assert llm_service.budget_seconds(8000, floor=0, tokens_per_second=10) == 0
+
+
+def test_budget_without_a_token_cap_falls_back_to_the_floor():
+    """An uncapped call has no authorised size to scale from."""
+    assert llm_service.budget_seconds(None, floor=120, tokens_per_second=10) == 120
+    assert llm_service.budget_seconds(0, floor=120, tokens_per_second=10) == 120
+
+
+def test_budget_tolerates_a_nonsensical_throughput():
+    assert llm_service.budget_seconds(8000, floor=120, tokens_per_second=0) == 120

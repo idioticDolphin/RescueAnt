@@ -59,6 +59,7 @@ class Config(BaseModel):
     field_semantics: dict[str, dict] = {}
     # Abort a single LLM call after this many seconds (0 = no limit).
     llm_call_timeout_seconds: float = 0
+    min_generation_tokens_per_second: float = 0
     # llama.cpp repetition penalty applied to extraction calls.
     repeat_penalty: float = 1.0
     # Constrain extraction output with a JSON-schema grammar.
