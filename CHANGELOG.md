@@ -48,6 +48,19 @@ Entries begin at the first release; earlier development is not itemised.
   a `--model` override for comparing models on identical input.
 - **Session monitoring** — one JSON line per event, flushed immediately, so
   an interrupted run's data survives.
+- **Model catalogue** in `models.csv`, read by `download-models.sh`. Download
+  one model by name, several, or `--all`; `--list` shows the catalogue. Each
+  entry records the largest context measured to fit an 8 GB card. Adding a
+  model is a line of CSV.
+- **`experiments/extraction_benchmark.py`** — scores extraction against
+  hand-labelled records, replaying stored pages. `--force-category` extracts
+  every page as a named category, so a classification change cannot register
+  as an extraction failure.
+- **`experiments/model_sweep.py`** — runs both benchmarks over every
+  downloaded model, one subprocess per model so VRAM is released between
+  them. Probes for the largest usable context where none is recorded, and
+  refuses to score a model unless the card is idle first.
+- **Failed fetches record why they failed** in the crawl row's `last_error`.
 
 ### Changed
 
@@ -102,8 +115,14 @@ Entries begin at the first release; earlier development is not itemised.
   back inside fields.
 - **38 of 131 failed fetches** went to share widgets and consent
   infrastructure that can never hold a target; these are now denylisted.
+- **Gold labels were read with the platform's default encoding**, so on
+  Windows every umlaut arrived garbled and `accepted_animals` scored 0.00 for
+  every record regardless of what was extracted.
+- **An interrupted model download was left at the real filename**, where it
+  could be loaded as if complete. Downloads now go to `.part` and are renamed
+  on success.
 
 ### Testing
 
-178 → 450 tests. Each regression test names the failure it exists to
+178 → 456 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.
