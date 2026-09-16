@@ -16,6 +16,10 @@ _robots_cache = {}
 _last_request_time:dict[str, float] = {}
 _site_counts:dict[str, int] = {}  # pages queued per registrable domain
 fetched_content:dict[str, tuple] = {}  # url -> (sha256, page_store path)
+# url -> why its fetch failed. Recorded here because the reason is only known
+# at the point of failure; auditing a run's failures without it means guessing
+# from hostnames.
+fetch_errors:dict[str, str] = {}
 url_priorities:dict[str, float] = {}   # url -> frontier score (higher first)
 config = config_service.get_config()
 politeness_delay = config.get_politeness()
@@ -66,6 +70,7 @@ async def get_content(url, browser=None):
 
     if not _is_allowed(url):
         logger.info("Skipping %s (disallowed by robots.txt)", url)
+        fetch_errors[url] = "disallowed by robots.txt"
         processed_urls[url] = ""
         return ""
 
@@ -86,8 +91,11 @@ async def get_content(url, browser=None):
             try:
                 await page.goto(url, wait_until="load", timeout=30000)
                 html = await page.content()
-            except Exception:
-                logger.warning("Failed to fetch %s", url)
+            except Exception as e:
+                logger.warning("Failed to fetch %s (%s)", url, e)
+                # First line only: Playwright appends pages of context that
+                # would bury the reason rather than explain it.
+                fetch_errors[url] = str(e).strip().splitlines()[0][:300]
                 html = ""
         finally:
             await page.close()

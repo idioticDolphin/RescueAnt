@@ -239,6 +239,7 @@ def process_batch(urls:list[str]|None=None):
             url, crawl_time, fetch_success,
             content_path=content_path, content_sha256=digest,
             site=url_service.registrable_domain(url),
+            last_error=None if fetch_success else fetching_service.fetch_errors.get(url),
         )
         if fetch_success:
             fetched.append((crawl_id, Website(url=url, crawl_time=crawl_time, html=html)))

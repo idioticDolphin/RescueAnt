@@ -848,3 +848,56 @@ def test_blank_lines_and_comments_in_a_seed_file_are_ignored(monkeypatch, tmp_pa
     fetching_service._read_starting_urls([str(a)])
 
     assert fetching_service.url_queue == ["https://a.example/", "https://b.example/"]
+
+
+# ---------------------------------------------------------------------------
+# recording why a fetch failed
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_a_robots_disallowed_url_records_that_reason(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": False)
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "fetch_errors", {})
+
+    await fetching_service.get_content("https://a.example/blocked")
+
+    assert "robots" in fetching_service.fetch_errors["https://a.example/blocked"].lower()
+
+
+@pytest.mark.asyncio
+async def test_a_navigation_failure_records_the_error(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "fetch_errors", {})
+
+    page = MagicMock()
+    async def boom(*a, **kw):
+        raise Exception("net::ERR_NAME_NOT_RESOLVED")
+    page.goto = boom
+    page.close = _async_mock(None)
+    browser = MagicMock()
+    browser.new_page = _async_mock(page)
+
+    await fetching_service.get_content("https://gone.example/", browser=browser)
+
+    recorded = fetching_service.fetch_errors["https://gone.example/"]
+    assert "ERR_NAME_NOT_RESOLVED" in recorded
+
+
+@pytest.mark.asyncio
+async def test_a_successful_fetch_records_no_error(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_is_allowed", lambda url, user_agent="*": True)
+    monkeypatch.setattr(fetching_service, "_wait_politely", _async_mock(None))
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "fetch_errors", {})
+    monkeypatch.setattr(fetching_service.page_store, "store", lambda html: (None, None))
+
+    page = _working_page("<html>ok</html>")
+    browser = MagicMock()
+    browser.new_page = _async_mock(page)
+
+    await fetching_service.get_content("https://a.example/ok", browser=browser)
+
+    assert "https://a.example/ok" not in fetching_service.fetch_errors

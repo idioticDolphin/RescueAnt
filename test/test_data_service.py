@@ -614,3 +614,42 @@ def test_reprocess_without_a_category_filter_still_takes_everything(monkeypatch)
         data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
 
     assert data_service.reset_states_for_reprocess(data_service.STATE_FETCHED) == 2
+
+
+def test_a_failed_fetch_records_why_it_failed(monkeypatch):
+    """Auditing 131 failed fetches meant inferring the reason from hostnames,
+    because last_error was NULL on every one of them. The reason is known at
+    the point of failure and costs nothing to keep."""
+    _init_with_fields(monkeypatch, "name")
+    crawl_id = data_service.save_crawl_instance(
+        "https://a.example/blocked", 0.0, False,
+        last_error="disallowed by robots.txt")
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT state, last_error FROM crawls WHERE crawl_id = ?",
+                        (crawl_id,)).fetchone()
+    assert row["state"] == data_service.STATE_FETCH_FAILED
+    assert row["last_error"] == "disallowed by robots.txt"
+
+
+def test_a_successful_fetch_records_no_error(monkeypatch):
+    _init_with_fields(monkeypatch, "name")
+    crawl_id = data_service.save_crawl_instance("https://a.example/ok", 0.0, True)
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT last_error FROM crawls WHERE crawl_id = ?",
+                        (crawl_id,)).fetchone()
+    assert row["last_error"] is None
+
+
+def test_a_long_failure_reason_is_truncated(monkeypatch):
+    """Playwright errors run to hundreds of lines of stack; the database is
+    for auditing, not for storing tracebacks."""
+    _init_with_fields(monkeypatch, "name")
+    crawl_id = data_service.save_crawl_instance(
+        "https://a.example/x", 0.0, False, last_error="e" * 5000)
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT last_error FROM crawls WHERE crawl_id = ?",
+                        (crawl_id,)).fetchone()
+    assert len(row["last_error"]) <= data_service.MAX_ERROR_CHARS

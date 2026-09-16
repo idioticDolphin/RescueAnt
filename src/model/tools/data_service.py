@@ -18,6 +18,10 @@ STATE_SKIPPED = "SKIPPED"            # robots.txt / duplicate - deliberately not
 STATE_FAILED = "FAILED_PERMANENT"    # gave up after repeated failures
 
 TERMINAL_STATES = (STATE_EXTRACTED, STATE_SKIPPED, STATE_FAILED)
+
+# Playwright errors run to hundreds of lines of stack. The column is for
+# auditing why fetches failed, not for storing tracebacks.
+MAX_ERROR_CHARS = 300
 RESUMABLE_STATES = (STATE_FETCHED, STATE_CATEGORIZED)
 
 
@@ -216,7 +220,8 @@ def get_db_fields():
 
 def save_crawl_instance(url:str, crawl_time:float, fetch_success:bool,
                         state:str=None, content_path:str=None,
-                        content_sha256:str=None, site:str=None) -> int:
+                        content_sha256:str=None, site:str=None,
+                        last_error:str=None) -> int:
     """
     Insert a new crawls row and return its generated crawl_id.
 
@@ -224,15 +229,22 @@ def save_crawl_instance(url:str, crawl_time:float, fetch_success:bool,
                    to FETCHED/FETCH_FAILED based on fetch_success, so a page
                    is never recorded as finished before it has been processed.
     :param content_path: page_store path of the stored body, if any
+    :param last_error: why the fetch failed, if it did. Auditing a run's
+                        failures otherwise means inferring the reason from
+                        hostnames, and the reason is known at the point of
+                        failure.
     """
     if state is None:
         state = STATE_FETCHED if fetch_success else STATE_FETCH_FAILED
+    if last_error:
+        last_error = str(last_error)[:MAX_ERROR_CHARS]
     with get_connection() as connection:
         cursor = connection.execute(
             """INSERT INTO crawls(crawl_time, source_url, fetch_success, state,
-                                  content_path, content_sha256, site)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (crawl_time, url, fetch_success, state, content_path, content_sha256, site)
+                                  content_path, content_sha256, site, last_error)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (crawl_time, url, fetch_success, state, content_path, content_sha256,
+             site, last_error or None)
         )
         crawl_id = cursor.lastrowid
         connection.commit()
