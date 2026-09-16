@@ -241,3 +241,67 @@ def test_fusion_of_single_record_is_that_record(resolver):
     fused = resolver.fuse([{"name": "Solo", "e-mail": "s@x.de"}])
     assert fused["name"] == "Solo"
     assert fused["_n_sources"] == 1
+
+
+# ---------------------------------------------------------------------------
+# value plausibility
+#
+# Observed in live output: '08.06.26' extracted as a telephone (twice, across
+# two runs - the model reads a date near the phone block), an emergency
+# telephone holding a URL, and 'reginaweber@377@yahoo.de' as an address.
+# Fields already declare what they are via "normalize"; that declaration is
+# enough to reject a value that cannot be what the field claims, without any
+# field names or domain knowledge in the code.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("value", [
+    "06131/ 477638", "+49 6334 98 47 377", "0170 911 543 50", "06004-2749",
+])
+def test_real_phone_numbers_are_plausible(value):
+    assert entity_service.is_plausible(value, "phone") is True
+
+
+@pytest.mark.parametrize("value", [
+    "08.06.26",           # a date, not a phone - seen in two separate runs
+    "1.2.2026",
+    "2026-06-08",
+    "12345",              # too few digits to be a dialable number
+    "https://example.org/notfall",   # a URL in a phone field
+    "Mo-Fr",
+])
+def test_implausible_phone_values_are_rejected(value):
+    assert entity_service.is_plausible(value, "phone") is False
+
+
+@pytest.mark.parametrize("value", [
+    "info@example.org", "Schierstein@t-online.de", "a.b-c@sub.example.co.uk",
+])
+def test_real_addresses_are_plausible(value):
+    assert entity_service.is_plausible(value, "email") is True
+
+
+@pytest.mark.parametrize("value", [
+    "reginaweber@377@yahoo.de",   # two @ - seen in live output
+    "not an email", "info@example", "@example.org", "info@.org",
+])
+def test_implausible_email_values_are_rejected(value):
+    assert entity_service.is_plausible(value, "email") is False
+
+
+def test_values_without_a_declared_normalizer_are_always_plausible():
+    """Free-text fields (descriptions, opening hours) have no shape to check;
+    the gate must not invent one."""
+    assert entity_service.is_plausible("anything at all", None) is True
+    assert entity_service.is_plausible("anything at all", "casefold") is True
+
+
+def test_empty_values_are_not_rejected():
+    """An absent value is the gate's business, not this check's."""
+    assert entity_service.is_plausible("", "phone") is True
+    assert entity_service.is_plausible(None, "phone") is True
+
+
+def test_url_plausibility():
+    assert entity_service.is_plausible("https://example.org", "url") is True
+    assert entity_service.is_plausible("example.org/path", "url") is True
+    assert entity_service.is_plausible("not a url at all", "url") is False

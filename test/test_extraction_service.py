@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import model.analyzer.extraction_service as extraction_service
 from model.objects.category import Category, Relevancy
+from model.objects.config import Config
 from conftest import make_fake_category
 
 
@@ -324,3 +325,82 @@ def test_require_any_role_is_a_union_not_an_intersection(monkeypatch):
     assert extraction_service.is_admissible({"address": "Kirchstr. 1"})[0] is True
     assert extraction_service.is_admissible({"e-mail": "a@b.c"})[0] is True
     assert extraction_service.is_admissible({"name": "only a name"})[0] is False
+
+
+# ---------------------------------------------------------------------------
+# scrubbing implausible field values
+# ---------------------------------------------------------------------------
+
+def _config_with_phone_semantics(monkeypatch):
+    config = Config(
+        categories=[], category_prompt="p", category_max_tokens=10,
+        category_context=2048, category_model_id=0, politeness=1,
+        skip_tags=[], starting_url_path="s.csv", database_path="d.db",
+        discover_urls=False, results_per_query=1, query_politeness=1.0,
+        redo_all_fetches=False, redo_failed_fetches=False,
+        require_fields=["name"],
+        require_any_role=["identifier"],
+        field_semantics={
+            "name": {"role": "label"},
+            "telephone": {"role": "identifier", "normalize": "phone"},
+            "e-mail": {"role": "identifier", "normalize": "email"},
+            "description": {"role": "attribute"},
+        },
+    )
+    monkeypatch.setattr(extraction_service, "config", config)
+    return config
+
+
+def test_a_date_in_a_phone_field_is_dropped(monkeypatch):
+    """'08.06.26' was extracted as a telephone in two separate live runs."""
+    _config_with_phone_semantics(monkeypatch)
+    record = {"name": "Station", "telephone": "08.06.26", "e-mail": "a@b.org"}
+
+    cleaned, dropped = extraction_service.scrub_implausible(record)
+
+    assert cleaned["telephone"] == ""
+    assert cleaned["e-mail"] == "a@b.org"      # untouched
+    assert "telephone" in dropped
+
+
+def test_scrubbing_leaves_valid_values_alone(monkeypatch):
+    _config_with_phone_semantics(monkeypatch)
+    record = {"name": "Station", "telephone": "06131/ 477638", "description": "08.06.26"}
+
+    cleaned, dropped = extraction_service.scrub_implausible(record)
+
+    assert cleaned == record
+    assert dropped == []
+
+
+def test_a_record_left_without_an_identifier_by_scrubbing_is_rejected(monkeypatch):
+    """The gate must see the scrubbed record, not the raw one: a record whose
+    only identifier was a misparsed date identifies nothing."""
+    _config_with_phone_semantics(monkeypatch)
+    data = [{"name": "Station", "telephone": "08.06.26"}]
+
+    kept = extraction_service._filter_admissible(data, "https://example.org")
+
+    assert kept == []
+
+
+def test_a_record_keeps_going_when_another_identifier_survives(monkeypatch):
+    _config_with_phone_semantics(monkeypatch)
+    data = [{"name": "Station", "telephone": "08.06.26", "e-mail": "a@b.org"}]
+
+    kept = extraction_service._filter_admissible(data, "https://example.org")
+
+    assert len(kept) == 1
+    assert kept[0]["e-mail"] == "a@b.org"
+    assert not kept[0]["telephone"]
+
+
+def test_scrubbing_a_single_record_extraction(monkeypatch):
+    _config_with_phone_semantics(monkeypatch)
+    data = {"name": "Station", "telephone": "https://example.org/notfall",
+            "e-mail": "a@b.org"}
+
+    kept = extraction_service._filter_admissible(data, "https://example.org")
+
+    assert kept is not None
+    assert not kept["telephone"]

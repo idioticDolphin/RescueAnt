@@ -3,6 +3,7 @@ import logging
 from model.objects.category import Category, Relevancy
 import model.analyzer.boilerplate_service as boilerplate_service
 import model.analyzer.cleaning_service as cleaning_service
+import model.analyzer.entity_service as entity_service
 import model.tools.config_service as config_service
 import model.tools.llm_service as llm_service
 import json
@@ -168,6 +169,36 @@ def extract_information(html: str, category:Category, base_url: str):
         return None
 
 
+def scrub_implausible(record):
+    """
+    Blank field values that cannot be what their field claims to be.
+
+    Each field declares its shape through `normalize` in the config's field
+    semantics, and that declaration is all this needs - a date extracted into
+    a telephone field, or a URL into a phone field, is dropped without any
+    field name or domain rule appearing in the code.
+
+    Only the offending value is dropped, never the record: a station with one
+    misparsed phone number is still a station. Whether what survives is enough
+    remains the admissibility gate's decision.
+
+    :return: (cleaned_record, names of dropped fields)
+    """
+    if not isinstance(record, dict):
+        return record, []
+
+    cleaned, dropped = dict(record), []
+    for name, value in record.items():
+        semantics = config.field_semantics.get(name) or {}
+        normalizer = semantics.get("normalize")
+        if not normalizer:
+            continue
+        if not entity_service.is_plausible(value, normalizer):
+            cleaned[name] = ""
+            dropped.append(name)
+    return cleaned, dropped
+
+
 def _filter_admissible(data, base_url):
     """
     Drop records that fail the admissibility gate, logging why.
@@ -180,6 +211,7 @@ def _filter_admissible(data, base_url):
     if isinstance(data, list):
         kept = []
         for record in data:
+            record = _scrubbed(record, base_url)
             admissible, reason = is_admissible(record)
             if admissible:
                 kept.append(record)
@@ -190,8 +222,18 @@ def _filter_admissible(data, base_url):
                         len(data) - len(kept), len(data), base_url)
         return kept
 
+    data = _scrubbed(data, base_url)
     admissible, reason = is_admissible(data)
     if not admissible:
         logger.info("Rejected record from %s as inadmissible: %s", base_url, reason)
         return None
     return data
+
+
+def _scrubbed(record, base_url):
+    """Scrub a record's implausible values, reporting what was dropped."""
+    cleaned, dropped = scrub_implausible(record)
+    if dropped:
+        logger.debug("Dropped implausible value(s) from %s: %s",
+                     base_url, ", ".join(dropped))
+    return cleaned

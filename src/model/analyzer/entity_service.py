@@ -41,6 +41,49 @@ _NON_ALNUM = re.compile(r"[^0-9a-z]+")
 _POSTCODE = re.compile(r"\b\d{4,6}\b")
 
 
+# A value shaped like a date is not a phone number, however many digits it
+# has. Day/month/year and ISO orderings cover the common conventions without
+# assuming a locale.
+_DATE_LIKE = re.compile(r"^\s*\d{1,4}[.\-/]\s?\d{1,2}[.\-/]\s?\d{1,4}\s*$")
+_EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$")
+_URL_SHAPE = re.compile(r"^(\w+://)?[^\s/]+\.[^\s/]{2,}(/|$)")
+_MIN_PHONE_DIGITS = 6
+
+
+def is_plausible(value, normalizer):
+    """
+    Is this value capable of being what its field claims to be?
+
+    Extraction sometimes returns a value of the wrong kind entirely - a date
+    in a telephone field, a URL in a phone field, a double-@ address. The
+    field's declared `normalize` type already says what shape is expected, so
+    that declaration is enough to check it: no field names and no domain
+    knowledge enter the code.
+
+    Free-text fields declare no normalizer and are always plausible; so is an
+    empty value, whose absence is the admissibility gate's business.
+    """
+    if value is None:
+        return True
+    text = str(value).strip()
+    if not text:
+        return True
+
+    if normalizer == "phone":
+        if _DATE_LIKE.match(text):
+            return False
+        # A URL or address can contain digits; require the value to be
+        # essentially a number, not prose that happens to include one.
+        if re.search(r"[a-zA-Z]{4,}", text):
+            return False
+        return len(re.sub(r"\D", "", text)) >= _MIN_PHONE_DIGITS
+    if normalizer == "email":
+        return bool(_EMAIL_SHAPE.match(text))
+    if normalizer == "url":
+        return bool(_URL_SHAPE.match(text))
+    return True
+
+
 def normalize(value, normalizer="casefold"):
     """
     Apply a named normalizer to a single value.
