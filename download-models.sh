@@ -57,17 +57,23 @@ for want in $wanted; do
     fi
 
     echo "downloading $name -> $target"
-    # --continue-at - resumes a partial file; --fail so an HTTP error is not
-    # written to disk as if it were a model. The progress meter is suppressed
-    # when output is redirected, where it otherwise writes a line per update
-    # and buries everything else in the log.
+    # Download to .part and rename only on success, so an interrupted or
+    # failed download is never left sitting at the real filename where
+    # something else would load it as a model. --continue-at - still resumes
+    # the .part file across runs.
+    #
+    # --fail so an HTTP error body is not written to disk as if it were a
+    # model. The progress meter is suppressed when output is redirected, where
+    # it otherwise writes a line per update and buries everything else.
     progress="--progress-bar"
     [ -t 1 ] || progress="--no-progress-meter"
-    if curl -L --fail --continue-at - $progress -o "$target" \
+    if curl -L --fail --continue-at - $progress -o "$target.part" \
         "https://huggingface.co/$repo/resolve/main/$file"; then
+        mv "$target.part" "$target"
         echo "done: $target"
     else
-        echo "error: failed to download $name from $repo" >&2
+        echo "error: failed to download $name from $repo" \
+             "(partial file kept at $target.part for resuming)" >&2
         status=1
     fi
 done

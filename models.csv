@@ -1,6 +1,6 @@
 # Model catalogue for download-models.sh
 #
-# name,repo,file,role
+# name,repo,file,role,context
 #
 #   name  what the file is saved as under models/
 #   repo  Hugging Face repository id
@@ -9,6 +9,14 @@
 #         arguments; "candidate" is fetched only when asked for by name or
 #         with --all, and exists so alternatives can be benchmarked against
 #         the default on your own hardware.
+#   context  largest context that fits an 8 GB card, measured. Blank means
+#         not yet measured - experiments/model_sweep.py probes for it.
+#
+# File size does not predict VRAM. Gemma 3 4B is *smaller* on disk than the
+# default (2.54 GB against 2.71 GB) and needs far more of the card: 5.0 GiB
+# at 8k context, 6.2 GiB at 16k, and it cannot hold 32k at all, because its
+# attention keeps a full-size sliding-window cache. Always measure rather
+# than inferring from the download size.
 #
 # Every entry must be a GGUF that llama.cpp can load and that supports
 # grammar-constrained generation, since both classification and extraction
@@ -26,17 +34,17 @@
 # English costs nothing there, while extraction reproduces text from the page
 # and that tendency shows up directly.
 
-qwen3.5-4b,unsloth/Qwen3.5-4B-GGUF,Qwen3.5-4B-UD-Q4_K_XL.gguf,default
+qwen3.5-4b,unsloth/Qwen3.5-4B-GGUF,Qwen3.5-4B-UD-Q4_K_XL.gguf,default,32768
 
 # --- candidates, roughly 2.5-5.6 GB each ------------------------------------
 # Sized for an 8 GB card. Anything past ~5 GB only fits at a reduced context,
 # which on this workload has cost more than the extra parameters returned.
 
-gemma-3-4b,unsloth/gemma-3-4b-it-GGUF,gemma-3-4b-it-UD-Q4_K_XL.gguf,candidate
-llama-3.1-8b,unsloth/Llama-3.1-8B-Instruct-GGUF,Llama-3.1-8B-Instruct-UD-Q4_K_XL.gguf,candidate
-eurollm-9b,bartowski/EuroLLM-9B-Instruct-GGUF,EuroLLM-9B-Instruct-Q4_K_M.gguf,candidate
-ministral-3-8b,unsloth/Ministral-3-8B-Instruct-2512-GGUF,Ministral-3-8B-Instruct-2512-UD-Q4_K_XL.gguf,candidate
-granite-4.2-8b,ibm-granite/granite-4.2-8b-GGUF,granite-4.2-8b-Q4_K_M.gguf,candidate
-teuken-7b,mradermacher/Teuken-7B-instruct-commercial-v0.4-GGUF,Teuken-7B-instruct-commercial-v0.4.Q4_K_M.gguf,candidate
-qwen3.5-2b,unsloth/Qwen3.5-2B-GGUF,Qwen3.5-2B-UD-Q4_K_XL.gguf,candidate
-qwen3.5-9b,unsloth/Qwen3.5-9B-GGUF,Qwen3.5-9B-Q4_K_M.gguf,candidate
+gemma-3-4b,unsloth/gemma-3-4b-it-GGUF,gemma-3-4b-it-UD-Q4_K_XL.gguf,candidate,16384
+llama-3.1-8b,unsloth/Llama-3.1-8B-Instruct-GGUF,Llama-3.1-8B-Instruct-UD-Q4_K_XL.gguf,candidate,
+eurollm-9b,bartowski/EuroLLM-9B-Instruct-GGUF,EuroLLM-9B-Instruct-Q4_K_M.gguf,candidate,
+ministral-3-8b,unsloth/Ministral-3-8B-Instruct-2512-GGUF,Ministral-3-8B-Instruct-2512-UD-Q4_K_XL.gguf,candidate,
+granite-4.2-8b,ibm-granite/granite-4.2-8b-GGUF,granite-4.2-8b-Q4_K_M.gguf,candidate,
+teuken-7b,mradermacher/Teuken-7B-instruct-commercial-v0.4-GGUF,Teuken-7B-instruct-commercial-v0.4.Q4_K_M.gguf,candidate,
+qwen3.5-2b,unsloth/Qwen3.5-2B-GGUF,Qwen3.5-2B-UD-Q4_K_XL.gguf,candidate,32768
+qwen3.5-9b,unsloth/Qwen3.5-9B-GGUF,Qwen3.5-9B-Q4_K_M.gguf,candidate,12288
