@@ -48,6 +48,43 @@ def catalogue():
 
 MIN_TOKENS_PER_SECOND = 4.0
 
+# A card counts as idle below this. The threshold has to sit between two
+# numbers: a normal desktop - browser, launcher, chat app - already holds about
+# 1.6 GiB, and a leaked model adds at least another 2.4 GiB (the smallest in
+# the catalogue). 3000 MiB tolerates the first and catches the second.
+# Override with --idle-mib on a machine with a heavier desktop.
+IDLE_VRAM_MIB = 3000
+
+
+def vram_used_mib():
+    """Current VRAM use in MiB, or None if nvidia-smi cannot be queried."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=30).stdout
+        return int(out.strip().splitlines()[0])
+    except Exception:
+        return None
+
+
+def wait_for_idle_card(timeout=120, idle_mib=None):
+    """Block until the GPU is idle, or return False.
+
+    Without this, a process left holding a model after a killed run makes
+    every later measurement quietly wrong: three candidates once "failed to
+    fit at 8k" when the card was in fact already 6 GB full of a leaked
+    allocation. A model that is refused a clean card is skipped and reported
+    as unmeasured, never scored.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        used = vram_used_mib()
+        if used is not None and used < (idle_mib or IDLE_VRAM_MIB):
+            return True
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(5)
+
 
 def probe_context(model, candidates=(32768, 16384, 8192, 4096)):
     """Largest context this model can load and generate at a usable rate.
@@ -105,6 +142,8 @@ def main():
                     help="context size to load every model with")
     ap.add_argument("--only", nargs="*", default=None,
                     help="substrings; only models whose filename matches are run")
+    ap.add_argument("--idle-mib", type=int, default=IDLE_VRAM_MIB,
+                    help="VRAM in MiB below which the card counts as idle")
     ap.add_argument("--force-category", default="STATION",
                     help="category to extract as, for the extraction benchmark")
     args = ap.parse_args()
@@ -122,6 +161,13 @@ def main():
     results = []
     for model in models:
         size = model.stat().st_size / 1e9
+        if not wait_for_idle_card(idle_mib=args.idle_mib):
+            print(f"=== {model.name} === card not idle ({vram_used_mib()} MiB in use) "
+                  f"- skipped, NOT measured", flush=True)
+            results.append({"model": model.name, "size": size, "context": None,
+                            "cls": "busy", "cls_rate": None, "matched": None,
+                            "fields": {}})
+            continue
         context = args.context or known.get(model.name)
         if context is None:
             context = probe_context(str(model))
