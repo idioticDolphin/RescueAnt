@@ -12,6 +12,7 @@ SEMANTICS = {
     "name":      {"role": "label", "weight": 0.3},
     "e-mail":    {"role": "identifier", "weight": 1.0, "normalize": "email", "fusion": "union"},
     "telephone": {"role": "identifier", "weight": 0.9, "normalize": "phone", "fusion": "union"},
+    "station_url": {"role": "identifier", "weight": 0.8, "normalize": "url", "fusion": "union"},
     "address":   {"role": "locator", "weight": 0.7, "fusion": "trust_then_valid"},
     "tags":      {"role": "attribute", "fusion": "union"},
     "pickup":    {"role": "attribute", "fusion": "or_with_evidence"},
@@ -342,3 +343,82 @@ def test_tidying_handles_empty_and_none():
 
 def test_a_value_that_is_only_markup_becomes_empty():
     assert entity_service.tidy("##", "phone") == ""
+
+
+# ---------------------------------------------------------------------------
+# label containment
+#
+# Sites label the same organisation differently on different subpages, by
+# prefixing the page's topic: "Kitzrettung - Tier- und Naturschutz Unterer
+# Vogelsberg e. V." and "Tier- und Naturschutz Unterer Vogelsberg e. V." are
+# one organisation. Character-trigram similarity lands just under the label
+# threshold for these, so a shared identifier (0.8) never reaches acceptance
+# (1.0) and the entity splits - twenty records, twenty entities, one place.
+#
+# Containment is the signal that separates those from the genuinely dangerous
+# case: an umbrella site whose listing gave six *different* organisations its
+# own URL. Those must stay apart, and they share no containment.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("a,b", [
+    ("Kitzrettung - Tier- und Naturschutz Unterer Vogelsberg e. V.",
+     "Tier- und Naturschutz Unterer Vogelsberg e. V."),
+    ("Naturoasen – Stiftung Natur Zuerst", "Stiftung Natur Zuerst"),
+    ("Tierauffangstation - Tierschutzverein Löffingen", "Tierschutzverein Löffingen"),
+    ("Musella Stiftung - Wildbienenhäuser", "Musella Stiftung"),
+])
+def test_one_label_containing_the_other_counts_as_agreement(a, b):
+    assert entity_service.labels_contain(a, b) is True
+    assert entity_service.labels_contain(b, a) is True   # symmetric
+
+
+@pytest.mark.parametrize("a,b", [
+    # The six organisations an umbrella site gave its own URL to.
+    ("Tierhelfer Ingelheim e. V.", "Tierschutzverein Mainz und Umgebung e. V."),
+    ("Tierschutzverein Worms Stadt und Land e. V.", "Tierhelfer Ingelheim e. V."),
+    # Different towns, same pattern of name.
+    ("Tierheim Marburg", "Tierheim Bergheim"),
+])
+def test_unrelated_labels_do_not_contain_each_other(a, b):
+    assert entity_service.labels_contain(a, b) is False
+
+
+def test_a_short_shared_fragment_is_not_containment():
+    """Otherwise every German association matches every other on 'e.V.', and
+    every English one on 'Trust'."""
+    assert entity_service.labels_contain("e.V.", "Tierheim Mainz e.V.") is False
+    assert entity_service.labels_contain("Hilfe", "Tierhilfe Nordeifel") is False
+
+
+def test_containment_ignores_punctuation_and_case():
+    assert entity_service.labels_contain(
+        "ELZTAL-GNADENHOF e.V.", "Elztal Gnadenhof") is True
+
+
+def test_containment_of_empty_values_is_false():
+    assert entity_service.labels_contain("", "anything") is False
+    assert entity_service.labels_contain(None, "anything") is False
+
+
+def test_records_sharing_an_identifier_and_a_contained_label_merge(resolver):
+    """The twenty-records-one-place case."""
+    records = [
+        {"name": "Kitzrettung - Tier- und Naturschutz Unterer Vogelsberg e. V.",
+         "station_url": "https://tina-uvb.de"},
+        {"name": "Tier- und Naturschutz Unterer Vogelsberg e. V.",
+         "station_url": "https://tina-uvb.de"},
+        {"name": "Wildtiere - Tier- und Naturschutz Unterer Vogelsberg e. V.",
+         "station_url": "https://tina-uvb.de"},
+    ]
+    assert len(resolver.cluster(records)) == 1
+
+
+def test_different_organisations_sharing_an_umbrella_url_stay_apart(resolver):
+    """The regression this rule must not cause: tierschutz-rlp.de's listing
+    gave its own URL to six distinct member organisations."""
+    records = [
+        {"name": "Tierhelfer Ingelheim e. V.", "station_url": "https://www.tierschutz-rlp.de"},
+        {"name": "Tierschutzverein Mainz und Umgebung e. V.", "station_url": "https://www.tierschutz-rlp.de"},
+        {"name": "Tierschutzverein Worms Stadt und Land e. V.", "station_url": "https://www.tierschutz-rlp.de"},
+    ]
+    assert len(resolver.cluster(records)) == 3

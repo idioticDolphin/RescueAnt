@@ -1,0 +1,101 @@
+Could not load pages for fressnapf.de to learn its template (no such column: content_path)
+Could not load pages for dogorama.app to learn its template (no such column: content_path)
+Could not load pages for about.google to learn its template (no such column: content_path)
+Could not load pages for cgu.gov.br to learn its template (no such column: content_path)
+Could not load pages for memon.eu to learn its template (no such column: content_path)
+Could not load pages for vbu-ffm.de to learn its template (no such column: content_path)
+Could not load pages for nabu.de to learn its template (no such column: content_path)
+Could not load pages for deutsche-wildtierrettung.de to learn its template (no such column: content_path)
+Could not load pages for greifvogelhilfe.de to learn its template (no such column: content_path)
+Could not load pages for wildtierzentrum.de to learn its template (no such column: content_path)
+Could not load pages for eichhoernchen-schutz.de to learn its template (no such column: content_path)
+Could not load pages for reptilienauffangstation.de to learn its template (no such column: content_path)
+Could not load pages for tierheim-marburg.de to learn its template (no such column: content_path)
+Could not load pages for tierheim-bergheim.de to learn its template (no such column: content_path)
+Could not load pages for franziskustierheim.de to learn its template (no such column: content_path)
+Could not load pages for hamburger-tierschutzverein.de to learn its template (no such column: content_path)
+Could not load pages for tierheim-mainz.de to learn its template (no such column: content_path)
+Could not load pages for tierheim-wetterau-ev.de to learn its template (no such column: content_path)
+Could not load pages for tierheim-ostermuenchen.de to learn its template (no such column: content_path)
+Could not load pages for de.tl to learn its template (no such column: content_path)
+Could not load pages for tierklinik-hofheim.de to learn its template (no such column: content_path)
+Could not load pages for vetpuls.de to learn its template (no such column: content_path)
+Could not load pages for tiermed-muenchen.de to learn its template (no such column: content_path)
+Could not load pages for wildtierschutz-deutschland.de to learn its template (no such column: content_path)
+Could not load pages for tierschutzpartei.de to learn its template (no such column: content_path)
+Could not load pages for klimaliste-berlin.de to learn its template (no such column: content_path)
+Could not load pages for sozis-tiere.de to learn its template (no such column: content_path)
+Could not load pages for naturefund.de to learn its template (no such column: content_path)
+Could not load pages for natur-zuerst.de to learn its template (no such column: content_path)
+(skipping crawl_second_hub.db: no such column: content_path)
+ok   fressnapf.de/c/katze/katzenfutter                                         expected=COMMERCIAL  got=COMMERCIAL
+ok   fressnapf.de/c/katze/katzenfutter/nassfutter                              expected=COMMERCIAL  got=COMMERCIAL
+ok   fressnapf.de/c/hund/hundefutter/ergaenzungsfutter                         expected=COMMERCIAL  got=COMMERCIAL
+ok   fressnapf.de/c/hund/hundeschlafplaetze/hundebetten                        expected=COMMERCIAL  got=COMMERCIAL
+ok   fressnapf.de/c/garten-teich/wildvoegel/vogelhaeuser-nistkaesten           expected=COMMERCIAL  got=COMMERCIAL
+ok   dogorama.app/de-de/hundeshops                                             expected=COMMERCIAL  got=COMMERCIAL
+ok   dogorama.app/de-de/hundepensionen                                         expected=COMMERCIAL  got=COMMERCIAL
+ok   dogorama.app/de-de/ernaehrungsberater                                     expected=COMMERCIAL  got=COMMERCIAL
+FAIL about.google/locations                                                    expected=IRRELEVANT  got=COMMERCIAL
+ok   falabr.cgu.gov.br/web/orgao                                               expected=AUTHORITY   got=AUTHORITY
+ok   memon.eu/                                                                 expected=COMMERCIAL  got=COMMERCIAL
+FAIL vbu-ffm.de/pflegestationen.shtml                                          expected=LIST        got=STATION
+FAIL rlp.nabu.de/tiere-und-pflanzen/tieren-helfen/pflege-und-auffangstationen  expected=LIST        got=STATION
+FAIL deutsche-wildtierrettung.de/wildtierauffangstationen                      expected=LIST        got=STATION
+ok   greifvogelhilfe.de/greifvogelhilfe                                        expected=STATION     got=STATION
+ok   wildtierzentrum.de/                                                       expected=STATION     got=STATION
+ok   eichhoernchen-schutz.de/                                                  expected=STATION     got=STATION
+ok   reptilienauffangstation.de/                                               expected=STATION     got=STATION
+ok   tierheim-marburg.de/                                                      expected=SHELTER     got=SHELTER
+ok   tierheim-bergheim.de/                                                     expected=SHELTER     got=SHELTER
+FAIL franziskustierheim.de/                                                    expected=SHELTER     got=STATION
+ok   hamburger-tierschutzverein.de/                                            expected=SHELTER     got=SHELTER
+ok   tierheim-mainz.de/                                                        expected=SHELTER     got=SHELTER
+ok   tierheim-wetterau-ev.de/                                                  expected=SHELTER     got=SHELTER
+ok   tierheim-ostermuenchen.de/unser-tierheim                                  expected=SHELTER     got=SHELTER
+FAIL elztal-gnadenhof.de.tl/                                                   expected=SANCTUARY   got=SHELTER
+FAIL tierklinik-hofheim.de/                                                    expected=VET         got=STATION
+ok   vetpuls.de/                                                               expected=VET         got=VET
+FAIL tiermed-muenchen.de/                                                      expected=VET         got=STATION
+FAIL wildtierschutz-deutschland.de/verletztes-wildtier                         expected=LIST        got=STATION
+FAIL wildtierschutz-deutschland.de/verletztes-wildtier-gefunden                expected=ADVICE      got=STATION
+FAIL tierschutzpartei.de/                                                      expected=ADVOCACY    got=COMMERCIAL
+FAIL klimaliste-berlin.de/                                                     expected=ADVOCACY    got=HUB
+FAIL sozis-tiere.de/                                                           expected=ADVOCACY    got=LIST
+FAIL naturefund.de/                                                            expected=ADVOCACY    got=COMMERCIAL
+FAIL natur-zuerst.de/                                                          expected=ADVOCACY    got=STATION
+FAIL elztal-gnadenhof.de.tl/Amely.htm                                          expected=ANIMAL      got=SHELTER
+FAIL elztal-gnadenhof.de.tl/Bob.htm                                            expected=ANIMAL      got=SHELTER
+FAIL elztal-gnadenhof.de.tl/Sina.htm                                           expected=ANIMAL      got=SHELTER
+FAIL elztal-gnadenhof.de.tl/Alca.htm                                           expected=ANIMAL      got=SHELTER
+FAIL elztal-gnadenhof.de.tl/Gypsy.htm                                          expected=ANIMAL      got=SHELTER
+FAIL tierheim-ostermuenchen.de/hund                                            expected=ANIMAL      got=SHELTER
+FAIL hamburger-tierschutzverein.de/tiervermittlung/hunde                       expected=ANIMAL      got=SHELTER
+FAIL tierheim-marburg.de/k/hunde                                               expected=ANIMAL      got=LIST
+FAIL franziskustierheim.de/tiervermittlung/hunde-17.html                       expected=ANIMAL      got=SHELTER
+FAIL tierheim-ostermuenchen.de/stellenangebote                                 expected=HUB         got=MISSING
+FAIL tierheim-ostermuenchen.de/aktuelles                                       expected=HUB         got=STATION
+FAIL tierheim-ostermuenchen.de/gassigeher-und-katzenstreichler                 expected=HUB         got=STATION
+FAIL tierheim-ostermuenchen.de/unsere-vereinszeitung                           expected=HUB         got=SHELTER
+FAIL tiermed-muenchen.de/stellenangebote                                       expected=HUB         got=COMMERCIAL
+FAIL tiermed-muenchen.de/team2                                                 expected=HUB         got=COMMERCIAL
+
+21/50 correct  (42%)
+1 case(s) skipped - page not in this store
+
+mistakes (expected -> got):
+    8  ANIMAL -> SHELTER
+    4  LIST -> STATION
+    2  VET -> STATION
+    2  ADVOCACY -> COMMERCIAL
+    2  HUB -> STATION
+    2  HUB -> COMMERCIAL
+    1  IRRELEVANT -> COMMERCIAL
+    1  SHELTER -> STATION
+    1  SANCTUARY -> SHELTER
+    1  ADVICE -> STATION
+    1  ADVOCACY -> HUB
+    1  ADVOCACY -> LIST
+    1  ADVOCACY -> STATION
+    1  ANIMAL -> LIST
+    1  HUB -> SHELTER

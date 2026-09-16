@@ -12,6 +12,7 @@ Usage:
 """
 import argparse
 import sys
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -116,10 +117,21 @@ def main():
                     default=["crawl.db", "crawl_third_taxonomy_baseline.db",
                              "crawl_second_hub.db"])
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--model", help="GGUF to classify with, overriding the config")
+    ap.add_argument("--context", type=int, help="context size for --model")
     args = ap.parse_args()
 
     config_service.load_config()
     config = config_service.get_config()
+    if args.model:
+        # Swap the classifier without editing config, so several models can be
+        # compared against the same labelled pages in one sitting.
+        from model.tools import llm_service
+        context = args.context or config.category_context
+        config = config.model_copy(update={
+            "category_model_id": llm_service.get_model_id(args.model, context)})
+        config_service._session_config = config
+        category_service.config = config
     page_store.configure(config.page_store_path)
     # Templates are learned from stored pages, exactly as in a live run.
     boilerplate_service.forget_all()
@@ -141,7 +153,7 @@ def main():
     stored = list(seen.items())
     cases = CASES[: args.limit] if args.limit else CASES
 
-    rows, confusion = [], Counter()
+    rows, confusion, elapsed = [], Counter(), []
     for needle, expected in cases:
         match = next(((u, p) for u, p in stored if needle in u and p), None)
         if match is None:
@@ -152,7 +164,9 @@ def main():
         if not html:
             rows.append((needle, expected, "NOCONTENT", False))
             continue
+        started = time.monotonic()
         got = category_service.categorize_website(html, url=url)
+        elapsed.append(time.monotonic() - started)
         got = getattr(got, "name", got)
         ok = got == expected
         confusion[(expected, got)] += 1
@@ -170,6 +184,11 @@ def main():
     skipped = len(rows) - len(scored)
     if skipped:
         print(f"{skipped} case(s) skipped - page not in this store")
+
+    if elapsed:
+        total = sum(elapsed)
+        print(f"classification: {total:.0f}s for {len(elapsed)} pages "
+              f"= {total / len(elapsed):.1f}s per page")
 
     print("\nmistakes (expected -> got):")
     for (exp, got), n in sorted(confusion.items(), key=lambda kv: -kv[1]):

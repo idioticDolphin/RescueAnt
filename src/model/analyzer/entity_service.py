@@ -108,6 +108,43 @@ def is_plausible(value, normalizer):
     return True
 
 
+# A contained label has to be substantial to mean anything: almost every
+# German association name ends "e.V.", almost every English one contains
+# "Trust", and matching on those would merge the whole corpus.
+_MIN_CONTAINED_LABEL = 12
+_NON_ALNUM = re.compile(r"[^\w]+", re.UNICODE)
+
+
+def labels_contain(a, b):
+    """
+    True when one label is wholly contained in the other.
+
+    Sites name the same organisation differently on different subpages by
+    prefixing the page's topic - "Kitzrettung - Tier- und Naturschutz Unterer
+    Vogelsberg e. V." beside plain "Tier- und Naturschutz Unterer Vogelsberg
+    e. V.". Character-trigram similarity lands just below the label threshold
+    for these, so a shared identifier alone never reached acceptance and one
+    organisation became twenty entities.
+
+    Containment separates that from the case this must not break: an umbrella
+    site whose listing handed its own URL to six *different* member
+    organisations. Those share no containment and stay apart.
+
+    Comparison strips case and all non-alphanumerics, so punctuation and
+    spacing differences do not matter, in any script.
+    """
+    if not a or not b:
+        return False
+    na = _NON_ALNUM.sub("", unicodedata.normalize("NFKC", str(a)).casefold())
+    nb = _NON_ALNUM.sub("", unicodedata.normalize("NFKC", str(b)).casefold())
+    if not na or not nb:
+        return False
+    shorter, longer = (na, nb) if len(na) <= len(nb) else (nb, na)
+    if len(shorter) < _MIN_CONTAINED_LABEL:
+        return False
+    return shorter in longer
+
+
 def normalize(value, normalizer="casefold"):
     """
     Apply a named normalizer to a single value.
@@ -242,7 +279,12 @@ class Resolver:
                 continue
 
             if role == "label":
-                if similarity(left, right) >= DEFAULT_LABEL_SIMILARITY:
+                # Containment counts alongside similarity: a subpage that
+                # prefixes the organisation's name with the page's topic is
+                # naming the same organisation, but scores just under the
+                # similarity threshold.
+                if (similarity(left, right) >= DEFAULT_LABEL_SIMILARITY
+                        or labels_contain(left, right)):
                     total += self._weight_for(field, 0.3)
                 continue
 
