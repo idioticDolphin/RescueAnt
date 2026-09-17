@@ -83,7 +83,11 @@ def main():
     ap.add_argument("--force-category", metavar="NAME",
                     help="extract every page as this category instead of "
                          "classifying it - measures extraction alone, so a "
-                         "taxonomy change cannot look like an extraction failure")
+                         "taxonomy change cannot look like an extraction failure. "
+                         "'auto' picks a listing category for pages with several "
+                         "gold records and a single-record one otherwise")
+    ap.add_argument("--show-misses", action="store_true",
+                    help="print gold against extracted for every field scoring below 1")
     args = ap.parse_args()
 
     config_service.load_config()
@@ -125,7 +129,7 @@ def main():
 
         started = time.monotonic()
         if args.force_category:
-            category = config.get_category(args.force_category)
+            category = _forced_category(config, args.force_category, len(gold_entries))
         else:
             category = category_service.categorize_website(html, url=url)
         if category is None or not category.is_relevant:
@@ -144,12 +148,32 @@ def main():
 
     _report(rows, missing, routed, elapsed,
             args.model or "configured model",
-            forced=args.force_category)
+            forced=args.force_category, show_misses=args.show_misses)
 
 
-def _report(rows, missing, routed, elapsed, label, forced=None):
+def _forced_category(config, name, gold_count):
+    """The category to extract a page as when classification is bypassed.
+
+    'auto' chooses by the *shape* of the gold data rather than by any
+    taxonomy: a page with several gold records is a listing and must be
+    extracted as one, or a nine-record page comes back as a single record and
+    scores 1 of 9 - which is what forcing every page to one single-record
+    category did, and it made two models look identical at 2/10.
+    """
+    if name != "auto":
+        return config.get_category(name)
+    extracting = [c for c in config.categories if c.is_relevant]
+    want_list = gold_count > 1
+    for c in extracting:
+        if bool(c.is_list_category) == want_list:
+            return c
+    return extracting[0] if extracting else None
+
+
+def _report(rows, missing, routed, elapsed, label, forced=None, show_misses=False):
     totals = {f: [0.0, 0] for f in gold_scoring.FIELDS}
     matched = unmatched = 0
+    misses = []
 
     print(f"\n{'page':<58} {'cat':<10} {'gold':>5} {'got':>4} {'matched':>8}")
     for url, category, gold_entries, extracted in rows:
@@ -167,6 +191,10 @@ def _report(rows, missing, routed, elapsed, label, forced=None):
                 if value is not None:
                     totals[field][0] += value
                     totals[field][1] += 1
+                    if show_misses and value < 1.0:
+                        misses.append((gold.get("name", "")[:30], field,
+                                       scored.get(f"gold_{field}"),
+                                       scored.get(f"extracted_{field}"), value))
         short = url.split("//", 1)[-1]
         print(f"{short[:58]:<58} {category[:10]:<10} {len(gold_entries):>5} "
               f"{len(extracted):>4} {hit:>8}")
@@ -191,6 +219,10 @@ def _report(rows, missing, routed, elapsed, label, forced=None):
             print(f"   {field:<18} {acc / n:.2f}   (n={n})")
         else:
             print(f"   {field:<18}    -   (no gold values)")
+    if misses:
+        print("\nfields scoring below 1 (gold -> extracted):")
+        for who, field, want, got, value in misses:
+            print(f"   {value:.2f}  {who:<30} {field:<16} {str(want)[:34]!r} -> {str(got)[:40]!r}")
     if elapsed:
         print(f"\nclassify+extract: {sum(elapsed):.0f}s for {len(elapsed)} pages "
               f"= {sum(elapsed) / len(elapsed):.1f}s per page")

@@ -70,8 +70,37 @@ def tidy(value, normalizer):
     """
     if value is None or not normalizer or normalizer == "casefold":
         return value
-    text = str(value)
-    return _OUR_MARKUP.sub("", text).strip()
+    text = _OUR_MARKUP.sub("", str(value)).strip()
+    if normalizer == "phone":
+        return _first_phone(text)
+    return text
+
+
+# A number-shaped span: starts with a digit (or + or an opening bracket), runs
+# over digits and the separators numbers are written with, and ends on a digit.
+_PHONE_SPAN = re.compile(r"[+(]?\d[\d\s/().\-]*\d")
+
+
+def _first_phone(text):
+    """The first number-shaped span in a telephone value, if it holds one.
+
+    Pages often give two numbers together, and a model told to keep the
+    page's wording copies them joined: '0171/26 45 180 oder 0178/66 86 457'.
+    The joining word then either makes the plausibility gate blank the whole
+    value or defeats every later comparison. Splitting on the joining words
+    would only work in the languages someone thought to list, so this takes
+    number-shaped spans instead, which works whatever joins them.
+
+    Only the first number is kept: a single-value field has room for one, and
+    a second number carries no reliable indication of whether it is a mobile,
+    an emergency line or a fax. A value with no number-shaped span at all is
+    returned unchanged, so the plausibility gate still sees it and rejects it.
+    """
+    for match in _PHONE_SPAN.finditer(text):
+        span = match.group(0).strip()
+        if len(re.sub(r"\D", "", span)) >= _MIN_PHONE_DIGITS:
+            return span
+    return text
 
 
 def is_plausible(value, normalizer):

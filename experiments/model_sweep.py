@@ -144,7 +144,7 @@ def main():
                     help="substrings; only models whose filename matches are run")
     ap.add_argument("--idle-mib", type=int, default=IDLE_VRAM_MIB,
                     help="VRAM in MiB below which the card counts as idle")
-    ap.add_argument("--force-category", default="STATION",
+    ap.add_argument("--force-category", default="auto",
                     help="category to extract as, for the extraction benchmark")
     args = ap.parse_args()
 
@@ -182,13 +182,13 @@ def main():
         print(f"=== {model.name}  ({size:.2f} GB, ctx {context}) ===", flush=True)
 
         cls_out, cls_secs = run("categorization_benchmark.py", model, context)
-        cls = _grab(cls_out, r"(\d+)/(\d+) correct\s+\((\d+)%\)")
+        cls = _grab(cls_out, r"\d+/\d+ correct\s+\((\d+%)\)")
         cls_rate = _grab(cls_out, r"= ([\d.]+)s per page")
         print(f"    classification: {cls or 'FAILED'}  ({cls_secs / 60:.1f} min)", flush=True)
 
         ext_out, ext_secs = run("extraction_benchmark.py", model, context,
                                 ["--force-category", args.force_category])
-        matched = _grab(ext_out, r"gold records matched: (\d+)/(\d+)")
+        matched = _grab(ext_out, r"gold records matched: (\d+/\d+)")
         fields = dict(re.findall(r"^\s{3}(\w+)\s+([\d.]+)", ext_out or "", re.M))
         print(f"    extraction:     matched {matched or '-'}  {fields}"
               f"  ({ext_secs / 60:.1f} min)", flush=True)
@@ -203,10 +203,11 @@ def main():
 
 
 def _grab(text, pattern):
+    """First capture group of pattern in text, or None."""
     if not isinstance(text, str):
         return None
     m = re.search(pattern, text)
-    return m.group(0).split(": ")[-1] if m else None
+    return m.group(1) if m else None
 
 
 def _table(results):

@@ -422,3 +422,42 @@ def test_different_organisations_sharing_an_umbrella_url_stay_apart(resolver):
         {"name": "Tierschutzverein Worms Stadt und Land e. V.", "station_url": "https://www.tierschutz-rlp.de"},
     ]
     assert len(resolver.cluster(records)) == 3
+
+
+# ---------------------------------------------------------------------------
+# several numbers in one telephone field
+#
+# Told to keep the page's own wording, the model copies a page's pair of
+# numbers verbatim: '0171/26 45 180 oder 0178/66 86 457'. The joining word
+# then either makes the gate blank the whole value ("oder" reads as prose) or
+# slips through and defeats every comparison ("und"). The fix cannot split on
+# the joining words, because those are language-specific; it extracts
+# number-shaped spans instead, which works whatever language joins them.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("raw,expected", [
+    ("0171/26 45 180 oder 0178/66 86 457", "0171/26 45 180"),
+    ("037437/3925 und 0157/50149986", "037437/3925"),
+    ("03581/406616 or 03581/407400", "03581/406616"),
+    ("01 23 45 67 89 ou 06 12 34 56 78", "01 23 45 67 89"),
+    ("Tel.: 06131/477638", "06131/477638"),
+    ("0171 1234567 (mobil)", "0171 1234567"),
+])
+def test_a_phone_field_keeps_the_first_number(raw, expected):
+    assert entity_service.tidy(raw, "phone") == expected
+
+
+@pytest.mark.parametrize("value", [
+    "+49 6334 98 47 377", "06131/ 477638", "(0) 6131-477638",
+])
+def test_a_single_number_is_left_as_it_is(value):
+    assert entity_service.tidy(value, "phone") == value
+
+
+def test_a_date_is_still_rejected_after_tidying():
+    """Tidying must not launder a date into something that passes."""
+    assert entity_service.is_plausible(entity_service.tidy("08.06.26", "phone"), "phone") is False
+
+
+def test_a_phone_field_with_no_number_in_it_is_left_for_the_gate():
+    assert entity_service.tidy("Nicht angegeben", "phone") == "Nicht angegeben"
