@@ -46,14 +46,18 @@ def catalogue():
     return by_file
 
 
-# How long a realistic page may take, prompt included, before the model is
-# judged to have fallen off the card. Calibrated on an 8 GB card with an
-# 8k-token page: models that fit took 4.1-13.7 s, models whose cache had
-# spilled took 64-74 s. Spilling is a cliff, not a slope, and 30 s sits well
-# inside the gap. (A first cutoff of 60 s would have passed one spilled case
-# by four seconds.)
-PROBE_PROMPT_TOKENS = 8000
-PROBE_MAX_SECONDS = 30
+# Fill this share of the context under test. A fixed 8k-token prompt was the
+# third probe to be fooled: in a 16k context it only half-fills the cache,
+# while the crawl trims large pages right up to the context limit - exactly the
+# region where a cache that has spilled to host memory slows to a crawl.
+PROBE_FILL = 0.9
+
+# Seconds allowed per 1,000 prompt tokens before the model is judged to have
+# fallen off the card. Calibrated on an 8 GB card: models that fit ran at
+# 0.5-1.7 s per 1k tokens, models whose cache had spilled at 8-9 s per 1k.
+# Spilling is a cliff, not a slope, and 4 sits well inside the gap. A fixed
+# cutoff in seconds cannot work once the prompt length follows the context.
+PROBE_SECONDS_PER_1K_TOKENS = 4.0
 
 # A card counts as idle below this. The threshold has to sit between two
 # numbers: a normal desktop - browser, launcher, chat app - already holds about
@@ -104,29 +108,31 @@ def probe_context(model, candidates=(32768, 16384, 12288, 8192)):
     spilled still answers quickly, then takes 24 minutes over a benchmark the
     default model finishes in four.
 
-    So the probe sends a prompt about as long as a real page and times the
-    whole call. The cache is exercised exactly as a crawl would exercise it.
+    So the probe fills the context nearly to its limit - as the crawl does
+    with a large page - and times the whole call. A fixed-length page was not
+    enough either: it left most of a large context's cache untouched.
     """
     for ctx in candidates:
-        if PROBE_PROMPT_TOKENS >= ctx:
-            continue
+        fill_tokens = int(ctx * PROBE_FILL)
         code = (
             "import time;from llama_cpp import Llama;"
             f"m=Llama(model_path=r'{model}',n_ctx={ctx},n_gpu_layers=-1,verbose=False);"
             "unit='Die Station nimmt verletzte Wildtiere auf und pflegt sie. ';"
             "n=len(m.tokenize(unit.encode()));"
-            f"text=unit*max(1,{PROBE_PROMPT_TOKENS}//n);"
+            f"text=unit*max(1,{fill_tokens}//n);"
             "t=time.monotonic();"
             "m.create_chat_completion(messages=[{'role':'user','content':text+' Fasse zusammen.'}],max_tokens=16);"
             "print(f'SECONDS {time.monotonic()-t:.1f}')"
         )
         try:
             out = subprocess.run([PY, "-c", code], cwd=ROOT, capture_output=True,
-                                 text=True, timeout=PROBE_MAX_SECONDS + 120).stdout
+                                 text=True,
+                                 timeout=fill_tokens / 1000 * PROBE_SECONDS_PER_1K_TOKENS + 180).stdout
         except subprocess.TimeoutExpired:
             continue
         m = re.search(r"SECONDS ([\d.]+)", out or "")
-        if m and float(m.group(1)) <= PROBE_MAX_SECONDS:
+        allowed = fill_tokens / 1000 * PROBE_SECONDS_PER_1K_TOKENS
+        if m and float(m.group(1)) <= allowed:
             return ctx
     return None
 
