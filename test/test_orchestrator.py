@@ -1042,3 +1042,65 @@ def test_a_page_that_raises_is_marked_failed_instead_of_ending_the_run(monkeypat
     assert args[0] == 1
     assert args[1] == data_service.STATE_FAILED
     assert "Invalid IPv6 URL" in kwargs["last_error"]
+
+
+# ---------------------------------------------------------------------------
+# visiting the own sites of organisations found on a listing, early
+# ---------------------------------------------------------------------------
+
+def _listing_run(monkeypatch, records, follow=True, priority=60.0):
+    monkeypatch.setattr(fetching_service, "parse_queue", _fake_parse_queue_returning({
+        "https://directory.org/stations": "<html>list</html>"}))
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+    _patch_data_service(monkeypatch)
+    cfg = config_service.get_config().model_copy(update={
+        "field_semantics": {"station_url": {"role": "identifier", "normalize": "url"},
+                            "name": {"role": "label"}},
+        "max_extractions_per_site": 0})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+    category = _make_category("LIST", is_list_category=True).model_copy(
+        update={"follow_record_urls": follow, "record_url_priority": priority})
+    category_service = MagicMock()
+    category_service.categorize_website.return_value = category
+    monkeypatch.setattr(orchestrator, "category_service", category_service)
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = (records, ["https://directory.org/next"])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+    orchestrator.process_batch(["https://directory.org/stations"])
+
+
+def test_listed_organisations_own_sites_are_queued_ahead_of_everything(monkeypatch):
+    _listing_run(monkeypatch, [
+        {"name": "Igelhilfe A", "station_url": "https://igelhilfe-a.de/"},
+        {"name": "Wildvogelhilfe B", "station_url": "wildvogelhilfe-b.de"},
+    ])
+
+    priorities = fetching_service.url_priorities
+    assert priorities["https://igelhilfe-a.de/"] == 60.0
+    assert priorities["https://wildvogelhilfe-b.de/"] == 60.0
+    assert priorities["https://directory.org/next"] < 60.0
+
+
+def test_urls_back_into_the_listing_site_are_not_boosted(monkeypatch):
+    # A directory's links to its own detail pages are not the organisation's site.
+    _listing_run(monkeypatch, [
+        {"name": "Tierheim X", "station_url": "https://www.directory.org/tierheime/x"}])
+
+    assert fetching_service.url_priorities.get("https://www.directory.org/tierheime/x", 0) < 60.0
+
+
+def test_record_values_that_are_not_urls_are_ignored(monkeypatch):
+    _listing_run(monkeypatch, [
+        {"name": "A", "station_url": "info@station-a.de"},
+        {"name": "B", "station_url": "see website"},
+        {"name": "C", "station_url": ["https://station-c.de/", "https://station-c.de/kontakt"]},
+    ])
+
+    boosted = {u for u, p in fetching_service.url_priorities.items() if p == 60.0}
+    assert boosted == {"https://station-c.de/", "https://station-c.de/kontakt"}
+
+
+def test_record_urls_are_left_alone_unless_the_category_asks(monkeypatch):
+    _listing_run(monkeypatch, [{"name": "A", "station_url": "https://station-a.de/"}], follow=False)
+
+    assert "https://station-a.de/" not in fetching_service.url_priorities

@@ -64,6 +64,11 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`follow_record_urls[...]`**: websites named in a category's records are
+  queued ahead of ordinary links, at `record_url_priority[...]`. The default
+  taxonomy turns it on for listings, so each listed station's own site - the
+  best source of its details - is visited soon after the listing is read.
+  Links back into the listing's own site are not boosted.
 - **Confirmation questions per category** (`confirm_prompt[...]`,
   `confirm_answers[...]`, `confirm_accept[...]`, `confirm_fallback[...]`):
   after classification, a page in such a category is asked one focused
@@ -191,5 +196,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 524 tests. Each regression test names the failure it exists to
+178 → 532 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

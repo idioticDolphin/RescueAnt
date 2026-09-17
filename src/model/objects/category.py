@@ -35,6 +35,10 @@ class Category(BaseModel):
     # A second, focused question asked of pages put in this category. Unless
     # the model gives confirm_accept (from confirm_answers), the page is filed
     # under confirm_fallback instead.
+    # Queue the URLs found in this category's records - a listed organisation's
+    # own website - at this frontier priority, so they are fetched soon.
+    follow_record_urls: bool = False
+    record_url_priority: float = 60.0
     confirm_prompt: str = None
     confirm_answers: list[str] = None
     confirm_accept: str = None

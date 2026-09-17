@@ -662,3 +662,23 @@ def test_a_confirmation_fallback_must_be_a_category(monkeypatch, tmp_path, sampl
         confirm_accept="station", confirm_fallback="NOWHERE"))
     with pytest.raises(ConfigError):
         config_service.load_config(config_service._read_config(config_file))
+
+
+def test_record_url_following_is_read_per_category(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text
+                           + "follow_record_urls[STATION] = True;\nrecord_url_priority[STATION] = 75;\n")
+    config_service.load_config(config_service._read_config(config_file))
+    station = config_service.get_config().get_category("STATION")
+    assert station.follow_record_urls is True
+    assert station.record_url_priority == 75.0
+
+
+def test_record_url_following_is_off_by_default(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text)
+    config_service.load_config(config_service._read_config(config_file))
+    station = config_service.get_config().get_category("STATION")
+    assert station.follow_record_urls is False

@@ -164,3 +164,14 @@ def test_productive_referrer_outranks_junk_path_on_shallow_page():
     junk = url_service.score_url("http://e.com/presse", referrer_category_weight=4.0,
                                  exclude_tokens=["presse"])
     assert from_list > junk
+
+
+def test_as_url_accepts_full_and_bare_addresses():
+    assert url_service.as_url("https://station.de/kontakt") == "https://station.de/kontakt"
+    assert url_service.as_url(" station.de ") == "https://station.de"
+    assert url_service.as_url("www.igelhilfe.ch/team") == "https://www.igelhilfe.ch/team"
+
+
+def test_as_url_rejects_what_is_not_an_address():
+    for value in ("info@station.de", "mailto:info@station.de", "see website", "", None, "Tel. 0621", "station"):
+        assert url_service.as_url(value) is None

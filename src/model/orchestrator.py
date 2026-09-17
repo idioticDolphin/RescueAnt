@@ -368,9 +368,11 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
             for entry in extracted_data:
                 data_service.save_extraction(crawl_id, entry)
             logger.info("Extracted %d entries from %s", len(extracted_data), url)
+            _queue_record_urls(extracted_data, category, config_service.get_config(), url)
         else:
             data_service.save_extraction(crawl_id, extracted_data)
             logger.info("Extracted %d field(s) from %s", len(extracted_data), url)
+            _queue_record_urls([extracted_data], category, config_service.get_config(), url)
         _queue_links(links, category, config_service.get_config())
     else:
         logger.debug("No data extracted from %s (category=%s)", url, category.name)
@@ -397,6 +399,37 @@ def _queue_links(links, category, cfg):
             link, referrer_category_weight=weight,
             identity_tokens=cfg.url_tokens_identity,
             exclude_tokens=cfg.url_tokens_exclude))
+
+
+def _queue_record_urls(records, category, cfg, page_url):
+    """
+    Queue the websites named in extracted records, ahead of ordinary links.
+
+    An organisation's own site is the best source for its details: a listing
+    carries a name and a town, often nothing else, while the organisation's
+    contact page has the address, phone and e-mail. Which fields hold such an
+    address is read from the schema (normalize "url"), and links back into the
+    listing's own site are left at their ordinary score - those are the
+    directory's detail pages, not the organisation.
+    """
+    if not category.follow_record_urls:
+        return
+    url_fields = [name for name, sem in cfg.field_semantics.items() if sem.get("normalize") == "url"]
+    page_site = url_service.registrable_domain(page_url)
+    queued = 0
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        for field in url_fields:
+            values = record.get(field)
+            for value in values if isinstance(values, list) else [values]:
+                link = url_service.as_url(value)
+                if not link or url_service.registrable_domain(link) == page_site:
+                    continue
+                fetching_service.queue_url(link, priority=category.record_url_priority)
+                queued += 1
+    if queued:
+        logger.info("Queued %d website(s) named in records from %s", queued, page_url)
 
 
 def resume_pending(skip_over_budget=True):

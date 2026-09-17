@@ -47,6 +47,30 @@ except Exception:  # pragma: no cover
     _EXTRACT = None
 
 
+_BARE_ADDRESS = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(/\S*)?$", re.IGNORECASE)
+
+
+def as_url(value):
+    """
+    Read a field value as a fetchable URL, or None.
+
+    Listings write an organisation's website every way there is - a full URL,
+    a bare domain, "www." without a scheme - and sometimes an e-mail address
+    or prose in the same field. Only something that is plainly an address is
+    accepted; a bare one is given https.
+    """
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or any(ch.isspace() for ch in value) or "@" in value:
+        return None
+    if re.match(r"^https?://", value, re.IGNORECASE):
+        return value
+    if _BARE_ADDRESS.match(value):
+        return f"https://{value}"
+    return None
+
+
 def canonicalize(url: str, drop_params=None, strip_index: bool = True) -> str:
     """
     Return a normalised form of `url` such that URLs naming the same page

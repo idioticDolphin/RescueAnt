@@ -287,6 +287,8 @@ def load_config(configs:dict=None):
                 if fields is None:
                     raise
                 category_fields = fields
+            follow_record_urls = configs.get(f"follow_record_urls[{category}]", "False") == "True"
+            record_url_priority = _opt_float(configs, f"record_url_priority[{category}]", 60.0)
             is_list_category = False
             try:
                 is_list_category = configs[f"is_list_category[{category}]"] == "True"
@@ -305,6 +307,8 @@ def load_config(configs:dict=None):
                     fields=category_fields,
                     analysis_max_tokens=max_tokens,
                     is_list_category=is_list_category,
+                    follow_record_urls=follow_record_urls,
+                    record_url_priority=record_url_priority,
                     **confirm
                 )
             )
