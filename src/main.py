@@ -15,6 +15,14 @@ def _parse_args():
              "(no crawling); safe to re-run after tuning field semantics",
     )
     parser.add_argument(
+        "--export", metavar="CSV", default=None,
+        help="Write the resolved entities to a CSV file and exit",
+    )
+    parser.add_argument(
+        "--needing-review", action="store_true",
+        help="With --export, write only the rows carrying a review flag",
+    )
+    parser.add_argument(
         "--reprocess", choices=("extract", "categorize"), default=None,
         help="Re-run analysis over already-stored pages without refetching",
     )
@@ -68,7 +76,10 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     import model.orchestrator as orchestrator
-    if args.resolve:
+    if args.export:
+        from model.tools import export_service
+        export_service.export_entities(Path(args.export), needing_review=args.needing_review)
+    elif args.resolve:
         orchestrator.resolve_entities()
     elif args.reprocess:
         orchestrator.reprocess(stage=args.reprocess, where_site=args.site,

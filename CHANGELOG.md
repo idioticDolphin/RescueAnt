@@ -64,6 +64,14 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`--export stations.csv`** writes the resolved entities as CSV, with a
+  `review` column naming what a person should look at: a record nobody could
+  contact, or one whose contact details disagree between pages. `--export ...
+  --needing-review` writes only those rows (137 of 547 in the project's own
+  database).
+- **`prefetch_next_batch`**: the next batch is fetched while this one is
+  analysed, instead of leaving the network idle during analysis. Off by
+  default: the next batch is then chosen before this batch's links are known.
 - **`skip_identical_content`** (on by default): a page whose stored body is
   byte-identical to one already analysed takes that page's category and is not
   analysed again. Mirror URLs are common - `/links` and `/index.php/links`
@@ -209,5 +217,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 550 tests. Each regression test names the failure it exists to
+178 → 560 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

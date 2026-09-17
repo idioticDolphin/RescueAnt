@@ -420,6 +420,21 @@ then alternates between two phases:
 > lower it to exhaust the link graph more thoroughly first. Set it above your
 > highest link score and the crawler searches almost exclusively.
 
+### Exporting the result
+
+The crawl database is the working store; the deliverable is a file:
+
+```bash
+python src/main.py bot.config --export stations.csv
+python src/main.py bot.config --export needs-a-look.csv --needing-review
+```
+
+Each row is one resolved organisation, with `n_sources` (how many pages
+agreed), `confidence`, and a `review` column naming what deserves a person's
+eye - `no-direct-contact` for a record with no phone, e-mail or address, and
+`conflicting-contact` where pages disagreed about one. `--needing-review`
+keeps only the flagged rows.
+
 ### Resuming an interrupted run
 
 Just start it again. Every page body is written to the page store the moment
