@@ -703,3 +703,19 @@ def test_host_tokens_must_name_a_category(monkeypatch, tmp_path, sample_config_t
     config_file.write_text(sample_config_text + 'category_host_tokens[NOWHERE] = "kitz";\n')
     with pytest.raises(ConfigError):
         config_service.load_config(config_service._read_config(config_file))
+
+
+def test_a_record_filter_prompt_is_read_per_category(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text + 'record_filter_prompt[STATION] = "Which are stations?";\n')
+    config_service.load_config(config_service._read_config(config_file))
+    assert config_service.get_config().get_category("STATION").record_filter_prompt == "Which are stations?"
+
+
+def test_keep_record_name_tokens_are_read():
+    from model.tools import config_service
+    configs = config_service._read_config()
+    configs["keep_record_name_tokens"] = '"Pflegestation"'
+    config_service.load_config(configs)
+    assert config_service.get_config().keep_record_name_tokens == ["pflegestation"]

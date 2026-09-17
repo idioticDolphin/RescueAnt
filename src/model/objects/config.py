@@ -106,6 +106,9 @@ class Config(BaseModel):
     category_host_tokens: dict[str, list[str]] = {}
     # A record whose name contains one of these is not admissible.
     exclude_record_name_tokens: list[str] = []
+    # ...unless the name also carries one of these: a care word outranks the
+    # kind word, as in "Igelpflegestation Walter Zoo".
+    keep_record_name_tokens: list[str] = []
     # Links whose path ends in one of these are never fetched.
     skip_url_extensions: list[str] = []
     # Stop crawling a site after this many low-value pages with nothing

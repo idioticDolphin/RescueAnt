@@ -494,3 +494,112 @@ def test_a_record_named_with_an_excluded_token_is_rejected(monkeypatch):
     ok, reason = extraction_service.is_admissible({"name": "Rehkitzrettung Hattingen e.V."})
     assert not ok and "kitz" in reason
     assert extraction_service.is_admissible({"name": "Igelhilfe Luzern"})[0] is True
+
+
+# ---------------------------------------------------------------------------
+# filtering the entries of a listing, one call for the whole page
+# ---------------------------------------------------------------------------
+
+def _listing_category(**update):
+    category = make_fake_category("LIST", fields={
+        "type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}},
+                                   "required": ["name"]}})
+    return category.model_copy(update={
+        "is_list_category": True,
+        "record_filter_prompt": "Which entries are wildlife stations?",
+        **update})
+
+
+def _llm_answering(*raw):
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": text}}]} for text in raw]
+    return llm
+
+
+def test_a_listing_keeps_only_the_entries_the_filter_names(monkeypatch):
+    records = [{"name": "Igelhilfe A"}, {"name": "Tierheim B"}, {"name": "Wildvogelhilfe C"}]
+    llm = _llm_answering(json.dumps(records), "[0, 2]")
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+
+    data, _ = extraction_service.extract_information("<html>x</html>", _listing_category(), "http://e.com/")
+
+    assert [r["name"] for r in data] == ["Igelhilfe A", "Wildvogelhilfe C"]
+    assert llm.create_chat_completion.call_count == 2
+    system = llm.create_chat_completion.call_args.kwargs["messages"][0]["content"]
+    assert "Which entries are wildlife stations?" in system
+    listed = llm.create_chat_completion.call_args.kwargs["messages"][1]["content"]
+    assert "0" in listed and "Tierheim B" in listed
+
+
+def test_a_listing_without_a_filter_is_left_alone(monkeypatch):
+    records = [{"name": "Igelhilfe A"}, {"name": "Tierheim B"}]
+    llm = _llm_answering(json.dumps(records))
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+
+    data, _ = extraction_service.extract_information(
+        "<html>x</html>", _listing_category(record_filter_prompt=None), "http://e.com/")
+
+    assert len(data) == 2
+    assert llm.create_chat_completion.call_count == 1
+
+
+def test_a_failed_filter_keeps_every_entry(monkeypatch):
+    records = [{"name": "Igelhilfe A"}, {"name": "Tierheim B"}]
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": json.dumps(records)}}]}, RuntimeError("model gone")]
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+
+    data, _ = extraction_service.extract_information("<html>x</html>", _listing_category(), "http://e.com/")
+
+    assert len(data) == 2
+
+
+def test_an_out_of_range_index_is_ignored(monkeypatch):
+    records = [{"name": "Igelhilfe A"}, {"name": "Tierheim B"}]
+    llm = _llm_answering(json.dumps(records), "[1, 7]")
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+
+    data, _ = extraction_service.extract_information("<html>x</html>", _listing_category(), "http://e.com/")
+
+    assert [r["name"] for r in data] == ["Tierheim B"]
+
+
+def test_a_filter_that_keeps_nothing_returns_no_records(monkeypatch):
+    records = [{"name": "Tierheim B"}]
+    llm = _llm_answering(json.dumps(records), "[]")
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+
+    data, _ = extraction_service.extract_information("<html>x</html>", _listing_category(), "http://e.com/")
+
+    assert data == []
+
+
+def test_a_filter_may_answer_with_names_instead_of_numbers(monkeypatch):
+    records = [{"name": "Igelhilfe A"}, {"name": "Tierheim B"}]
+    llm = _llm_answering(json.dumps(records), '["Tierheim B"]')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    category = _listing_category(record_filter_names_removals=True)
+
+    data, _ = extraction_service.extract_information("<html>x</html>", category, "http://e.com/")
+
+    assert [r["name"] for r in data] == ["Igelhilfe A"]
+
+
+def test_a_name_the_filter_invents_removes_nothing(monkeypatch):
+    records = [{"name": "Igelhilfe A"}, {"name": "Tierheim B"}]
+    llm = _llm_answering(json.dumps(records), '["Something else"]')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    category = _listing_category(record_filter_names_removals=True)
+
+    data, _ = extraction_service.extract_information("<html>x</html>", category, "http://e.com/")
+
+    assert len(data) == 2
+
+
+def test_a_care_word_in_the_name_overrides_an_excluded_token(monkeypatch):
+    monkeypatch.setattr(extraction_service.config, "exclude_record_name_tokens", ["zoo"], raising=False)
+    monkeypatch.setattr(extraction_service.config, "keep_record_name_tokens", ["igelpflegestation"], raising=False)
+    assert extraction_service.is_admissible({"name": "Alpenzoo Innsbruck"})[0] is False
+    assert extraction_service.is_admissible({"name": "Igelpflegestation Walter Zoo"})[0] is True

@@ -39,6 +39,11 @@ class Category(BaseModel):
     # own website - at this frontier priority, so they are fetched soon.
     follow_record_urls: bool = False
     record_url_priority: float = 60.0
+    # One question asked about a listing's extracted entries, naming which of
+    # them belong in the database. Costs one call per listing page.
+    record_filter_prompt: str | None = None
+    # True when the filter answers with the entries to remove, not to keep.
+    record_filter_names_removals: bool = False
     confirm_prompt: str = None
     confirm_answers: list[str] = None
     confirm_accept: str = None

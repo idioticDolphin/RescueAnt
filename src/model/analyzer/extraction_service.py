@@ -87,9 +87,11 @@ def is_admissible(record):
     # can say which: "Rehkitzrettung ..." is a fawn-rescue group whichever
     # listing it appears on.
     name = str(record.get("name") or "").casefold()
-    for token in getattr(config, "exclude_record_name_tokens", None) or ():
-        if token in name:
-            return False, f"name contains excluded token {token!r}"
+    keepers = getattr(config, "keep_record_name_tokens", None) or ()
+    if not any(keeper in name for keeper in keepers):
+        for token in getattr(config, "exclude_record_name_tokens", None) or ():
+            if token in name:
+                return False, f"name contains excluded token {token!r}"
 
     if config.require_any_role:
         # "any of these roles" - a record qualifies if it carries at least one
@@ -231,6 +233,8 @@ def extract_information(html: str, category:Category, base_url: str):
         if _is_mislabel_verdict(data):
             logger.info("Extractor judged %s not to be a %s", base_url, category.name)
             return MISLABELED, links
+        if isinstance(data, list) and category.record_filter_prompt:
+            data = _kept_by_filter(data, category, llm, base_url)
         return _filter_admissible(data, base_url), links
     except Exception as e:
         # Note: links computed above (a cheap HTML-parse, independent of the
@@ -239,6 +243,62 @@ def extract_information(html: str, category:Category, base_url: str):
         # documented making for this same failure mode.
         logger.warning("Extraction failed for %s (%s) - skipping", base_url, e)
         return None
+
+
+def _filter_key(value):
+    """Compare names as the model is likely to echo them back."""
+    return " ".join(str(value or "").split()).casefold()
+
+
+def _kept_by_filter(records, category, llm, base_url):
+    """
+    Ask once which of a listing's entries belong in the database.
+
+    A listing page is right about being a listing and still mixes what is
+    wanted with what is not - a page of wildlife stations that also names
+    three vets and a zoo. Judging the page cannot fix that, and judging each
+    entry separately would cost a call per entry; the entries are short, so
+    they fit in one call as a numbered list.
+
+    A failed or unparseable answer keeps every record: dropping real records
+    on a transient error is the worse mistake.
+    """
+    if not records:
+        return records
+    listing = "\n".join(f"{i}. {str(r.get('name') or '').strip()[:120]}"
+                         for i, r in enumerate(records) if isinstance(r, dict))
+    # Either form is allowed: a number is shorter, a name cannot drift out of
+    # alignment when the list runs to dozens of entries.
+    schema = {"type": "array", "items": {"type": ["integer", "string"]}}
+    try:
+        result = llm_service.complete(
+            llm,
+            messages=[{"role": "system", "content": category.record_filter_prompt},
+                      {"role": "user", "content": listing}],
+            response_format={"type": "json_object", "schema": schema},
+            temperature=0,
+            max_tokens=8 + 4 * len(records),
+        )
+        answer = json.loads(result['choices'][0]['message']['content'])
+        by_name = {_filter_key(r.get("name")): i for i, r in enumerate(records)
+                   if isinstance(r, dict)}
+        named = set()
+        for item in answer if isinstance(answer, list) else []:
+            if isinstance(item, bool):
+                continue
+            if isinstance(item, int):
+                named.add(item)
+            elif isinstance(item, str) and _filter_key(item) in by_name:
+                named.add(by_name[_filter_key(item)])
+    except Exception as e:
+        logger.warning("Filtering the entries of %s failed (%s) - keeping all %d",
+                       base_url, e, len(records))
+        return records
+    removals = getattr(category, "record_filter_names_removals", False)
+    kept = [r for i, r in enumerate(records) if (i not in named) == bool(removals)]
+    if len(kept) != len(records):
+        logger.info("Kept %d of %d entries from %s", len(kept), len(records), base_url)
+    return kept
 
 
 def scrub_implausible(record):
