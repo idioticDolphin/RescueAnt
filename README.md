@@ -52,7 +52,8 @@ Three properties are worth knowing up front:
 
 A larger or newer model is not automatically a better choice, because on a
 consumer card VRAM is the binding constraint. Measured on an 8 GB RTX 2070
-SUPER, against 50 labelled pages across the 12-category taxonomy:
+SUPER, against 50 labelled pages across an earlier 12-category version of the
+taxonomy:
 
 | Model | On disk | Usable context | Accuracy | Long page (8k tokens) |
 |---|---|---|---|---|
@@ -74,9 +75,9 @@ Two things this table shows that download sizes do not:
   since the default already classifies 92% of pages correctly.
 
 The accuracy column comes from pages the category prompt was developed
-against. On 70 pages from sites it was never tuned on, the default model picks
-the exact category for 80% of pages and makes the right extraction decision -
-extract a record, extract a listing, or only follow links - for 93%.
+against. On 75 pages from sites it was never tuned on, the default model picks
+the exact category for 76% of pages and makes the right extraction decision -
+extract a record, extract a listing, or only follow links - for 95%.
 
 With more VRAM these trade-offs change. Measure candidates on your own
 hardware before switching:

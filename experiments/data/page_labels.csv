@@ -88,7 +88,7 @@ http://promonte.de/,COMMERCIAL,sure,dev,claude-judgement,COMMERCIAL,domain for s
 http://wildtierstation-huenfelden.de/,STATION,sure,dev,claude-judgement,STATION,wildlife station
 https://wponetap.com/,COMMERCIAL,sure,test,claude-judgement,COMMERCIAL,WordPress plugin
 https://uni-freiburg.de/unr,AUTHORITY,unsure,test,claude-judgement,AUTHORITY,university faculty
-https://tierschutzengelrheinmain.de/,STATION,unsure,test,claude-judgement,STATION,lost-pet recovery and fawn rescue
+https://tierschutzengelrheinmain.de/,FAWN,unsure,test,claude-judgement,STATION,lost-pet recovery and fawn rescue (relabelled for wildlife-only scope)
 http://rotorman.de/,IRRELEVANT,sure,test,claude-judgement,LIST,satire about a village road
 https://tamm-photography.com/,COMMERCIAL,sure,dev,claude-judgement,COMMERCIAL,wildlife photographer
 https://tieroase-stefanshof.de/about-us,SANCTUARY,sure,dev,claude-judgement,SANCTUARY,about page of a farm sanctuary
@@ -96,8 +96,8 @@ https://tier-refugium.de/,IRRELEVANT,sure,test,claude-judgement,IRRELEVANT,404 p
 http://falknerei-feldberg.de/,COMMERCIAL,unsure,dev,claude-judgement,SANCTUARY,"raptor visitor attraction, listed elsewhere as a care station"
 https://bsky.social/about/support/tos,IRRELEVANT,sure,test,claude-judgement,IRRELEVANT,terms of service
 https://bluegreengroup.co.uk/oystein-kloster,IRRELEVANT,sure,dev,claude-judgement,IRRELEVANT,film director biography
-https://wildtierrettung-bw.de/,STATION,sure,test,claude-judgement,STATION,fawn rescue with drones
-https://freikitz.de/kontakt,STATION,sure,test,claude-judgement,STATION,fawn rescue contact page
+https://wildtierrettung-bw.de/,FAWN,sure,test,claude-judgement,STATION,fawn rescue with drones (relabelled for wildlife-only scope)
+https://freikitz.de/kontakt,FAWN,sure,test,claude-judgement,STATION,fawn rescue contact page (relabelled for wildlife-only scope)
 https://tierschutz-kelsterbach.de/meldung-von-wildtiernotfaellen-beim-tsv-kelsterbach,ADVICE,sure,dev,claude-judgement,ADVICE,how to report wildlife emergencies
 https://wildtierschutz-dreisamtal.de/fotogalerie-unserer-einsaetze,HUB,unsure,test,claude-judgement,ANIMAL,photo gallery of rescue operations
 https://findefix.com/,ADVICE,unsure,dev,claude-judgement,LIST,free lost-pet registry
@@ -116,7 +116,7 @@ https://tierarzt-claudiabauer.com/,VET,sure,dev,claude-judgement,VET,veterinary 
 http://stadttaubenprojekt.de/,STATION,unsure,test,claude-judgement,,city pigeon project with lofts and a sanctuary; about page
 http://admin.verwaltungsportal.de/,IRRELEVANT,sure,test,claude-judgement,,CMS login
 https://support.mozilla.org/pt-BR/kb/desative-cookies-terceiros-impedir-rastreamento,IRRELEVANT,sure,test,claude-judgement,,browser challenge page on a software vendor's help site
-https://hamburg.de/branchenbuch/hamburg/10233107/n0,LIST,sure,test,claude-judgement,,city business directory: three animal shelters
+https://hamburg.de/branchenbuch/hamburg/10233107/n0,DIRECTORY,sure,test,claude-judgement,,city business directory: three animal shelters - not stations (relabelled for wildlife-only scope)
 https://ltvh.de/impressum-disclaimer,ADVOCACY,unsure,test,claude-judgement,,legal notice of a state animal-welfare federation
 https://wildwald.de/,COMMERCIAL,unsure,test,claude-judgement,,wildlife park with tickets
 http://vlibras.gov.br/,AUTHORITY,unsure,test,claude-judgement,,government digital service unrelated to animals
@@ -170,7 +170,7 @@ https://eventbrite.com/help/en-us/contact-us,COMMERCIAL,unsure,test,claude-judge
 http://tierschutzverein-hd.de/Kontakt,SHELTER,sure,test,claude-judgement,,shelter contact page
 https://schiersteinerstoerche.de/kontakt,ADVOCACY,unsure,test,claude-judgement,,stork reintroduction association contact page
 https://public.govdelivery.com/accounts/USDOJ/subscriber/new,AUTHORITY,unsure,test,claude-judgement,,government e-mail subscription page
-https://koelnerbranchen.de/tierheim,LIST,sure,test,claude-judgement,,city business directory: best animal shelters
+https://koelnerbranchen.de/tierheim,DIRECTORY,sure,test,claude-judgement,,city business directory: best animal shelters - not stations (relabelled for wildlife-only scope)
 https://tierschutzliga.de/tierheime/katzenstation-muenchen,SHELTER,sure,test,claude-judgement,,welfare body's page introducing its cat shelter
 https://search.gov/tos.html,AUTHORITY,unsure,test,claude-judgement,,government site-search service
 https://agf-bw.de/haeufige_fragen_hilfe/nottelefon_kontakte,ADVICE,unsure,test,claude-judgement,,bat conservation association emergency phone and contacts page
@@ -193,6 +193,31 @@ https://vcf.gov/,AUTHORITY,sure,test,claude-judgement,,US compensation fund
 https://marburg-biedenkopf.de/veranstaltungskalender/Veranstaltungsorte/mr-tierheim-cappel-marburg.php,HUB,unsure,test,claude-judgement,,district events calendar venue entry for a shelter
 http://foia.gov/,AUTHORITY,sure,test,claude-judgement,,US FOIA portal
 http://reikiman.de/,STATION,unsure,test,claude-judgement,,association funding the raising of orphaned wild animals
-http://rehrettung-hegau-bodensee.de/default-title/impressum,STATION,sure,test,claude-judgement,,fawn rescue association legal notice
+http://rehrettung-hegau-bodensee.de/default-title/impressum,FAWN,sure,test,claude-judgement,,fawn rescue association legal notice (relabelled for wildlife-only scope)
 https://florian-doering.com/,COMMERCIAL,unsure,test,claude-judgement,,web designer
 https://rewildingcoombeshead.co.uk/,ADVOCACY,unsure,test,claude-judgement,,rewilding project; only a consent banner in the text
+http://greifvogelhilfe.de/index.php/links,LIST,unsure,dev,claude-judgement,LIST,"raptor-help link list: rescue centres mixed with zoos, vets, foundations"
+http://igelhilfe-luzern.ch/kontakt,LIST,unsure,dev,claude-judgement,LIST,contact page naming two hedgehog stations
+http://igelverein.ch/igelstationen/igelpflege.html,LIST,sure,dev,claude-judgement,LIST,hedgehog care stations
+http://pro-igel.ch/igel-in-not,LIST,sure,dev,claude-judgement,LIST,hedgehog stations in Switzerland
+http://red.chip247.com/donde_chipear_mi_mascota.php?pais=227&provincia=1440,DIRECTORY,sure,dev,claude-judgement,LIST,microchip platform: vets and breeders offering chipping
+http://reptilvar.free.fr/centre.htm,LIST,unsure,dev,claude-judgement,LIST,French reptile and wildlife rescue centres
+http://robin-hood-tierheimservice.de/,DIRECTORY,sure,dev,claude-judgement,LIST,animal shelter directory - not stations
+http://stmz.ch/de/adressen/kantonale-meldestellen,DIRECTORY,sure,dev,claude-judgement,LIST,cantonal lost-animal reporting offices
+https://artgerecht-tierschutz.com/?page_id=2284,DIRECTORY,sure,test,claude-judgement,LIST,shelter's list of partner vets
+https://eu-central-1.protection.sophos.com/?d=workcamps.org&h=e0f0308b09974fa8ab095995eaef,DIRECTORY,sure,dev,claude-judgement,LIST,work-camp organisers
+https://foerderdatenbank.d-s-e-e.de/,DIRECTORY,sure,dev,claude-judgement,LIST,funding database
+https://kitzrettung-hilfe.de/drohnenpiloten-niedersachsen,DIRECTORY,sure,test,claude-judgement,LIST,drone pilots for fawn rescue
+https://kitzrettung-hilfe.de/kitzretter-bayern,DIRECTORY,sure,test,claude-judgement,LIST,fawn-rescue groups - not stations
+https://kitzrettung-hilfe.de/kitzretter-schweiz,DIRECTORY,sure,test,claude-judgement,LIST,fawn-rescue groups - not stations
+https://landkarte.mobilee-plattform.de/,DIRECTORY,sure,dev,claude-judgement,LIST,social and sports services map
+https://mindyourline.org/recycling-stations,IRRELEVANT,sure,dev,claude-judgement,LIST,fishing-line recycling bins
+https://oeko-freiwillig.de/beratung-in-deiner-region,DIRECTORY,sure,dev,claude-judgement,LIST,volunteer-service providers
+https://onderwijskiezer.be/v2/clb/clb.php,DIRECTORY,sure,dev,claude-judgement,LIST,Belgian student guidance centres
+https://tierheim-gesucht.de/tierheime/hessen,DIRECTORY,sure,test,claude-judgement,LIST,animal shelter directory - not stations
+https://tierheimverzeichnis.org/tierheim/kategorie/vogel,DIRECTORY,unsure,dev,claude-judgement,LIST,shelter directory filtered to birds: shelters and a few bird carers
+https://wildes-bayern.de/wildtierhilfe,LIST,sure,dev,claude-judgement,LIST,wildlife help contacts in Bavaria
+https://wildtierhilfe-jacky-schieser.de/netzwerk,LIST,unsure,dev,claude-judgement,LIST,network of carers mixed with sanctuaries and conservation groups
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-hessen-rheinland-pfalz-saarland,LIST,sure,dev,claude-judgement,LIST,regional wildlife rescue stations
+https://workcamps.org/organisationen,DIRECTORY,sure,dev,claude-judgement,LIST,work-camp organisers
+https://zewo.ch/de/liste-zertifizierte-hilfsorganisationen,DIRECTORY,sure,dev,claude-judgement,LIST,certified charities

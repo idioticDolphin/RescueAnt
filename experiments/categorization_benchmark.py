@@ -176,8 +176,9 @@ def main():
         print(f"classification: {total:.0f}s for {len(elapsed)} pages "
               f"= {total / len(elapsed):.1f}s per page")
 
-    if hide:
-        return
+    # Category-level confusion names no page, so it is shown for the test
+    # split too: it says which boundary moved without handing over cases to
+    # tune against.
     print("\nmistakes (expected -> got):")
     for (exp, got), n in sorted(confusion.items(), key=lambda kv: -kv[1]):
         if exp != got:

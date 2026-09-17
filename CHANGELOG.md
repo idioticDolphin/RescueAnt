@@ -21,11 +21,17 @@ Entries begin at the first release; earlier development is not itemised.
   and fused into `entities`, driven by config-declared field *roles* rather
   than field names. `entries` remains an immutable observation log;
   conflicting values are recorded in `entity_conflicts`, not discarded.
-- **Twelve-category page taxonomy** in `config/taxonomy.config`, replacing
-  five. Adds `SHELTER`, `SANCTUARY`, `VET`, `ADVICE`, `ANIMAL`, `ADVOCACY`,
-  `AUTHORITY` and `COMMERCIAL`. Extracted categories are told apart by the
-  category recorded on their crawl row, so a consumer filters for what it
-  wants.
+- **Fourteen-category page taxonomy** in `config/taxonomy.config`, replacing
+  five. Adds `SHELTER`, `SANCTUARY`, `VET`, `FAWN`, `DIRECTORY`, `ADVICE`,
+  `ANIMAL`, `ADVOCACY`, `AUTHORITY` and `COMMERCIAL`. Only wildlife rescue
+  stations (`STATION`) and listings of them (`LIST`) produce records; the other
+  categories give pages that are not stations somewhere to go, and their
+  links are still followed. Pet shelters, sanctuaries, vets and fawn-rescue
+  groups can be extracted as well by giving their categories `CONTENT` and a
+  prompt.
+- **Listing extraction keeps only stations.** Entries on a listing that are
+  pet shelters, vets, fawn-rescue groups, authorities, clubs or businesses are
+  skipped.
 - **Multi-file configuration** via `include`, with cycle detection and
   later-file-wins overrides. Retargeting the crawler is now a matter of
   swapping `taxonomy.config` and `schema.config`.
