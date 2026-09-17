@@ -50,22 +50,36 @@ Three properties are worth knowing up front:
 
 ### On model size
 
-A larger model is not automatically a better choice, because VRAM is the
-binding constraint. On an 8 GB card, scored on 50 labelled pages across the
-12-category taxonomy:
+A larger or newer model is not automatically a better choice, because on a
+consumer card VRAM is the binding constraint. Measured on an 8 GB RTX 2070
+SUPER, against 50 labelled pages across the 12-category taxonomy:
 
-| Model | On disk | Context | Accuracy | Speed |
+| Model | On disk | Usable context | Accuracy | Long page (8k tokens) |
 |---|---|---|---|---|
+| **Qwen3.5-4B UD-Q4_K_XL** (default) | 2.71 GB | 32k | **92%** | **4.1 s** |
+| Qwen3.5-9B Q4_K_M | 5.29 GB | 12k | 80% | - |
+| Gemma 3 4B UD-Q4_K_XL | 2.54 GB | 16k | 40% | - |
+| Llama 3.1 8B UD-Q4_K_XL | 4.99 GB | 16k | - | 13.6 s |
+| Ministral 3 8B UD-Q4_K_XL | 5.29 GB | 12k | - | 13.7 s |
 | Qwen3.5-2B UD-Q4_K_XL | 1.25 GB | 32k | 42% | - |
-| **Qwen3.5-4B UD-Q4_K_XL** (default) | 2.71 GB | 32k | **92%** | 4.3 s/page |
-| Qwen3.5-9B Q4_K_M | 5.29 GB | 12k | 80% | 4.5 s/page |
 
-At 8 GB a 9B model only fits at a coarser quantisation and a reduced context,
-and those costs outweigh the extra parameters. With more VRAM the trade
-changes - score any candidate on your own hardware before switching:
+Two things this table shows that download sizes do not:
+
+- **Disk size does not predict VRAM.** Gemma 3 4B is smaller on disk than the
+  default yet cannot hold a 32k context on the same card.
+- **A model that no longer fits does not fail - it slows down.** llama.cpp
+  moves what does not fit into system memory, and throughput falls by roughly
+  ten times. The 8B models were not scored for accuracy: at three times the
+  default's per-page cost they cannot come out ahead however accurate they are,
+  since the default already classifies 92% of pages correctly.
+
+With more VRAM these trade-offs change. Measure candidates on your own
+hardware before switching:
 
 ```bash
-python experiments/categorization_benchmark.py --model models/<your>.gguf
+./download-models.sh --list
+./download-models.sh <name>
+python experiments/model_sweep.py --only <name>
 ```
 
 ## Setup
