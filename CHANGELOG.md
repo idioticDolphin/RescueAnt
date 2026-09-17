@@ -29,9 +29,6 @@ Entries begin at the first release; earlier development is not itemised.
   links are still followed. Pet shelters, sanctuaries, vets and fawn-rescue
   groups can be extracted as well by giving their categories `CONTENT` and a
   prompt.
-- **Listing extraction keeps only stations.** Entries on a listing that are
-  pet shelters, vets, fawn-rescue groups, authorities, clubs or businesses are
-  skipped.
 - **Multi-file configuration** via `include`, with cycle detection and
   later-file-wins overrides. Retargeting the crawler is now a matter of
   swapping `taxonomy.config` and `schema.config`.
