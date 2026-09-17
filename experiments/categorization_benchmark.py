@@ -153,6 +153,24 @@ def main():
     if skipped:
         print(f"{skipped} case(s) skipped - page not in this store")
 
+    # Most confusions between follow-only categories change a link weight at
+    # most. What decides the database is whether a page is extracted, and as a
+    # record or a listing: a missed extraction loses records, a spurious one
+    # costs a call and risks junk.
+    def action(name):
+        category = next((c for c in config.categories if c.name == name), None)
+        if category is None or not category.is_relevant:
+            return "follow"
+        return "list" if category.is_list_category else "record"
+    lost = sum(1 for r in scored if action(r[1]) != "follow" and action(r[2]) == "follow")
+    wasted = sum(1 for r in scored if action(r[1]) == "follow" and action(r[2]) != "follow")
+    same = sum(1 for r in scored if action(r[1]) == action(r[2]))
+    if scored:
+        print(f"extraction decision correct: {same}/{len(scored)}"
+              f"  ({100 * same / len(scored):.0f}%)"
+              f"   pages not extracted that should be: {lost}"
+              f"   extracted that should not be: {wasted}")
+
     if elapsed:
         total = sum(elapsed)
         print(f"classification: {total:.0f}s for {len(elapsed)} pages "
