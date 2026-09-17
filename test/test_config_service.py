@@ -620,3 +620,45 @@ def test_site_abandoning_reads_its_settings():
     cfg = config_service.get_config()
     assert cfg.abandon_site_after == 5
     assert cfg.abandon_site_max_weight == -1.0
+
+
+def _config_with_confirmation(sample_config_text, **keys):
+    text = sample_config_text.replace("categories = STATION|IRRELEVANT;", "categories = STATION|HUB|IRRELEVANT;")
+    text += "relevancy[HUB] = LINKS;\ncheck_linked_urls[HUB] = True;\n"
+    for key, value in keys.items():
+        text += f"{key}[STATION] = {value};\n"
+    return text
+
+
+def test_confirmation_settings_are_read(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(_config_with_confirmation(
+        sample_config_text, confirm_prompt='"What is it?"', confirm_answers="other|station",
+        confirm_accept="station", confirm_fallback="HUB"))
+    config_service.load_config(config_service._read_config(config_file))
+    station = config_service.get_config().get_category("STATION")
+    assert station.confirm_prompt == "What is it?"
+    assert station.confirm_answers == ["other", "station"]
+    assert station.confirm_accept == "station"
+    assert station.confirm_fallback == "HUB"
+
+
+def test_a_confirmation_must_name_an_accepted_answer_it_offers(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(_config_with_confirmation(
+        sample_config_text, confirm_prompt='"What is it?"', confirm_answers="other|station",
+        confirm_accept="stations", confirm_fallback="HUB"))
+    with pytest.raises(ConfigError):
+        config_service.load_config(config_service._read_config(config_file))
+
+
+def test_a_confirmation_fallback_must_be_a_category(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(_config_with_confirmation(
+        sample_config_text, confirm_prompt='"What is it?"', confirm_answers="other|station",
+        confirm_accept="station", confirm_fallback="NOWHERE"))
+    with pytest.raises(ConfigError):
+        config_service.load_config(config_service._read_config(config_file))

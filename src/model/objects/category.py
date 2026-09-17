@@ -32,6 +32,13 @@ class Category(BaseModel):
     fields: dict = None
     process_links: bool = None
     is_list_category: bool = False
+    # A second, focused question asked of pages put in this category. Unless
+    # the model gives confirm_accept (from confirm_answers), the page is filed
+    # under confirm_fallback instead.
+    confirm_prompt: str = None
+    confirm_answers: list[str] = None
+    confirm_accept: str = None
+    confirm_fallback: str = None
 
     @property
     def is_relevant(self) -> bool:

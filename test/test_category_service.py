@@ -212,3 +212,64 @@ def test_single_vote_uses_temperature_zero(monkeypatch):
 def test_majority_helper_reports_decisiveness():
     assert category_service._majority(["a", "a", "b"]) == ("a", True)
     assert category_service._majority(["a", "b"])[1] is False
+
+
+# ---------------------------------------------------------------------------
+# a second, focused question for categories that need one
+# ---------------------------------------------------------------------------
+
+def _llm_answering(*answers):
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": a}}]} for a in answers]
+    return llm
+
+
+def _with_confirmed_list(monkeypatch):
+    config = category_service.config
+    categories = [
+        c.model_copy(update={
+            "confirm_prompt": "What are most of the entries?",
+            "confirm_answers": ["fawn-rescue", "other", "wildlife-stations"],
+            "confirm_accept": "wildlife-stations",
+            "confirm_fallback": "HUB",
+        }) if c.name == "LIST" else c
+        for c in config.categories]
+    monkeypatch.setattr(category_service, "config", config.model_copy(update={"categories": categories}))
+
+
+def test_a_confirmed_answer_keeps_the_category(monkeypatch):
+    _with_confirmed_list(monkeypatch)
+    llm = _llm_answering("LIST", "wildlife-stations")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+
+    assert category_service.categorize_website("<html>list</html>").name == "LIST"
+    _, kwargs = llm.create_chat_completion.call_args
+    assert kwargs["messages"][0]["content"] == "What are most of the entries?"
+
+
+def test_any_other_answer_files_the_page_under_the_fallback(monkeypatch):
+    _with_confirmed_list(monkeypatch)
+    llm = _llm_answering("LIST", "fawn-rescue")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+
+    assert category_service.categorize_website("<html>list</html>").name == "HUB"
+
+
+def test_categories_without_a_confirmation_ask_once(monkeypatch):
+    _with_confirmed_list(monkeypatch)
+    llm = _llm_answering("STATION")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+
+    assert category_service.categorize_website("<html>station</html>").name == "STATION"
+    assert llm.create_chat_completion.call_count == 1
+
+
+def test_a_failed_confirmation_keeps_the_first_answer(monkeypatch):
+    _with_confirmed_list(monkeypatch)
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": "LIST"}}]}, RuntimeError("model gone")]
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+
+    assert category_service.categorize_website("<html>list</html>").name == "LIST"

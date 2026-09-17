@@ -112,10 +112,51 @@ def categorize_website(html, url=None):
             logger.debug("Split category vote %s for %s - abstaining", results, url)
             return config.get_category(config.url_prior_category)
         logger.debug("Predicted category: %s", found_category)
-        return config.get_category(found_category)
+        category = config.get_category(found_category)
     except Exception as e:
         logger.warning("Categorization failed (%s) - skipping this page", e)
         return None
+    return _confirmed(category, llm, site_content, url)
+
+
+def _confirmed(category, llm, site_content, url):
+    """
+    Put a category's confirmation question to the page, if it has one.
+
+    A choice among fourteen categories settles on the one whose shape fits: a
+    directory of fawn-rescue groups or of animal shelters is a list, so it was
+    classified LIST however LIST was described, and put dozens of records that
+    are not stations into the database per page. Asked separately what most
+    of the listed entries are, the model tells them apart - provided the
+    accepted answer is offered last; offered first, it was chosen for nearly
+    every page.
+
+    A failed call keeps the first answer: this is a filter, and losing a page
+    to a transient error is worse than letting one through.
+    """
+    if category is None or not category.confirm_prompt:
+        return category
+    try:
+        answers = " | ".join(f'"{a}"' for a in category.confirm_answers)
+        result = llm_service.complete(
+            llm,
+            messages=[
+                {"role": "system", "content": category.confirm_prompt},
+                {"role": "user", "content": f"Website content:\n{site_content}"}
+            ],
+            grammar=LlamaGrammar.from_string(f"root ::= {answers}"),
+            temperature=0,
+            max_tokens=16,
+        )
+        answer = result['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        logger.warning("Confirming %s as %s failed (%s) - keeping it", url, category.name, e)
+        return category
+    if answer == category.confirm_accept:
+        return category
+    logger.info("Not confirmed as %s (%s): %s - filing as %s",
+                category.name, answer, url, category.confirm_fallback)
+    return config.get_category(category.confirm_fallback)
 
 
 def _majority(votes):

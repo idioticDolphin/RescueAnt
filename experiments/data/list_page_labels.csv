@@ -1,0 +1,59 @@
+url,station_list,confidence,note
+http://adopt-a-pet.ch/,no,sure,pet adoption portal
+http://greifvogelhilfe.de/index.php/links,yes,sure,wildlife rescue stations
+http://greifvogelhilfe.de/links,yes,sure,wildlife rescue stations
+http://igelhilfe-luzern.ch/kontakt,yes,sure,wildlife rescue stations
+http://igelnest-oberbaselbiet.ch/standort,yes,unsure,a single hedgehog station's location page
+http://igelverein.ch/igelstationen.html,yes,sure,wildlife rescue stations
+http://igelverein.ch/igelstationen.html?id=23&sectionid=12&task=category,yes,sure,wildlife rescue stations
+http://reptilvar.free.fr/centre.htm,yes,sure,wildlife rescue stations
+https://deutsche-wildtierrettung.de/wildtierauffangstationen,yes,sure,wildlife rescue stations
+https://kitzrettung-hilfe.de/drohnenpiloten-bayern,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/drohnenpiloten-niedersachsen,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/drohnenpiloten-nordrhein-westfalen,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-baden-wuerttemberg,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-bayern,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-brandenburg,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-hessen,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-mecklenburg-vorpommern,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-nordrhein-westfalen,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-oesterreich,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-rheinland-pfalz,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-saarland,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-sachsen,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-sachsen-anhalt,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-schleswig-holstein,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-schweiz,no,sure,fawn-rescue groups or drone pilots
+https://kitzrettung-hilfe.de/kitzretter-thueringen,no,sure,fawn-rescue groups or drone pilots
+https://rlp.nabu.de/tiere-und-pflanzen/tieren-helfen/pflege-und-auffangstationen,yes,sure,wildlife rescue stations
+https://tierheim-gesucht.de/tierheime-in-der-naehe,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/baden-wuerttemberg,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/bayern,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/brandenburg,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/hessen,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/mecklenburg-vorpommern,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/niedersachsen,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/nordrhein-westfalen,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/rheinland-pfalz,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/sachsen,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/sachsen-anhalt,no,sure,animal shelter directory
+https://tierheim-gesucht.de/tierheime/schleswig-holstein,no,sure,animal shelter directory
+https://tierheimverzeichnis.org/tierheim/hessen/frankfurt-am-main,no,sure,one shelter's directory entry
+https://tierheimverzeichnis.org/tierheim/kategorie/vogel,yes,unsure,shelter directory filtered to birds
+https://vbu-ffm.de/pflegestationen.shtml,yes,sure,wildlife rescue stations
+https://wildes-bayern.de/wildtierhilfe,yes,unsure,wildlife help contacts mixed with fawn-rescue groups
+https://wildtierschutz-deutschland.de/verletztes-wildtier,no,sure,advice page naming one carer
+https://wildtierschutz-deutschland.de/verletztes-wildtier-gefunden,no,sure,advice page naming one carer
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-baden-wuerttemberg-stuttgart-tuebingen,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-bayern-franken-thueringen,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-bayern-muenchen,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-berlin-brandenburg-mecklenburg-vorpommern,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-dresden-chemnitz-leipzig-sachsen,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-hannover-goettingen-niedersachsen,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-hessen-rheinland-pfalz-saarland,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-nrw-nordrhein-westfalen,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-rheinland-pfalz-saarland-nrw,yes,sure,wildlife rescue stations
+https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-schleswig-holstein-bremen-hamburg,yes,sure,wildlife rescue stations
+https://wp.wildvogelhilfe.org/auffangstationen/auffangstationen-plz-gebiet-0,yes,sure,wildlife rescue stations
+https://xn--eichhrnchen-in-not-h3b.de/bayern,yes,sure,wildlife rescue stations
+https://xn--eichhrnchen-in-not-h3b.de/berlin,yes,sure,wildlife rescue stations

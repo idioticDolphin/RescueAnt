@@ -62,6 +62,20 @@ def _csv_list(raw:str) -> list[str]:
     return [item.strip().strip('"').strip("'") for item in raw.split(",") if item.strip()]
 
 
+def _confirmation_settings(configs:dict, category:str) -> dict:
+    """Read a category's optional confirmation question, all four keys or none."""
+    prompt = (configs.get(f"confirm_prompt[{category}]") or "").strip().strip('"')
+    if not prompt:
+        return {}
+    answers = [a.strip() for a in configs[f"confirm_answers[{category}]"].split("|") if a.strip()]
+    accept = configs[f"confirm_accept[{category}]"].strip().strip('"')
+    fallback = configs[f"confirm_fallback[{category}]"].strip().strip('"')
+    if accept not in answers:
+        raise ValueError(f"confirm_accept[{category}] = {accept!r} is not one of confirm_answers {answers}")
+    return {"confirm_prompt": prompt, "confirm_answers": answers,
+            "confirm_accept": accept, "confirm_fallback": fallback}
+
+
 def _opt_int(configs:dict, key:str, default:int) -> int:
     try:
         return int(configs[key])
@@ -249,13 +263,15 @@ def load_config(configs:dict=None):
                 continue
 
             check_linked_urls = configs[f"check_linked_urls[{category}]"]=="True"
+            confirm = _confirmation_settings(configs, category)
 
             if relevancy is Relevancy.LINKS:
                 # No content extraction happens for this category - only its
                 # outbound links matter, so none of the extraction-specific
                 # config keys (prompt/model_path/fields/...) are needed.
                 categories.append(
-                    Category(name=category, relevancy=relevancy, process_links=check_linked_urls)
+                    Category(name=category, relevancy=relevancy, process_links=check_linked_urls,
+                             **confirm)
                 )
                 logger.debug("Loaded category %r (links-only, process_links=%s)", category, check_linked_urls)
                 continue
@@ -288,13 +304,18 @@ def load_config(configs:dict=None):
                     process_links=check_linked_urls,
                     fields=category_fields,
                     analysis_max_tokens=max_tokens,
-                    is_list_category=is_list_category
+                    is_list_category=is_list_category,
+                    **confirm
                 )
             )
             logger.debug(
                 "Loaded category %r (list=%s, process_links=%s, model=%s)",
                 category, is_list_category, check_linked_urls, model_path,
             )
+        names = {c.name for c in categories}
+        for c in categories:
+            if c.confirm_fallback and c.confirm_fallback not in names:
+                raise ValueError(f"confirm_fallback[{c.name}] names no category: {c.confirm_fallback!r}")
         global _session_config
         _session_config = Config(
             categories=categories,

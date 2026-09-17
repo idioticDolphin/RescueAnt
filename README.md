@@ -191,6 +191,7 @@ python experiments/model_sweep.py --only <name>
    | `categories`, `category_prompt` | taxonomy | the page taxonomy and how the model is asked to apply it |
    | `relevancy[X]`, `prompt[X]`, `max_tokens[X]` | taxonomy | per-category: extract, follow links only, or ignore |
    | `referrer_weights` | taxonomy | how much a link inherits from the category of the page offering it |
+   | `confirm_prompt[...]`, `confirm_answers[...]`, `confirm_accept[...]`, `confirm_fallback[...]` | taxonomy | a second, focused question for pages put in a category; unless the accepted answer comes back, the page is filed under the fallback |
    | `mislabel_check`, `mislabeled_category` | taxonomy | let extraction answer that a page is not what it was classified as; it is re-filed under `mislabeled_category` and its original category kept in `reclassified_from` |
    | `fields`, `field[name]` | schema | what to extract, and each field's role/weight/normaliser/fusion strategy |
    | `require_fields`, `require_any_role` | schema | the admissibility gate a record must pass to be stored |
