@@ -169,6 +169,7 @@ python experiments/categorization_benchmark.py --model models/<your>.gguf
    | `categories`, `category_prompt` | taxonomy | the page taxonomy and how the model is asked to apply it |
    | `relevancy[X]`, `prompt[X]`, `max_tokens[X]` | taxonomy | per-category: extract, follow links only, or ignore |
    | `referrer_weights` | taxonomy | how much a link inherits from the category of the page offering it |
+   | `mislabel_check`, `mislabeled_category` | taxonomy | let extraction answer that a page is not what it was classified as; it is re-filed under `mislabeled_category` and its original category kept in `reclassified_from` |
    | `fields`, `field[name]` | schema | what to extract, and each field's role/weight/normaliser/fusion strategy |
    | `require_fields`, `require_any_role` | schema | the admissibility gate a record must pass to be stored |
    | `url_tokens[...]`, `domain_denylist` | lexicon | path tokens and domains to prefer or refuse |
@@ -654,6 +655,26 @@ Two conventions to keep if you extend the case list for your own domain:
   boilerplate and layout, so holding out individual pages while their
   siblings remain in the set makes a change look far more effective than it
   is.
+
+`experiments/extraction_benchmark.py` does the same for extraction, scoring
+records against `experiments/data/extraction_gold_labels.csv`. Score both:
+classification is constrained to a category name, so a model that drifts out
+of the page's language is not penalised there, while extraction reproduces
+text from the page and shows it at once.
+
+```bash
+python experiments/extraction_benchmark.py --force-category auto --show-misses
+```
+
+`--force-category auto` extracts each page as a listing or a single record
+according to its gold data, so a classification change cannot show up as an
+extraction failure. `--show-misses` prints gold against extracted for every
+field that did not match - usually the fastest way from a score to a cause.
+
+`experiments/model_sweep.py` runs both benchmarks over every model in
+`models/`, one at a time, and prints a comparison table. It waits for the GPU
+to be idle before each model and reports a model as unmeasured rather than
+scoring it on a card something else is still holding.
 
 `experiments/evaluate_dedup.py <db>` scores entity resolution on a database,
 and `experiments/compare_runs.py <db> <db>` puts two runs side by side on
