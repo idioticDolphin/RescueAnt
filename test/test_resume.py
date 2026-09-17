@@ -318,3 +318,62 @@ def test_a_page_reclassified_as_follow_only_loses_its_old_records(monkeypatch):
     orchestrator.reprocess("categorize")
 
     assert _entries() == []
+
+
+# ---------------------------------------------------------------------------
+# pages whose content we have already analysed
+# ---------------------------------------------------------------------------
+
+def test_a_page_identical_to_an_analysed_one_is_not_analysed_again(monkeypatch):
+    config = _with_config(monkeypatch, skip_identical_content=True)
+    category_service, extraction_service = _fake_services(monkeypatch)
+    monkeypatch.setattr(orchestrator, "fetching_service", MagicMock())
+    html = "<html>the same page under two URLs</html>"
+    digest, path = page_store.store(html)
+    first = data_service.save_crawl_instance("http://a.com/links", 1.0, True,
+                                             content_path=path, content_sha256=digest, site="a.com")
+    orchestrator.process_page(first, "http://a.com/links", html)
+    calls = category_service.categorize_website.call_count
+
+    second = data_service.save_crawl_instance("http://a.com/index.php/links", 1.0, True,
+                                              content_path=path, content_sha256=digest, site="a.com")
+    orchestrator.process_page(second, "http://a.com/index.php/links", html)
+
+    assert category_service.categorize_website.call_count == calls
+    with data_service.get_connection() as c:
+        row = dict(c.execute("SELECT category, state FROM crawls WHERE crawl_id = ?", (second,)).fetchone())
+    assert row["category"] == "STATION"
+    assert row["state"] == data_service.STATE_EXTRACTED
+    assert len(_entries()) == 1
+
+
+def test_identical_pages_are_analysed_again_when_not_configured(monkeypatch):
+    _with_config(monkeypatch, skip_identical_content=False)
+    category_service, _ = _fake_services(monkeypatch)
+    monkeypatch.setattr(orchestrator, "fetching_service", MagicMock())
+    html = "<html>same</html>"
+    digest, path = page_store.store(html)
+    for url in ("http://a.com/one", "http://a.com/two"):
+        crawl_id = data_service.save_crawl_instance(url, 1.0, True, content_path=path,
+                                                    content_sha256=digest, site="a.com")
+        orchestrator.process_page(crawl_id, url, html)
+
+    assert category_service.categorize_website.call_count == 2
+    assert len(_entries()) == 2
+
+
+def test_links_are_still_followed_from_a_skipped_twin(monkeypatch):
+    _with_config(monkeypatch, skip_identical_content=True)
+    category_service, extraction_service = _fake_services(monkeypatch)
+    fetching_service = MagicMock()
+    monkeypatch.setattr(orchestrator, "fetching_service", fetching_service)
+    monkeypatch.setattr(orchestrator, "cleaning_service", MagicMock(
+        extract_links=MagicMock(return_value=["http://station.example/"])))
+    html = "<html>same</html>"
+    digest, path = page_store.store(html)
+    for url in ("http://a.com/one", "http://a.com/two"):
+        crawl_id = data_service.save_crawl_instance(url, 1.0, True, content_path=path,
+                                                    content_sha256=digest, site="a.com")
+        orchestrator.process_page(crawl_id, url, html)
+
+    assert "http://station.example/" in [c.args[0] for c in fetching_service.queue_url.call_args_list]

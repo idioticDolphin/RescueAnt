@@ -300,6 +300,27 @@ def delete_entries_for_crawl(crawl_id:int):
         connection.commit()
 
 
+def find_analysed_twin(crawl_id:int):
+    """
+    Return (crawl_id, category) of an already-analysed page whose stored
+    content is byte-identical to this one's, or None.
+
+    Mirror URLs are common - /links and /index.php/links serve the same bytes -
+    and analysing the second copy costs a classification and an extraction to
+    reach the answer already on record.
+    """
+    with get_connection() as connection:
+        row = connection.execute(
+            """SELECT twin.crawl_id, twin.category FROM crawls AS page
+               JOIN crawls AS twin ON twin.content_sha256 = page.content_sha256
+               WHERE page.crawl_id = ? AND twin.crawl_id != page.crawl_id
+                 AND page.content_sha256 IS NOT NULL
+                 AND twin.category IS NOT NULL AND twin.state = ?
+               ORDER BY twin.crawl_id LIMIT 1""",
+            (crawl_id, STATE_EXTRACTED)).fetchone()
+    return (row["crawl_id"], row["category"]) if row else None
+
+
 def get_finished_crawl_urls():
     """Return the URL of every crawl that needs no further fetching:
     successfully processed pages plus deliberately skipped ones."""

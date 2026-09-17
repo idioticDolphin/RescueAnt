@@ -64,6 +64,11 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`skip_identical_content`** (on by default): a page whose stored body is
+  byte-identical to one already analysed takes that page's category and is not
+  analysed again. Mirror URLs are common - `/links` and `/index.php/links`
+  served the same bytes on one site - and 264 of one run's pages were copies.
+  Their links are still followed.
 - **`record_filter_prompt[...]`**: one call per listing page naming which of
   its entries belong in the database. Off by default - on the project's own
   records a name-token rule did better at no cost (see below).
@@ -204,5 +209,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 547 tests. Each regression test names the failure it exists to
+178 → 550 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

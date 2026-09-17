@@ -173,6 +173,7 @@ python experiments/model_sweep.py --only <name>
    | `database` | path to the sqlite database that gets created |
    | `page_store_path` | where fetched page bodies are kept, for resume and reprocessing |
    | `politeness` | minimum seconds between two requests to the same domain |
+   | `skip_identical_content` | bot | reuse the analysis of an already-analysed page with byte-identical content |
    | `max_pages_per_site` | hard ceiling on pages fetched from one registrable domain |
    | `abandon_site_after`, `abandon_site_max_weight` | stop crawling a site once it has given this many low-value pages and no record |
    | `skip_url_extensions` | links to files (`.pdf`, `.docx`, images, archives, ...) that are never fetched |

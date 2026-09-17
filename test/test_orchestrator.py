@@ -51,6 +51,8 @@ def _patch_data_service(monkeypatch):
     data_service = MagicMock()
     data_service.save_crawl_instance.side_effect = range(1, 1000)
     data_service.count_extracted_pages_for_site.return_value = 0
+    # No earlier page shares this one's content unless a test says so.
+    data_service.find_analysed_twin.return_value = None
     monkeypatch.setattr(orchestrator, "data_service", data_service)
     return data_service
 
@@ -1023,6 +1025,7 @@ def test_every_classified_page_tells_the_frontier_what_it_was_worth(monkeypatch)
 
 def test_a_page_that_raises_is_marked_failed_instead_of_ending_the_run(monkeypatch):
     data_service = MagicMock()
+    data_service.find_analysed_twin.return_value = None
     monkeypatch.setattr(orchestrator, "data_service", data_service)
     seen = []
 

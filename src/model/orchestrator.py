@@ -288,6 +288,22 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
                       was categorized but not extracted); None to categorize now.
     """
     categorize_seconds = 0.0
+    cfg = config_service.get_config()
+    if category is None and getattr(cfg, "skip_identical_content", False):
+        twin = data_service.find_analysed_twin(crawl_id)
+        if twin is not None:
+            twin_id, twin_category = twin
+            # The same bytes cannot classify differently, and extracting them
+            # again would only produce records the twin already carries - which
+            # entity resolution would then have to merge back together.
+            logger.info("Reusing the analysis of crawl %d for %s (identical content)", twin_id, url)
+            data_service.save_site_category(crawl_id, twin_category)
+            data_service.delete_entries_for_crawl(crawl_id)
+            links = cleaning_service.extract_links(html, url)
+            _queue_links(links, _category_named(cfg, twin_category, None), cfg)
+            monitor_service.page(url, twin_category, 0.0, 0.0)
+            data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+            return
     if category is None:
         categorize_start = time.monotonic()
         category = category_service.categorize_website(html, url)

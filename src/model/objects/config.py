@@ -86,6 +86,9 @@ class Config(BaseModel):
     # stored, which is the point for a reproducible dev run and wrong for a
     # production one.
     reuse_stored_pages: bool = False
+    # Take the category of an already-analysed page with byte-identical
+    # content instead of analysing this one again.
+    skip_identical_content: bool = True
     reuse_max_age_days: float = 0
 
     # --- Boilerplate stripping (P8) --------------------------------------
