@@ -73,6 +73,11 @@ Two things this table shows that download sizes do not:
   default's per-page cost they cannot come out ahead however accurate they are,
   since the default already classifies 92% of pages correctly.
 
+The accuracy column comes from pages the category prompt was developed
+against. On 70 pages from sites it was never tuned on, the default model picks
+the exact category for 80% of pages and makes the right extraction decision -
+extract a record, extract a listing, or only follow links - for 93%.
+
 With more VRAM these trade-offs change. Measure candidates on your own
 hardware before switching:
 
@@ -684,7 +689,11 @@ Labels live in `experiments/data/page_labels.csv`, one row per page with a
 `confidence` (`sure` or `unsure`) and a `split` (`dev` or `test`). Unsure
 labels are left out unless `--include-unsure` is given. Tune prompts against
 `dev` only; `test` measures whether a change generalises to sites it was not
-tuned on, and stops doing so once it has been looked at while tuning.
+tuned on, and stops doing so once it has been looked at while tuning - which
+is why per-page results for `test` are only printed with `--show-test-cases`.
+Besides the exact category, the benchmark scores the extraction decision:
+whether a page is extracted as a record, as a listing, or not at all. Most
+confusions between follow-only categories change nothing in the database.
 
 Two conventions to keep if you extend the case list for your own domain:
 

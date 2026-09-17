@@ -78,9 +78,23 @@ Entries begin at the first release; earlier development is not itemised.
 - **`experiments/mislabel_verdict_benchmark.py`** — measures how often the
   mislabel verdict rejects a page that should have been extracted, and how
   often it catches one that should not, against the labelled page set.
+- **Extraction decision score** in the categorization benchmark: whether each
+  page is extracted as a record, as a listing or not at all, with missed and
+  spurious extractions counted apart. Per-page results for the test split are
+  hidden unless `--show-test-cases` is given.
+- **`experiments/extraction_profile.py`** splits extraction calls into prompt
+  processing and generation, and **`grammar_sampler_check.py`** verifies that
+  the fast sampler produces the same completions as llama-cpp-python's own.
 
 ### Changed
 
+- **Grammar-constrained generation is about seven times faster, with
+  identical output.** llama-cpp-python checks the grammar against the whole
+  vocabulary for every generated token; RescueAnt now picks the most likely
+  token first and asks the grammar about that token alone, filtering the
+  vocabulary only when it is rejected. Under greedy decoding this chooses the
+  same tokens. A typical single-record extraction takes about 5 seconds
+  instead of 35, and a 2,000-token listing 36 seconds instead of 4 minutes.
 - **Discovery now triggers on an unproductive frontier**, not an empty queue.
   Once link-following reaches the open web the queue never empties, so the
   old condition meant discovery never fired again after the seeds ran out.
@@ -147,5 +161,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 491 tests. Each regression test names the failure it exists to
+178 → 502 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.
