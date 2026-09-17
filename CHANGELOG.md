@@ -72,6 +72,12 @@ Entries begin at the first release; earlier development is not itemised.
   default.
 - **`--show-misses`** on the extraction benchmark, printing gold against
   extracted for every field that did not match.
+- **Labelled page set** in `experiments/data/page_labels.csv`: each label
+  carries a confidence and a site-disjoint `dev`/`test` split. The
+  categorization benchmark takes `--split` and `--include-unsure`.
+- **`experiments/mislabel_verdict_benchmark.py`** — measures how often the
+  mislabel verdict rejects a page that should have been extracted, and how
+  often it catches one that should not, against the labelled page set.
 
 ### Changed
 

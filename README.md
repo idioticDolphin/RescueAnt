@@ -676,8 +676,15 @@ exact pages that motivated it:
 
 ```bash
 python experiments/categorization_benchmark.py
+python experiments/categorization_benchmark.py --split test
 python experiments/categorization_benchmark.py --model models/other.gguf --context 12288
 ```
+
+Labels live in `experiments/data/page_labels.csv`, one row per page with a
+`confidence` (`sure` or `unsure`) and a `split` (`dev` or `test`). Unsure
+labels are left out unless `--include-unsure` is given. Tune prompts against
+`dev` only; `test` measures whether a change generalises to sites it was not
+tuned on, and stops doing so once it has been looked at while tuning.
 
 Two conventions to keep if you extend the case list for your own domain:
 
@@ -702,6 +709,17 @@ python experiments/extraction_benchmark.py --force-category auto --show-misses
 according to its gold data, so a classification change cannot show up as an
 extraction failure. `--show-misses` prints gold against extracted for every
 field that did not match - usually the fastest way from a score to a cause.
+
+`experiments/mislabel_verdict_benchmark.py` measures `mislabel_check`
+before you enable it. Pages labelled with an extracting category should be
+extracted; pages labelled otherwise are extracted as though misclassified and
+should draw the verdict. The number that matters is the first - a wrongly
+rejected station is a lost record, which costs more than the call it saves:
+
+```bash
+python experiments/mislabel_verdict_benchmark.py --cases dev
+python experiments/mislabel_verdict_benchmark.py --cases dev --instruction "..."
+```
 
 `experiments/model_sweep.py` runs both benchmarks over every model in
 `models/`, one at a time, and prints a comparison table. It waits for the GPU
