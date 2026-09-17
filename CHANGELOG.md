@@ -61,6 +61,9 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`skip_url_extensions`**: links to documents, images and archives are
+  dropped before fetching. A browser starts a download for them instead of
+  rendering a page, so each one cost a failed navigation.
 - **`reuse_stored_pages`**, for development runs: pages already in the page
   store are served from disk rather than refetched, with no request to the
   site. The store keeps a URL index of its own, so this works against a fresh
@@ -161,5 +164,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 502 tests. Each regression test names the failure it exists to
+178 → 506 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

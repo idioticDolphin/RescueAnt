@@ -996,3 +996,18 @@ async def test_a_round_served_entirely_from_the_store_launches_no_browser(monkey
 
     assert launched == []
     assert fetching_service.processed_urls["https://b.example/"] == "<html>https://b.example/</html>"
+
+
+def test_links_to_files_are_never_queued(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "skip_url_extensions",
+                        [".pdf", ".docx"], raising=False)
+    fetching_service.queue_url("https://station.de/uploads/Flyer.PDF")
+    fetching_service.queue_url("https://station.de/antrag.docx?download=1")
+    fetching_service.queue_url("https://station.de/pdf-infos")
+    assert fetching_service.url_queue == ["https://station.de/pdf-infos"]
+
+
+def test_no_skipped_extensions_blocks_nothing(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "skip_url_extensions", [], raising=False)
+    fetching_service.queue_url("https://station.de/flyer.pdf")
+    assert fetching_service.url_queue == ["https://station.de/flyer.pdf"]

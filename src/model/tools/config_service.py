@@ -216,6 +216,7 @@ def load_config(configs:dict=None):
         boilerplate_threshold = _opt_float(configs, "boilerplate_threshold", 0.6)
         max_batch_size = _opt_int(configs, "max_batch_size", 0)
         domain_denylist = _csv_list(configs.get("domain_denylist", ""))
+        skip_url_extensions = [e.lower() for e in _csv_list(configs.get("skip_url_extensions", ""))]
         try:
             referrer_weights = {k: float(v) for k, v in
                                 json.loads(configs.get("referrer_weights", "{}")).items()}
@@ -339,6 +340,7 @@ def load_config(configs:dict=None):
             boilerplate_threshold = boilerplate_threshold,
             max_batch_size = max_batch_size,
             domain_denylist = domain_denylist,
+            skip_url_extensions = skip_url_extensions,
             referrer_weights = referrer_weights,
             discovery_priority = _opt_float(configs, "discovery_priority", 50.0),
             discovery_when_below = (_opt_float(configs, "discovery_when_below", 0.0)

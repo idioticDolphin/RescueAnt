@@ -101,6 +101,8 @@ class Config(BaseModel):
     # networks, consent/CDN infrastructure). Deployment-specific, so it lives
     # in configuration rather than in code.
     domain_denylist: list[str] = []
+    # Links whose path ends in one of these are never fetched.
+    skip_url_extensions: list[str] = []
     # Frontier weight contributed by the category of the page a link was found
     # on: links from productive pages are crawled first. Category names are
     # user-defined, so this mapping is configuration.

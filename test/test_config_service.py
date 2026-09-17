@@ -582,3 +582,19 @@ def test_the_mislabel_verdict_reads_its_settings(tmp_path):
     assert cfg.mislabel_check is True
     assert cfg.mislabeled_category == "HUB"
     assert cfg.mislabel_instruction == "Say so if it is not."
+
+
+def test_skip_url_extensions_are_read_lowercased():
+    from model.tools import config_service
+    configs = config_service._read_config()
+    configs["skip_url_extensions"] = '".PDF", ".zip"'
+    config_service.load_config(configs)
+    assert config_service.get_config().skip_url_extensions == [".pdf", ".zip"]
+
+
+def test_skip_url_extensions_default_to_none():
+    from model.tools import config_service
+    configs = config_service._read_config()
+    configs.pop("skip_url_extensions", None)
+    config_service.load_config(configs)
+    assert config_service.get_config().skip_url_extensions == []

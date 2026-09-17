@@ -265,6 +265,14 @@ def queue_url(url:str, priority:float=0.0):
         logger.debug("Skipping %s - domain is denylisted", canonical)
         return
 
+    # A browser cannot render a PDF or an office document; it starts a
+    # download and the fetch fails, after spending a navigation and the
+    # politeness delay on a site that may not even be the one being crawled.
+    extensions = tuple(getattr(config, "skip_url_extensions", None) or ())
+    if extensions and urlparse(canonical).path.lower().endswith(extensions):
+        logger.debug("Skipping %s - links to a file, not a page", canonical)
+        return
+
     # Per-site budget: without one, a single large site can dominate a run -
     # the previous run took 80+ pages from one host and ended up blocked by
     # its firewall. Capping pages per site is both politer and spreads the

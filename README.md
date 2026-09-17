@@ -173,6 +173,7 @@ python experiments/model_sweep.py --only <name>
    | `page_store_path` | where fetched page bodies are kept, for resume and reprocessing |
    | `politeness` | minimum seconds between two requests to the same domain |
    | `max_pages_per_site` | hard ceiling on pages fetched from one registrable domain |
+   | `skip_url_extensions` | links to files (`.pdf`, `.docx`, images, archives, ...) that are never fetched |
    | `max_extractions_per_site` | how many times one site may be mined for records before further pages are classified but not extracted (listing pages are exempt) |
    | `max_batch_size` | pages fetched per round, so analysis keeps pace with fetching |
    | `discovery_when_below` | reach for search discovery once the best queued link scores below this - **not** only when the queue is empty |
