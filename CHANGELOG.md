@@ -87,9 +87,11 @@ Entries begin at the first release; earlier development is not itemised.
   contact, or one whose contact details disagree between pages. `--export ...
   --needing-review` writes only those rows (137 of 547 in the project's own
   database).
-- **`prefetch_next_batch`**: the next batch is fetched while this one is
-  analysed, instead of leaving the network idle during analysis. Off by
-  default: the next batch is then chosen before this batch's links are known.
+- **`prefetch_next_batch`** (on in the shipped config): the next batch is
+  fetched while this one is analysed, instead of leaving the network idle
+  during analysis. Measured over three rounds of a live crawl, twice: 6.3 s
+  per page against 4.7 s, a quarter faster. The cost is that the next batch is
+  chosen before this batch's links are known.
 - **`skip_identical_content`** (on by default): a page whose stored body is
   byte-identical to one already analysed takes that page's category and is not
   analysed again. Mirror URLs are common - `/links` and `/index.php/links`
