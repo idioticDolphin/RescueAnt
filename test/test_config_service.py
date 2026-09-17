@@ -582,27 +582,3 @@ def test_the_mislabel_verdict_reads_its_settings(tmp_path):
     assert cfg.mislabel_check is True
     assert cfg.mislabeled_category == "HUB"
     assert cfg.mislabel_instruction == "Say so if it is not."
-
-
-def test_extraction_is_constrained_unless_configured_otherwise():
-    from model.tools import config_service
-    configs = config_service._read_config()
-    configs.pop("extraction_grammar", None)
-    config_service.load_config(configs)
-    assert config_service.get_config().extraction_grammar == "always"
-
-
-def test_extraction_grammar_reads_fallback():
-    from model.tools import config_service
-    configs = config_service._read_config()
-    configs["extraction_grammar"] = '"fallback"'
-    config_service.load_config(configs)
-    assert config_service.get_config().extraction_grammar == "fallback"
-
-
-def test_extraction_grammar_rejects_an_unknown_mode():
-    from model.tools import config_service
-    configs = config_service._read_config()
-    configs["extraction_grammar"] = '"sometimes"'
-    with pytest.raises(ConfigError):
-        config_service.load_config(configs)

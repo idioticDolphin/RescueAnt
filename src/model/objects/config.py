@@ -78,9 +78,6 @@ class Config(BaseModel):
     max_extractions_per_site: int = 0
     # Let extraction answer "this page is not what it was classified as".
     mislabel_check: bool = False
-    # "always": every extraction is grammar-constrained. "fallback": generate
-    # freely and use the grammar only when the output does not parse.
-    extraction_grammar: str = "always"
     mislabel_instruction: str | None = None
     # Where a page judged mislabeled is re-filed; None keeps its category.
     mislabeled_category: str | None = None

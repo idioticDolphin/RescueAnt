@@ -207,10 +207,6 @@ def load_config(configs:dict=None):
         max_pages_per_site = _opt_int(configs, "max_pages_per_site", 0)
         max_extractions_per_site = _opt_int(configs, "max_extractions_per_site", 0)
         mislabel_check = configs.get("mislabel_check", "False") == "True"
-        extraction_grammar = (configs.get("extraction_grammar") or "always").strip().strip('"')
-        if extraction_grammar not in ("always", "fallback"):
-            raise ValueError(f"extraction_grammar must be \"always\" or \"fallback\", "
-                             f"not {extraction_grammar!r}")
         reuse_stored_pages = configs.get("reuse_stored_pages", "False") == "True"
         reuse_max_age_days = _opt_float(configs, "reuse_max_age_days", 0)
         mislabeled_category = (configs.get("mislabeled_category") or "").strip().strip('"') or None
@@ -334,7 +330,6 @@ def load_config(configs:dict=None):
             max_pages_per_site = max_pages_per_site,
             max_extractions_per_site = max_extractions_per_site,
             mislabel_check = mislabel_check,
-            extraction_grammar = extraction_grammar,
             reuse_stored_pages = reuse_stored_pages,
             reuse_max_age_days = reuse_max_age_days,
             mislabeled_category = mislabeled_category,
