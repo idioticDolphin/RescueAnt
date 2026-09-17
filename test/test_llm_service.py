@@ -377,3 +377,10 @@ def test_overhead_larger_than_the_context_does_not_produce_a_negative_budget():
     out = llm_service.fit_to_context(llm, "a b c", context=100, reserve=10,
                                      overhead=huge)
     assert out == ""
+
+
+def test_loaded_models_check_the_grammar_last(_isolate_llm_service_state, monkeypatch):
+    installed = []
+    monkeypatch.setattr(llm_service.grammar_sampler, "install", installed.append)
+    llm_service.get_model(llm_service.get_model_id("models/a.gguf", 2048))
+    assert installed == [_isolate_llm_service_state[0]]

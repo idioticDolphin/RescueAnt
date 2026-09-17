@@ -3,6 +3,8 @@ import time
 
 from llama_cpp import Llama
 
+from model.tools import grammar_sampler
+
 logger = logging.getLogger(__name__)
 
 _initialized_model_mapper = dict()
@@ -210,5 +212,8 @@ def _load(model_path, context):
         n_gpu_layers = -1,
         verbose = False,
     )
+    # Grammar-constrained extraction and classification otherwise check every
+    # vocabulary entry for every token, several times slower than need be.
+    grammar_sampler.install(model)
     logger.info("Model %s loaded.", model_path)
     return model

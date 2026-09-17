@@ -267,3 +267,5 @@ advice.log
 download.log
 # Partial model downloads (download-models.sh renames on success).
 models/*.part
+*.db-shm
+*.db-wal
