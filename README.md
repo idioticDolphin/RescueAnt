@@ -763,3 +763,29 @@ scoring it on a card something else is still holding.
 `experiments/evaluate_dedup.py <db>` scores entity resolution on a database,
 and `experiments/compare_runs.py <db> <db>` puts two runs side by side on
 durability, deduplication and output quality.
+
+### Judging what the database holds
+
+Scores of classification and extraction do not say whether the result is
+worth having. That takes reading records:
+
+```bash
+python experiments/entity_precision.py sample crawl.db sheet.csv --n 100
+python experiments/entity_precision.py score sheet.csv
+```
+
+`sample` draws a fixed random sample into a labelling sheet - every field,
+plus where the record came from - with empty judgement columns. Fill in
+`relevant`, `contactable` and (for anything doubtful) `problem`, and `score`
+reports the share kept, split by whether a record came from a listing or from
+an organisation's own page. Keep the sheets: a later change is measured
+against the same records.
+
+Two scripts report where the gaps are:
+
+- `experiments/coverage_gap.py` counts the websites named in records that no
+  crawl has visited - records the crawler knows of but has never seen
+  first-hand.
+- `experiments/record_filter_trial.py` and `list_confirmation_trial.py` score
+  a candidate filtering prompt against judged records and labelled listing
+  pages, before it is wired into the pipeline.
