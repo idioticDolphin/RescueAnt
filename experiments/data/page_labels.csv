@@ -1,0 +1,115 @@
+url,label,confidence,split,labelled_by,model_label_before,note
+https://fressnapf.de/c/katze/katzenfutter,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://fressnapf.de/c/katze/katzenfutter/nassfutter,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://fressnapf.de/c/hund/hundefutter/ergaenzungsfutter,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://fressnapf.de/c/hund/hundeschlafplaetze/hundebetten,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://fressnapf.de/c/garten-teich/wildvoegel/vogelhaeuser-nistkaesten,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://dogorama.app/de-de/hundeshops,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://dogorama.app/de-de/hundepensionen,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://dogorama.app/de-de/ernaehrungsberater,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://about.google/locations?office=tokyo-rpg&region=asia-pacific,IRRELEVANT,sure,dev,claude-judgement,,original 50-case benchmark
+https://falabr.cgu.gov.br/web/orgao,AUTHORITY,sure,dev,claude-judgement,,original 50-case benchmark
+https://memon.eu/,COMMERCIAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://vbu-ffm.de/pflegestationen.shtml,LIST,sure,dev,claude-judgement,,original 50-case benchmark
+https://rlp.nabu.de/tiere-und-pflanzen/tieren-helfen/pflege-und-auffangstationen,LIST,sure,dev,claude-judgement,,original 50-case benchmark
+https://deutsche-wildtierrettung.de/wildtierauffangstationen,LIST,sure,dev,claude-judgement,,original 50-case benchmark
+http://greifvogelhilfe.de/greifvogelhilfe,STATION,sure,dev,claude-judgement,,original 50-case benchmark
+http://wildtierzentrum.de/,STATION,sure,dev,claude-judgement,,original 50-case benchmark
+https://eichhoernchen-schutz.de/,STATION,sure,dev,claude-judgement,,original 50-case benchmark
+https://reptilienauffangstation.de/,STATION,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-marburg.de/,SHELTER,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-bergheim.de/,SHELTER,sure,dev,claude-judgement,,original 50-case benchmark
+http://franziskustierheim.de/,SHELTER,sure,dev,claude-judgement,,original 50-case benchmark
+http://hamburger-tierschutzverein.de/,SHELTER,sure,dev,claude-judgement,,original 50-case benchmark
+http://tierheim-mainz.de/,SHELTER,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-wetterau-ev.de/,SHELTER,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-ostermuenchen.de/unser-tierheim,SHELTER,sure,dev,claude-judgement,,original 50-case benchmark
+https://elztal-gnadenhof.de.tl/,SANCTUARY,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierklinik-hofheim.de/,VET,sure,dev,claude-judgement,,original 50-case benchmark
+https://vetpuls.de/,VET,sure,dev,claude-judgement,,original 50-case benchmark
+https://tiermed-muenchen.de/,VET,sure,dev,claude-judgement,,original 50-case benchmark
+https://wildtierschutz-deutschland.de/verletztes-wildtier,LIST,sure,dev,claude-judgement,,original 50-case benchmark
+https://wildtierschutz-deutschland.de/verletztes-wildtier-gefunden,ADVICE,sure,dev,claude-judgement,,original 50-case benchmark
+http://tierschutzpartei.de/,ADVOCACY,sure,dev,claude-judgement,,original 50-case benchmark
+https://klimaliste-berlin.de/,ADVOCACY,sure,dev,claude-judgement,,original 50-case benchmark
+https://sozis-tiere.de/,ADVOCACY,sure,dev,claude-judgement,,original 50-case benchmark
+http://naturefund.de/,ADVOCACY,sure,dev,claude-judgement,,original 50-case benchmark
+https://natur-zuerst.de/,ADVOCACY,sure,dev,claude-judgement,,original 50-case benchmark
+https://elztal-gnadenhof.de.tl/Amely.htm,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://elztal-gnadenhof.de.tl/Bob.htm,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://elztal-gnadenhof.de.tl/Sina.htm,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://elztal-gnadenhof.de.tl/Alca.htm,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://elztal-gnadenhof.de.tl/Gypsy.htm,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-ostermuenchen.de/hund,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://hamburger-tierschutzverein.de/tiervermittlung/hunde,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-marburg.de/k/hunde,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://franziskustierheim.de/tiervermittlung/hunde-17.html,ANIMAL,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-ostermuenchen.de/aktuelles,HUB,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-ostermuenchen.de/gassigeher-und-katzenstreichler,HUB,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-ostermuenchen.de/unsere-vereinszeitung,HUB,sure,dev,claude-judgement,,original 50-case benchmark
+https://tiermed-muenchen.de/stellenangebote,HUB,sure,dev,claude-judgement,,original 50-case benchmark
+https://tiermed-muenchen.de/team2,HUB,sure,dev,claude-judgement,,original 50-case benchmark
+https://tierheim-heppenheim.de/sachspenden.html,HUB,sure,dev,claude-judgement,HUB,donations subpage of a shelter
+https://artgerecht-tierschutz.com/?p=13812,ANIMAL,sure,test,claude-judgement,ANIMAL,two cats offered for adoption
+https://tina-uvb.de/infos-2,HUB,sure,dev,claude-judgement,ADVOCACY,"info subpage, not the organisation front page"
+https://xn--eichhrnchen-in-not-h3b.de/nordrhein-westfalen,LIST,sure,dev,claude-judgement,LIST,regional squirrel-rescue contacts
+http://tierheim-loeffingen.de/sachspenden.html,HUB,sure,test,claude-judgement,HUB,donations subpage
+https://totfund.de/,ADVICE,sure,dev,claude-judgement,ADVICE,"roadkill reporting project, not a rescue"
+https://wildtierhilfe-mv.de/impressum,STATION,sure,dev,claude-judgement,HUB,legal notice of a wildlife rescue; the taxonomy counts it as STATION
+https://zum-carlshof.de/,SANCTUARY,unsure,test,claude-judgement,SANCTUARY,sanctuary combined with dog boarding and events
+https://tierheim-gesucht.de/ratgeber,HUB,sure,test,claude-judgement,HUB,"pet-advice index of a directory portal, not emergency guidance"
+https://tierheim-nied.de/index.php/unsere-tiere/kaninchen-2,ANIMAL,sure,dev,claude-judgement,ANIMAL,rabbits offered for adoption
+https://eichhoernchen-notruf.com/kontakt,STATION,sure,dev,claude-judgement,ADVOCACY,contact page of a squirrel rescue e.V.
+https://tsv-darmstadt.de/kontakt,SHELTER,sure,dev,claude-judgement,SHELTER,shelter contact page
+http://tierschutz-buntekuh.de/,SHELTER,unsure,test,claude-judgement,ADVOCACY,only a cookie banner visible in cleaned text
+https://musella-stiftung.li/kontakt,ADVOCACY,sure,dev,claude-judgement,AUTHORITY,foundation for a socio-ecological future
+http://tierschutz-hanau.de/startseite.html,SHELTER,sure,dev,claude-judgement,SHELTER,Tierheim Hanau front page
+http://tierhelfer-ingelheim.de/kontakt,SHELTER,unsure,test,claude-judgement,HUB,only a cookie banner visible; animal-welfare association
+http://tierhilfe-hoffnung.com/,SHELTER,sure,test,claude-judgement,SHELTER,"operator of a large dog shelter, rehoming"
+http://falknerei-ruchlak.de/,COMMERCIAL,sure,dev,claude-judgement,AUTHORITY,falconer flight shows
+https://bbja.de/impressum,AUTHORITY,sure,test,claude-judgement,HUB,hunting wardens association legal notice
+https://bne-portal.de/,AUTHORITY,unsure,test,claude-judgement,AUTHORITY,"federal education campaign portal, unrelated to animals"
+http://tierheim-duesseldorf.de/,SHELTER,sure,test,claude-judgement,SHELTER,shelter front page
+http://bmt-tierschutz.mobil-desktop.de/,ADVOCACY,unsure,test,claude-judgement,ADVOCACY,national welfare body that also runs shelters
+https://tierheimverzeichnis.org/alternativen-zur-katzenversicherung-gesundheitsruecklage-notfallkredit-ratenzahlungsmodelle,HUB,unsure,dev,claude-judgement,ADVICE,insurance article on a directory site
+https://kitzrettung-hilfe.de/downloads,HUB,sure,test,claude-judgement,COMMERCIAL,downloads subpage of a fawn-rescue organisation
+https://wp.wildvogelhilfe.org/auffangstationen/auffangstationen-plz-gebiet-0,LIST,sure,dev,claude-judgement,LIST,wild-bird stations by postcode
+https://tsv-giessen.de/,SHELTER,sure,test,claude-judgement,SHELTER,Tierschutzverein front page with cat house
+https://tierschutzbund.de/helfen/dauerhaft-helfen,HUB,sure,test,claude-judgement,ADVOCACY,donations subpage
+http://dogsgarden-online.de/,IRRELEVANT,sure,dev,claude-judgement,IRRELEVANT,parked domain
+https://wildtierhilfe-rhein-nahe.de/,STATION,sure,test,claude-judgement,STATION,wildlife rescue front page
+https://nabu-netz.de/,ADVOCACY,unsure,test,claude-judgement,ADVOCACY,members portal of a conservation body
+http://hundeland-wolf.de/,COMMERCIAL,sure,dev,claude-judgement,SHELTER,dog boarding kennel
+http://mauersegler.com/,STATION,sure,test,claude-judgement,STATION,swift rescue clinic
+https://atproto.com/,IRRELEVANT,sure,test,claude-judgement,IRRELEVANT,protocol documentation
+https://wildtier-sos.de/download,ADVICE,unsure,test,claude-judgement,COMMERCIAL,download page of a free rescue-finder app
+https://waldkobolde.shop/,COMMERCIAL,sure,test,claude-judgement,COMMERCIAL,shop for wildlife-care supplies
+http://promonte.de/,COMMERCIAL,sure,dev,claude-judgement,COMMERCIAL,domain for sale
+http://wildtierstation-huenfelden.de/,STATION,sure,dev,claude-judgement,STATION,wildlife station
+https://wponetap.com/,COMMERCIAL,sure,test,claude-judgement,COMMERCIAL,WordPress plugin
+https://uni-freiburg.de/unr,AUTHORITY,unsure,test,claude-judgement,AUTHORITY,university faculty
+https://tierschutzengelrheinmain.de/,STATION,unsure,test,claude-judgement,STATION,lost-pet recovery and fawn rescue
+http://rotorman.de/,IRRELEVANT,sure,test,claude-judgement,LIST,satire about a village road
+https://tamm-photography.com/,COMMERCIAL,sure,dev,claude-judgement,COMMERCIAL,wildlife photographer
+https://tieroase-stefanshof.de/about-us,SANCTUARY,sure,dev,claude-judgement,SANCTUARY,about page of a farm sanctuary
+https://tier-refugium.de/,IRRELEVANT,sure,test,claude-judgement,IRRELEVANT,404 page
+http://falknerei-feldberg.de/,COMMERCIAL,unsure,dev,claude-judgement,SANCTUARY,"raptor visitor attraction, listed elsewhere as a care station"
+https://bsky.social/about/support/tos,IRRELEVANT,sure,test,claude-judgement,IRRELEVANT,terms of service
+https://bluegreengroup.co.uk/oystein-kloster,IRRELEVANT,sure,dev,claude-judgement,IRRELEVANT,film director biography
+https://wildtierrettung-bw.de/,STATION,sure,test,claude-judgement,STATION,fawn rescue with drones
+https://freikitz.de/kontakt,STATION,sure,test,claude-judgement,STATION,fawn rescue contact page
+https://tierschutz-kelsterbach.de/meldung-von-wildtiernotfaellen-beim-tsv-kelsterbach,ADVICE,sure,dev,claude-judgement,ADVICE,how to report wildlife emergencies
+https://wildtierschutz-dreisamtal.de/fotogalerie-unserer-einsaetze,HUB,unsure,test,claude-judgement,ANIMAL,photo gallery of rescue operations
+https://findefix.com/,ADVICE,unsure,dev,claude-judgement,LIST,free lost-pet registry
+http://ct.de/-2467514,IRRELEVANT,sure,dev,claude-judgement,IRRELEVANT,tech news article
+http://pelz-war-leben.info/,IRRELEVANT,sure,test,claude-judgement,ADVICE,hijacked domain now serving dating advice
+https://tierarztpraxis-rheinallee.de/,VET,sure,dev,claude-judgement,VET,veterinary practice
+https://eichhoernchen-infos.de/,ADVICE,sure,dev,claude-judgement,ADVICE,squirrel first-aid information
+http://fuchs-hilfe.de/kontakt.htm,HUB,unsure,test,claude-judgement,ADVICE,contact page of a fox information site that takes no animals
+http://tierart.de/,STATION,unsure,test,claude-judgement,SANCTUARY,wildlife station that also keeps animals permanently
+https://tierheilpraxis-oehl.de/,VET,unsure,dev,claude-judgement,VET,animal naturopath rather than a veterinarian
+http://pfalzstorch.de/,STATION,unsure,test,claude-judgement,SANCTUARY,stork centre with a visitor exhibition
+https://achtung-fuer-tiere.de/,SANCTUARY,sure,test,claude-judgement,SANCTUARY,farm sanctuary
+http://tierarzt-seckbach.de/,VET,sure,test,claude-judgement,VET,veterinary practice
+https://tierarzt-offenbach.eu/praxis,VET,sure,test,claude-judgement,VET,veterinary practice
+https://tierarzt-claudiabauer.com/,VET,sure,dev,claude-judgement,VET,veterinary practice

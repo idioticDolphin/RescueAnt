@@ -3,12 +3,16 @@ Replay stored pages through the categorizer and score them against labels.
 
 The crawl keeps every fetched body in the page store, so a prompt or taxonomy
 change can be evaluated against the exact pages that motivated it - offline,
-with no network and no re-crawl. Each case below is a page from a real run,
-labelled by hand; the "was" comment records what the run actually produced, so
-a regression in the other direction is visible too.
+with no network and no re-crawl. Each labelled page comes from a real run and
+records what the classifier said about it before, so a change that fixes one
+case and breaks another shows both.
+
+Labels live in experiments/data/page_labels.csv.
 
 Usage:
-    python experiments/categorization_benchmark.py [--db crawl.db] [--limit N]
+    python experiments/categorization_benchmark.py                 # all confident labels
+    python experiments/categorization_benchmark.py --split test    # held-out sites only
+    python experiments/categorization_benchmark.py --model models/x.gguf
 """
 import argparse
 import sys
@@ -21,92 +25,36 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from model.tools import config_service, data_service, page_store  # noqa: E402
 from model.analyzer import category_service, boilerplate_service  # noqa: E402
 
-# url substring -> expected category.
-# Labels are judgements about the page's role, not about the site as a whole:
-# a shelter's job-ad page is HUB even though the shelter itself is a STATION.
-CASES = [
-    # --- lists of the wrong kind of thing (all were LIST) ---
-    ("fressnapf.de/c/katze/katzenfutter",                "COMMERCIAL"),
-    ("fressnapf.de/c/katze/katzenfutter/nassfutter",     "COMMERCIAL"),
-    ("fressnapf.de/c/hund/hundefutter/ergaenzungsfutter", "COMMERCIAL"),
-    ("fressnapf.de/c/hund/hundeschlafplaetze/hundebetten", "COMMERCIAL"),
-    ("fressnapf.de/c/garten-teich/wildvoegel/vogelhaeuser-nistkaesten", "COMMERCIAL"),
-    ("dogorama.app/de-de/hundeshops",                    "COMMERCIAL"),
-    ("dogorama.app/de-de/hundepensionen",                "COMMERCIAL"),
-    ("dogorama.app/de-de/ernaehrungsberater",            "COMMERCIAL"),
-    ("about.google/locations",                           "IRRELEVANT"),
-    # An index of Brazilian government agencies. Labelled IRRELEVANT at
-    # first; AUTHORITY is what it actually is, and the model said so.
-    ("falabr.cgu.gov.br/web/orgao",                      "AUTHORITY"),
-    # memon.eu sells "vitalisation" products; labelled IRRELEVANT at first and
-    # corrected to COMMERCIAL after reading the page - the model was right.
-    ("memon.eu/",                                        "COMMERCIAL"),
+LABELS = Path(__file__).parent / "data" / "page_labels.csv"
 
-    # --- genuine listings of rescue organisations ---
-    ("vbu-ffm.de/pflegestationen.shtml",                 "LIST"),
-    ("rlp.nabu.de/tiere-und-pflanzen/tieren-helfen/pflege-und-auffangstationen", "LIST"),
-    ("deutsche-wildtierrettung.de/wildtierauffangstationen", "LIST"),
 
-    # --- genuine wildlife rescue: the primary target ---
-    ("greifvogelhilfe.de/greifvogelhilfe",               "STATION"),
-    ("wildtierzentrum.de/",                              "STATION"),
-    ("eichhoernchen-schutz.de/",                         "STATION"),
-    ("reptilienauffangstation.de/",                      "STATION"),
+def load_cases(split="all", include_unsure=False, path=LABELS):
+    """(url, label) pairs from the labelled page set.
 
-    # --- pet shelters: rehoming domestic animals, not wildlife rescue ---
-    ("tierheim-marburg.de/",                             "SHELTER"),
-    ("tierheim-bergheim.de/",                            "SHELTER"),
-    ("franziskustierheim.de/",                           "SHELTER"),
-    ("hamburger-tierschutzverein.de/",                   "SHELTER"),
-    ("tierheim-mainz.de/",                               "SHELTER"),
-    ("tierheim-wetterau-ev.de/",                         "SHELTER"),
-    ("tierheim-ostermuenchen.de/unser-tierheim",         "SHELTER"),
+    Labels describe a page's role, not its site: a shelter's job-ad page is
+    HUB even though the shelter is a SHELTER. Each carries a confidence -
+    genuinely ambiguous pages are marked "unsure" and left out by default, so
+    a score is not moved by cases a careful reader could label either way.
 
-    # --- lifetime care without rehoming ---
-    ("elztal-gnadenhof.de.tl/",                          "SANCTUARY"),
+    The split is by site, never by page. "dev" holds the sites the category
+    prompt was tuned against plus a hashed half of the rest; "test" holds the
+    other half and must not be looked at while tuning, or it stops measuring
+    anything.
+    """
+    import csv
+    cases = []
+    with open(path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if split != "all" and row.get("split") != split:
+                continue
+            if row.get("confidence") != "sure" and not include_unsure:
+                continue
+            cases.append((row["url"], row["label"]))
+    return cases
 
-    # --- veterinary practices ---
-    ("tierklinik-hofheim.de/",                           "VET"),
-    ("vetpuls.de/",                                      "VET"),
-    ("tiermed-muenchen.de/",                             "VET"),
 
-    # --- what-to-do guidance: the densest source of links to real stations ---
-    # Titled "Verletztes Wildtier | Pflegestellen bundesweit": it is a
-    # nationwide station list, so LIST is right and my first label was not.
-    ("wildtierschutz-deutschland.de/verletztes-wildtier", "LIST"),
-    ("wildtierschutz-deutschland.de/verletztes-wildtier-gefunden", "ADVICE"),
-
-    # --- campaigning bodies that do not take animals in ---
-    # Two political parties and three conservation foundations reached the
-    # entity table as rescue stations.
-    ("tierschutzpartei.de/",                             "ADVOCACY"),
-    ("klimaliste-berlin.de/",                            "ADVOCACY"),
-    ("sozis-tiere.de/",                                  "ADVOCACY"),
-    ("naturefund.de/",                                   "ADVOCACY"),
-    ("natur-zuerst.de/",                                 "ADVOCACY"),
-
-    # --- individual animals ---
-    # One sanctuary's per-resident pages came back STATION, LIST, HUB,
-    # IRRELEVANT and COMMERCIAL - at random - and seven individual animals
-    # ended up in the output as rescue stations.
-    ("elztal-gnadenhof.de.tl/Amely.htm",                 "ANIMAL"),
-    ("elztal-gnadenhof.de.tl/Bob.htm",                   "ANIMAL"),
-    ("elztal-gnadenhof.de.tl/Sina.htm",                  "ANIMAL"),
-    ("elztal-gnadenhof.de.tl/Alca.htm",                  "ANIMAL"),
-    ("elztal-gnadenhof.de.tl/Gypsy.htm",                 "ANIMAL"),
-    ("tierheim-ostermuenchen.de/hund",                   "ANIMAL"),
-    ("hamburger-tierschutzverein.de/tiervermittlung/hunde", "ANIMAL"),
-    ("tierheim-marburg.de/k/hunde",                      "ANIMAL"),
-    ("franziskustierheim.de/tiervermittlung/hunde-17.html", "ANIMAL"),
-
-    # --- subpages of relevant sites: followed, never mined ---
-    ("tierheim-ostermuenchen.de/stellenangebote",        "HUB"),
-    ("tierheim-ostermuenchen.de/aktuelles",              "HUB"),
-    ("tierheim-ostermuenchen.de/gassigeher-und-katzenstreichler", "HUB"),
-    ("tierheim-ostermuenchen.de/unsere-vereinszeitung",  "HUB"),
-    ("tiermed-muenchen.de/stellenangebote",              "HUB"),
-    ("tiermed-muenchen.de/team2",                        "HUB"),
-]
+# Kept for callers that import the case list directly.
+CASES = load_cases()
 
 
 def main():
@@ -115,8 +63,10 @@ def main():
     # more than one run and the page store on disk is shared between them.
     ap.add_argument("--db", nargs="+",
                     default=["crawl.db", "crawl_third_taxonomy_baseline.db",
-                             "crawl_second_hub.db"])
+                             "crawl_fourth_5category.db"])
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--split", choices=("all", "dev", "test"), default="all")
+    ap.add_argument("--include-unsure", action="store_true")
     ap.add_argument("--model", help="GGUF to classify with, overriding the config")
     ap.add_argument("--context", type=int, help="context size for --model")
     args = ap.parse_args()
@@ -155,11 +105,13 @@ def main():
     # data_service, and leaving it on an old-schema database silently disabled
     # template stripping for the whole benchmark.
     data_service.DATABASE_PATH = Path(args.db[0])
-    cases = CASES[: args.limit] if args.limit else CASES
+    cases = load_cases(args.split, args.include_unsure)
+    cases = cases[: args.limit] if args.limit else cases
 
     rows, confusion, elapsed = [], Counter(), []
     for needle, expected in cases:
-        match = next(((u, p) for u, p in stored if needle in u and p), None)
+        match = (next(((u, p) for u, p in stored if u == needle and p), None)
+                 or next(((u, p) for u, p in stored if needle in u and p), None))
         if match is None:
             rows.append((needle, expected, "MISSING", False))
             continue
