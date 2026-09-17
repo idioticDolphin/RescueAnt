@@ -216,7 +216,7 @@ https://oeko-freiwillig.de/beratung-in-deiner-region,DIRECTORY,sure,dev,claude-j
 https://onderwijskiezer.be/v2/clb/clb.php,DIRECTORY,sure,dev,claude-judgement,LIST,Belgian student guidance centres
 https://tierheim-gesucht.de/tierheime/hessen,DIRECTORY,sure,test,claude-judgement,LIST,animal shelter directory - not stations
 https://tierheimverzeichnis.org/tierheim/kategorie/vogel,DIRECTORY,unsure,dev,claude-judgement,LIST,shelter directory filtered to birds: shelters and a few bird carers
-https://wildes-bayern.de/wildtierhilfe,LIST,sure,dev,claude-judgement,LIST,wildlife help contacts in Bavaria
+https://wildes-bayern.de/wildtierhilfe,DIRECTORY,sure,dev,user,LIST,not a listing of wildlife rescue stations (user)
 https://wildtierhilfe-jacky-schieser.de/netzwerk,LIST,unsure,dev,claude-judgement,LIST,network of carers mixed with sanctuaries and conservation groups
 https://wildtierschutz-deutschland.de/wildtier-notfall/wildtierauffangstationen-hessen-rheinland-pfalz-saarland,LIST,sure,dev,claude-judgement,LIST,regional wildlife rescue stations
 https://workcamps.org/organisationen,DIRECTORY,sure,dev,claude-judgement,LIST,work-camp organisers
