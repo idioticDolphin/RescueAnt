@@ -113,3 +113,86 @@ https://achtung-fuer-tiere.de/,SANCTUARY,sure,test,claude-judgement,SANCTUARY,fa
 http://tierarzt-seckbach.de/,VET,sure,test,claude-judgement,VET,veterinary practice
 https://tierarzt-offenbach.eu/praxis,VET,sure,test,claude-judgement,VET,veterinary practice
 https://tierarzt-claudiabauer.com/,VET,sure,dev,claude-judgement,VET,veterinary practice
+http://stadttaubenprojekt.de/,STATION,unsure,test,claude-judgement,,city pigeon project with lofts and a sanctuary; about page
+http://admin.verwaltungsportal.de/,IRRELEVANT,sure,test,claude-judgement,,CMS login
+https://support.mozilla.org/pt-BR/kb/desative-cookies-terceiros-impedir-rastreamento,IRRELEVANT,sure,test,claude-judgement,,browser challenge page on a software vendor's help site
+https://hamburg.de/branchenbuch/hamburg/10233107/n0,LIST,sure,test,claude-judgement,,city business directory: three animal shelters
+https://ltvh.de/impressum-disclaimer,ADVOCACY,unsure,test,claude-judgement,,legal notice of a state animal-welfare federation
+https://wildwald.de/,COMMERCIAL,unsure,test,claude-judgement,,wildlife park with tickets
+http://vlibras.gov.br/,AUTHORITY,unsure,test,claude-judgement,,government digital service unrelated to animals
+https://probrachttal.de/,IRRELEVANT,sure,test,claude-judgement,,citizens' initiative
+https://youtube.com/googlecloud,IRRELEVANT,sure,test,claude-judgement,,video platform consent page
+https://qualtrics.com/contact,COMMERCIAL,unsure,test,claude-judgement,,"software company contact page, unrelated to animals"
+https://portapet.de/,COMMERCIAL,sure,test,claude-judgement,,pet-supply online shop
+http://meerschweinchen-in-not.de/,SHELTER,sure,test,claude-judgement,,guinea-pig rescue association front page
+https://wildland-bayern.de/die-stiftung/impressum,ADVOCACY,sure,test,claude-judgement,,legal notice of a nature conservation foundation
+https://hundeinnot-rheinmain.de/kontakt,SHELTER,sure,test,claude-judgement,,dog rehoming association contact page
+http://bmel.de/,AUTHORITY,sure,test,claude-judgement,,federal agriculture ministry
+http://tierschutzhof-karlsruhe.de/,SHELTER,sure,test,claude-judgement,,"animal-welfare farm with rehoming, front page"
+https://bund-bawue.de/service/impressum,ADVOCACY,sure,test,claude-judgement,,legal notice of a conservation body
+http://tierheimworms.de/,SHELTER,unsure,test,claude-judgement,,shelter front page; only a cookie banner in the text
+http://tierheim-viernheim.de/,SHELTER,unsure,test,claude-judgement,,shelter association front page with almost no text
+http://nach-suche.de/,COMMERCIAL,sure,test,claude-judgement,,product site for a tracking-dog training shoe
+http://tierheim-ludwigshafen.de/,SHELTER,sure,test,claude-judgement,,shelter front page
+https://bsky.app/profile/bmleh.de,AUTHORITY,unsure,test,claude-judgement,,social-media profile of a ministry
+https://igelverein.de/,STATION,unsure,test,claude-judgement,,hedgehog association front page with emergency plan and care guidance
+http://tierschutzinitiative-odenwald.de/,SHELTER,unsure,test,claude-judgement,,animal-welfare initiative front page
+https://homepage-baukasten.de/de/Datenschutzerklaerung.php,IRRELEVANT,unsure,test,claude-judgement,,privacy policy of a website builder
+https://fpc.gov/,AUTHORITY,sure,test,claude-judgement,,US federal council
+https://teprotejo.org/,IRRELEVANT,sure,test,claude-judgement,,child-protection reporting site
+http://usdoj.gov/oip/exemption6.htm,AUTHORITY,sure,test,claude-judgement,,US Department of Justice
+https://tierheim-falkensee.de/,SHELTER,sure,test,claude-judgement,,shelter front page
+https://igelzentrum.ch/,STATION,sure,test,claude-judgement,,"hedgehog centre with medical care, front page"
+https://eichh%c3%b6rnchen-in-not.de/pflegestelle-werden,HUB,sure,test,claude-judgement,,volunteer foster-carer page of a squirrel rescue network
+http://nicic.gov/about-nic,AUTHORITY,sure,test,claude-judgement,,US federal institute
+http://voodoo-circus.com/de,IRRELEVANT,sure,test,claude-judgement,,games company 404
+https://kiprotect.com/klaro,COMMERCIAL,unsure,test,claude-judgement,,"consent-management software, unrelated to animals"
+http://webtrends.com/,COMMERCIAL,unsure,test,claude-judgement,,"analytics software, unrelated to animals"
+http://tierheim-mannheim.de/,SHELTER,sure,test,claude-judgement,,shelter front page
+https://falknerei-ronneburg.de/lage-und-anfahrt,COMMERCIAL,unsure,test,claude-judgement,,falconry attraction with a care station; directions page
+https://weprotect.org/,IRRELEVANT,sure,test,claude-judgement,,child-protection alliance
+https://openstreetmap.org/copyright,IRRELEVANT,sure,test,claude-judgement,,map project copyright page
+https://eichhorn.de/,COMMERCIAL,unsure,test,claude-judgement,,hardware wholesaler
+https://tiere-in-not-odenwald.de/kontakt,SHELTER,sure,test,claude-judgement,,animal rescue association contact page
+https://eulen-greifvogelschutz.de/,STATION,sure,test,claude-judgement,,owl and raptor rescue station front page
+http://hundefreunde-heppenheim.de/,IRRELEVANT,unsure,test,claude-judgement,,dog-sport club
+http://savethedogs.eu/,SHELTER,unsure,test,claude-judgement,,foundation running shelters abroad; only a cookie banner in the text
+http://tierbestattungen-worms.de/,IRRELEVANT,sure,test,claude-judgement,,parked domain
+http://kitina-werl.de/,IRRELEVANT,sure,test,claude-judgement,,404 page
+http://bornhofen.shop/,COMMERCIAL,unsure,test,claude-judgement,,bookshop
+https://muenchen.de/leben/tierheim-muenchen,SHELTER,unsure,test,claude-judgement,,city portal article introducing the municipal shelter
+https://die-partei-wiwehe.de/,ADVOCACY,unsure,test,claude-judgement,,local branch of a satirical political party
+https://protectingchildren.google/tools-for-partners,IRRELEVANT,sure,test,claude-judgement,,child-safety toolkit
+http://strassenkatzen-frankfurt.de/,SHELTER,sure,test,claude-judgement,,street-cat rescue association front page
+https://transparency.google/,IRRELEVANT,sure,test,claude-judgement,,tech company transparency centre
+http://foresee.com/case-studies?_resource_languages=english&_resource_topics=experience-management-cx,COMMERCIAL,unsure,test,claude-judgement,,customer-experience software
+https://eventbrite.com/help/en-us/contact-us,COMMERCIAL,unsure,test,claude-judgement,,ticketing platform help page
+http://tierschutzverein-hd.de/Kontakt,SHELTER,sure,test,claude-judgement,,shelter contact page
+https://schiersteinerstoerche.de/kontakt,ADVOCACY,unsure,test,claude-judgement,,stork reintroduction association contact page
+https://public.govdelivery.com/accounts/USDOJ/subscriber/new,AUTHORITY,unsure,test,claude-judgement,,government e-mail subscription page
+https://koelnerbranchen.de/tierheim,LIST,sure,test,claude-judgement,,city business directory: best animal shelters
+https://tierschutzliga.de/tierheime/katzenstation-muenchen,SHELTER,sure,test,claude-judgement,,welfare body's page introducing its cat shelter
+https://search.gov/tos.html,AUTHORITY,unsure,test,claude-judgement,,government site-search service
+https://agf-bw.de/haeufige_fragen_hilfe/nottelefon_kontakte,ADVICE,unsure,test,claude-judgement,,bat conservation association emergency phone and contacts page
+https://apus-apus.com/kontakt,STATION,sure,test,claude-judgement,,"swift society with a swift clinic, contact page"
+https://theo-gruentjens.de/,COMMERCIAL,unsure,test,claude-judgement,,forester and nature photographer's personal site
+https://tierhilfe-inn-salzach.de/,SHELTER,sure,test,claude-judgement,,"animal rescue association with rehoming, front page"
+http://erna-graff-stiftung.de/,ADVOCACY,sure,test,claude-judgement,,animal-protection foundation running lawsuits
+http://tierschutzverein-freiburg.de/,SHELTER,sure,test,claude-judgement,,shelter front page
+http://bornhofen.eu/,COMMERCIAL,unsure,test,claude-judgement,,IT hosting company
+http://musella-institut.de/,ADVOCACY,sure,test,claude-judgement,,institute for animal and species protection education
+https://verint.com/analytics-insights,COMMERCIAL,unsure,test,claude-judgement,,analytics software
+https://tierschutzverein-buedingen.de/,SHELTER,sure,test,claude-judgement,,shelter association front page
+https://tierheim-nuernberg.de/kontakt/anfahrt,SHELTER,sure,test,claude-judgement,,shelter directions page
+http://tierschutzverein-wiesbaden.de/,SHELTER,sure,test,claude-judgement,,shelter association front page
+https://wiederwild.org/,STATION,unsure,test,claude-judgement,,wildlife rehabilitation and habitat charity mission page
+https://wildpark-eekholt.de/,COMMERCIAL,unsure,test,claude-judgement,,wildlife park with a bird care station
+https://tierheimduisburg.de/kontakt,SHELTER,sure,test,claude-judgement,,shelter contact page
+https://dataprivacyframework.gov/application,AUTHORITY,unsure,test,claude-judgement,,government sign-in page
+https://vcf.gov/,AUTHORITY,sure,test,claude-judgement,,US compensation fund
+https://marburg-biedenkopf.de/veranstaltungskalender/Veranstaltungsorte/mr-tierheim-cappel-marburg.php,HUB,unsure,test,claude-judgement,,district events calendar venue entry for a shelter
+http://foia.gov/,AUTHORITY,sure,test,claude-judgement,,US FOIA portal
+http://reikiman.de/,STATION,unsure,test,claude-judgement,,association funding the raising of orphaned wild animals
+http://rehrettung-hegau-bodensee.de/default-title/impressum,STATION,sure,test,claude-judgement,,fawn rescue association legal notice
+https://florian-doering.com/,COMMERCIAL,unsure,test,claude-judgement,,web designer
+https://rewildingcoombeshead.co.uk/,ADVOCACY,unsure,test,claude-judgement,,rewilding project; only a consent banner in the text
