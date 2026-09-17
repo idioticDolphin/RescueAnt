@@ -12,6 +12,43 @@ logger = logging.getLogger(__name__)
 config = config_service.get_config()
 
 
+class _Mislabeled:
+    """Sentinel: the extractor judged the page not to be what it was
+    classified as. Distinct from None, which means extraction failed."""
+
+    def __repr__(self):
+        return "MISLABELED"
+
+
+MISLABELED = _Mislabeled()
+
+DEFAULT_MISLABEL_INSTRUCTION = (
+    'If the page is not in fact what these instructions describe, do not '
+    'extract anything: answer only {"mislabeled": true}.'
+)
+
+
+def with_mislabel_option(schema):
+    """Offer the model a verdict as an alternative to the record.
+
+    An alternative, not an extra field: every required property of a JSON
+    schema is generated whatever its value, so a boolean beside the record
+    would cost the full record anyway. {"mislabeled": true} is about six
+    tokens against several hundred - which is the entire point, since a
+    mislabeled page previously cost a full extraction call.
+    """
+    verdict = {
+        "type": "object",
+        "properties": {"mislabeled": {"const": True}},
+        "required": ["mislabeled"],
+    }
+    return {"anyOf": [verdict, schema]}
+
+
+def _is_mislabel_verdict(data):
+    return isinstance(data, dict) and data.get("mislabeled") is True and len(data) == 1
+
+
 def is_admissible(record):
     """
     Decide whether an extracted record is worth persisting.
@@ -118,6 +155,10 @@ def extract_information(html: str, category:Category, base_url: str):
     llm = llm_service.get_model(category.analysis_model_id)
     schema = category.fields
     prompt = f"{category.analysis_prompt} The return schema is {schema}"
+    response_schema = schema
+    if getattr(config, "mislabel_check", False):
+        prompt = f"{prompt} {getattr(config, 'mislabel_instruction', None) or DEFAULT_MISLABEL_INSTRUCTION}"
+        response_schema = with_mislabel_option(schema)
     # A page too large for prompt + reply is refused outright by llama-cpp,
     # losing it entirely; keep the head, which is where its own content is.
     site_content = llm_service.fit_to_context(
@@ -143,7 +184,7 @@ def extract_information(html: str, category:Category, base_url: str):
                 config.min_generation_tokens_per_second),
             response_format={
                 "type": "json_object",
-                "schema": schema
+                "schema": response_schema
             },
             temperature=0,
             # Without an explicit cap llama-cpp generates until the context
@@ -164,6 +205,9 @@ def extract_information(html: str, category:Category, base_url: str):
                 raise
             logger.warning("Extraction for %s was truncated - salvaged %d complete record(s)",
                            base_url, len(data))
+        if _is_mislabel_verdict(data):
+            logger.info("Extractor judged %s not to be a %s", base_url, category.name)
+            return MISLABELED, links
         return _filter_admissible(data, base_url), links
     except Exception as e:
         # Note: links computed above (a cheap HTML-parse, independent of the

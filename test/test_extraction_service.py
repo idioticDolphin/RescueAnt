@@ -404,3 +404,86 @@ def test_scrubbing_a_single_record_extraction(monkeypatch):
 
     assert kept is not None
     assert not kept["telephone"]
+
+
+# ---------------------------------------------------------------------------
+# the "mislabeled" verdict
+#
+# The extractor sees far more than the classifier did - the whole page, under
+# instructions that describe exactly what a record of this category is. When
+# the page plainly is not one, a full extraction still cost about 37 seconds
+# and produced a record that was later rejected or, worse, kept. Offering the
+# extractor a way to say so turns that into a verdict costing a few tokens.
+#
+# The option is a grammar alternative, not an extra field: every required
+# field of a JSON schema is generated regardless, so a boolean beside the
+# record would save nothing. {"mislabeled": true} is about six tokens.
+# ---------------------------------------------------------------------------
+
+def test_the_mislabel_option_is_an_alternative_to_the_record():
+    record = {"type": "object", "properties": {"name": {"type": "string"}},
+              "required": ["name"]}
+    wrapped = extraction_service.with_mislabel_option(record)
+    assert "anyOf" in wrapped
+    assert record in wrapped["anyOf"]
+    verdict = [s for s in wrapped["anyOf"] if s is not record][0]
+    assert verdict["required"] == ["mislabeled"]
+
+
+def test_the_mislabel_option_also_wraps_a_listing_schema():
+    listing = {"type": "array", "items": {"type": "object", "properties": {}}}
+    wrapped = extraction_service.with_mislabel_option(listing)
+    assert listing in wrapped["anyOf"]
+
+
+def test_with_the_check_off_the_schema_is_unchanged(monkeypatch):
+    llm = _make_llm_returning({"name": "X"})
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "mislabel_check", False, raising=False)
+    category = make_fake_category()
+
+    extraction_service.extract_information("<html>x</html>", category, "http://e.com/")
+
+    _, kwargs = llm.create_chat_completion.call_args
+    assert "anyOf" not in kwargs["response_format"]["schema"]
+
+
+def test_with_the_check_on_the_model_is_offered_the_verdict(monkeypatch):
+    llm = _make_llm_returning({"name": "X"})
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "mislabel_check", True, raising=False)
+    monkeypatch.setattr(extraction_service.config, "mislabel_instruction",
+                        "If this is not such a page, say so.", raising=False)
+
+    extraction_service.extract_information("<html>x</html>", make_fake_category(), "http://e.com/")
+
+    _, kwargs = llm.create_chat_completion.call_args
+    assert "anyOf" in kwargs["response_format"]["schema"]
+    system = kwargs["messages"][0]["content"]
+    assert "If this is not such a page, say so." in system
+
+
+def test_a_mislabeled_verdict_is_returned_as_such_with_its_links(monkeypatch):
+    llm = _make_llm_returning({"mislabeled": True})
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "mislabel_check", True, raising=False)
+    monkeypatch.setattr(extraction_service.cleaning_service, "extract_links",
+                        lambda html, base: ["http://e.com/next"])
+
+    data, links = extraction_service.extract_information(
+        "<html>x</html>", make_fake_category(), "http://e.com/")
+
+    assert data is extraction_service.MISLABELED
+    assert links == ["http://e.com/next"]
+
+
+def test_a_record_is_still_a_record_with_the_check_on(monkeypatch):
+    llm = _make_llm_returning({"name": "Station", "telephone": "06131 477638"})
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "mislabel_check", True, raising=False)
+
+    data, _ = extraction_service.extract_information(
+        "<html>x</html>", make_fake_category(), "http://e.com/")
+
+    assert data is not extraction_service.MISLABELED
+    assert data["name"] == "Station"

@@ -206,6 +206,9 @@ def load_config(configs:dict=None):
         page_store_path = configs.get("page_store_path", "store")
         max_pages_per_site = _opt_int(configs, "max_pages_per_site", 0)
         max_extractions_per_site = _opt_int(configs, "max_extractions_per_site", 0)
+        mislabel_check = configs.get("mislabel_check", "False") == "True"
+        mislabeled_category = (configs.get("mislabeled_category") or "").strip().strip('"') or None
+        mislabel_instruction = (configs.get("mislabel_instruction") or "").strip().strip('"') or None
         strip_site_boilerplate = configs.get("strip_site_boilerplate", "False") == "True"
         boilerplate_min_pages = _opt_int(configs, "boilerplate_min_pages", 4)
         boilerplate_threshold = _opt_float(configs, "boilerplate_threshold", 0.6)
@@ -324,6 +327,9 @@ def load_config(configs:dict=None):
             page_store_path = page_store_path,
             max_pages_per_site = max_pages_per_site,
             max_extractions_per_site = max_extractions_per_site,
+            mislabel_check = mislabel_check,
+            mislabeled_category = mislabeled_category,
+            mislabel_instruction = mislabel_instruction,
             strip_site_boilerplate = strip_site_boilerplate,
             boilerplate_min_pages = boilerplate_min_pages,
             boilerplate_threshold = boilerplate_threshold,

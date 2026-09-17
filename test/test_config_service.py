@@ -556,3 +556,29 @@ def test_missing_include_is_warned_not_fatal(tmp_path):
     main = tmp_path / "bot.config"
     main.write_text('include "nope.config";\nfoo = "1";\n', encoding="utf-8")
     assert config_service._read_config(main)["foo"] == "1"
+
+
+def test_the_mislabel_verdict_is_off_unless_configured(tmp_path):
+    """Opt-in: a config written before the option existed must behave exactly
+    as it did."""
+    from model.tools import config_service
+    configs = config_service._read_config()
+    for key in ("mislabel_check", "mislabeled_category", "mislabel_instruction"):
+        configs.pop(key, None)
+    config_service.load_config(configs)
+    cfg = config_service.get_config()
+    assert cfg.mislabel_check is False
+    assert cfg.mislabeled_category is None
+
+
+def test_the_mislabel_verdict_reads_its_settings(tmp_path):
+    from model.tools import config_service
+    configs = config_service._read_config()
+    configs["mislabel_check"] = "True"
+    configs["mislabeled_category"] = '"HUB"'
+    configs["mislabel_instruction"] = '"Say so if it is not."'
+    config_service.load_config(configs)
+    cfg = config_service.get_config()
+    assert cfg.mislabel_check is True
+    assert cfg.mislabeled_category == "HUB"
+    assert cfg.mislabel_instruction == "Say so if it is not."

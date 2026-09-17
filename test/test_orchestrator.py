@@ -947,3 +947,58 @@ def test_a_capped_page_still_reaches_a_terminal_state(monkeypatch):
     orchestrator.process_page(1, "https://a.example/page", "<html/>", category)
 
     data_service.set_crawl_state.assert_any_call(1, "EXTRACTED")
+
+
+# ---------------------------------------------------------------------------
+# acting on a "mislabeled" verdict
+# ---------------------------------------------------------------------------
+
+def _mislabel_setup(monkeypatch, target="HUB"):
+    import model.analyzer.extraction_service as real_extraction
+    cfg = config_service.get_config().model_copy(update={
+        "mislabel_check": True, "mislabeled_category": target,
+        "max_extractions_per_site": 0,
+        "referrer_weights": {"STATION": 4.0, "HUB": 1.0}})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+
+    extraction = MagicMock()
+    extraction.MISLABELED = real_extraction.MISLABELED
+    extraction.extract_information.return_value = (real_extraction.MISLABELED,
+                                                    ["https://e.com/next"])
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction)
+    monkeypatch.setattr(orchestrator, "category_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
+    data = MagicMock()
+    data.STATE_EXTRACTED = "EXTRACTED"
+    data.count_extracted_pages_for_site.return_value = 0
+    monkeypatch.setattr(orchestrator, "data_service", data)
+    queued = []
+    monkeypatch.setattr(orchestrator.fetching_service, "queue_url",
+                        lambda url, priority=0.0: queued.append((url, priority)))
+    return data, queued, cfg
+
+
+def test_a_mislabeled_page_stores_no_record(monkeypatch):
+    data, _, _ = _mislabel_setup(monkeypatch)
+    orchestrator.process_page(7, "https://e.com/p", "<html/>", make_fake_category("STATION"))
+    data.save_extraction.assert_not_called()
+
+
+def test_a_mislabeled_page_is_refiled_and_remembers_the_original(monkeypatch):
+    data, _, _ = _mislabel_setup(monkeypatch, target="HUB")
+    orchestrator.process_page(7, "https://e.com/p", "<html/>", make_fake_category("STATION"))
+    data.reclassify_page.assert_called_once_with(7, "HUB", from_category="STATION")
+    data.set_crawl_state.assert_any_call(7, "EXTRACTED")
+
+
+def test_a_mislabeled_page_passes_on_the_weight_of_its_new_category(monkeypatch):
+    """A page the extractor says is not a station must not hand its links a
+    station's referrer weight."""
+    _, queued, cfg = _mislabel_setup(monkeypatch, target="HUB")
+    scores = []
+    monkeypatch.setattr(orchestrator.url_service, "score_url",
+                        lambda link, referrer_category_weight=0.0, **kw:
+                        scores.append(referrer_category_weight) or 0.0)
+    orchestrator.process_page(7, "https://e.com/p", "<html/>", make_fake_category("STATION"))
+    assert queued, "links from a mislabeled page are still followed"
+    assert scores == [1.0]

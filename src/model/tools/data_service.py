@@ -110,6 +110,10 @@ _CRAWL_MIGRATIONS = {
     "site": "TEXT",
     "attempt_count": "INTEGER DEFAULT 0",
     "last_error": "TEXT",
+    # The category a page was first classified as, when extraction later
+    # judged it mislabeled and it was re-filed. Kept rather than overwritten:
+    # it is the record of where the classifier goes wrong.
+    "reclassified_from": "TEXT",
 }
 
 
@@ -405,6 +409,29 @@ def reset_states_for_reprocess(target_state:str, site:str=None, category:str=Non
             [target_state] + params)
         connection.commit()
         return cursor.rowcount
+
+
+def reclassify_page(crawl_id:int, category:str, from_category:str=None):
+    """Re-file a page under another category, remembering the original.
+
+    Used when extraction judges a page not to be what the classifier said.
+    The original classification is kept in reclassified_from rather than lost,
+    because which categories get overruled, and how often, is the evidence
+    for where the taxonomy or its prompt needs work."""
+    with get_connection() as connection:
+        connection.execute(
+            "UPDATE crawls SET category = ?, reclassified_from = ? WHERE crawl_id = ?",
+            (category, from_category, crawl_id))
+        connection.commit()
+
+
+def count_reclassifications() -> dict:
+    """How many pages extraction overruled, keyed by original category."""
+    with get_connection() as connection:
+        return {row["reclassified_from"]: row["n"] for row in connection.execute(
+            """SELECT reclassified_from, COUNT(*) AS n FROM crawls
+               WHERE reclassified_from IS NOT NULL
+               GROUP BY reclassified_from""")}
 
 
 def count_extracted_pages_for_site(site:str) -> int:

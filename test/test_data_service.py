@@ -653,3 +653,30 @@ def test_a_long_failure_reason_is_truncated(monkeypatch):
         row = c.execute("SELECT last_error FROM crawls WHERE crawl_id = ?",
                         (crawl_id,)).fetchone()
     assert len(row["last_error"]) <= data_service.MAX_ERROR_CHARS
+
+
+def test_a_page_judged_mislabeled_keeps_what_it_was_classified_as(monkeypatch):
+    """Re-filing a page must not destroy the evidence of the mistake: which
+    category the classifier chose, against the extractor's verdict, is exactly
+    the confusion data needed to decide where the taxonomy needs work."""
+    _init_with_fields(monkeypatch, "name")
+    crawl_id = data_service.save_crawl_instance("https://a.example/", 0.0, True, site="a.example")
+    data_service.save_site_category(crawl_id, "STATION")
+
+    data_service.reclassify_page(crawl_id, "HUB", from_category="STATION")
+
+    with data_service.get_connection() as c:
+        row = c.execute("SELECT category, reclassified_from FROM crawls WHERE crawl_id = ?",
+                        (crawl_id,)).fetchone()
+    assert row["category"] == "HUB"
+    assert row["reclassified_from"] == "STATION"
+
+
+def test_reclassification_counts_by_original_category(monkeypatch):
+    _init_with_fields(monkeypatch, "name")
+    for i, original in enumerate(("STATION", "STATION", "LIST")):
+        cid = data_service.save_crawl_instance(f"https://x{i}.example/", 0.0, True)
+        data_service.save_site_category(cid, original)
+        data_service.reclassify_page(cid, "HUB", from_category=original)
+
+    assert data_service.count_reclassifications() == {"STATION": 2, "LIST": 1}

@@ -321,6 +321,22 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
 
     if extracted:
         extracted_data, links = extracted
+        if extracted_data is extraction_service.MISLABELED:
+            # The extractor, which sees the whole page under instructions
+            # describing exactly what this category is, judged it not to be
+            # one. Store nothing, re-file the page, and remember what it was
+            # first classified as: that is the evidence of where the
+            # classifier goes wrong.
+            cfg = config_service.get_config()
+            target = cfg.mislabeled_category or cfg.url_prior_category or category.name
+            data_service.reclassify_page(crawl_id, target, from_category=category.name)
+            logger.info("Re-filed %s from %s to %s (judged mislabeled at extraction)",
+                        url, category.name, target)
+            # Links inherit the weight of what the page actually is, not of
+            # the category it was wrongly given.
+            _queue_links(links, _category_named(cfg, target, category), cfg)
+            data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+            return
         if extracted_data is None:
             # Either a LINKS category (nothing on the page itself is worth
             # extracting) or a CONTENT category whose record failed the
@@ -338,6 +354,14 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
         logger.debug("No data extracted from %s (category=%s)", url, category.name)
 
     data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+
+
+def _category_named(cfg, name, fallback):
+    """The configured category called name, or fallback if there is none."""
+    try:
+        return cfg.get_category(name)
+    except Exception:
+        return fallback
 
 
 def _queue_links(links, category, cfg):

@@ -76,6 +76,11 @@ class Config(BaseModel):
     # within what site operators tolerate.
     max_pages_per_site: int = 0
     max_extractions_per_site: int = 0
+    # Let extraction answer "this page is not what it was classified as".
+    mislabel_check: bool = False
+    mislabel_instruction: str | None = None
+    # Where a page judged mislabeled is re-filed; None keeps its category.
+    mislabeled_category: str | None = None
 
     # --- Boilerplate stripping (P8) --------------------------------------
     # Remove lines that recur across a site's pages (headers/footers carrying
