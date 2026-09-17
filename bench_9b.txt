@@ -1,7 +1,0 @@
-Could not load pages for fressnapf.de to learn its template (no such column: content_path)
-Abandoned generation after 120s budget (kept 0 characters).
-Categorization failed (Category '' not found) - skipping this page
-Abandoned generation after 120s budget (kept 0 characters).
-Categorization failed (Category '' not found) - skipping this page
-Abandoned generation after 120s budget (kept 0 characters).
-Categorization failed (Category '' not found) - skipping this page

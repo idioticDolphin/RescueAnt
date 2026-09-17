@@ -255,3 +255,15 @@ store/
 store_smoke/
 smoke.db
 smoke*.log
+
+# Scratch output from benchmarks, sweeps and trials. The numbers that matter
+# are recorded in commit messages and the docs; the raw runs are not.
+bench_*.txt
+sweep_*.log
+verdict_*.log
+calib.log
+reprocess*.log
+advice.log
+download.log
+# Partial model downloads (download-models.sh renames on success).
+models/*.part
