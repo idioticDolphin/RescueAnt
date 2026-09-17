@@ -205,6 +205,8 @@ def load_config(configs:dict=None):
         category_votes = max(1, _opt_int(configs, "category_votes", 1))
         page_store_path = configs.get("page_store_path", "store")
         max_pages_per_site = _opt_int(configs, "max_pages_per_site", 0)
+        abandon_site_after = _opt_int(configs, "abandon_site_after", 0)
+        abandon_site_max_weight = _opt_float(configs, "abandon_site_max_weight", 0.5)
         max_extractions_per_site = _opt_int(configs, "max_extractions_per_site", 0)
         mislabel_check = configs.get("mislabel_check", "False") == "True"
         reuse_stored_pages = configs.get("reuse_stored_pages", "False") == "True"
@@ -329,6 +331,8 @@ def load_config(configs:dict=None):
             category_votes = category_votes,
             page_store_path = page_store_path,
             max_pages_per_site = max_pages_per_site,
+            abandon_site_after = abandon_site_after,
+            abandon_site_max_weight = abandon_site_max_weight,
             max_extractions_per_site = max_extractions_per_site,
             mislabel_check = mislabel_check,
             reuse_stored_pages = reuse_stored_pages,

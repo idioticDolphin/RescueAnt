@@ -61,6 +61,10 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`abandon_site_after`**: a site that yields only low-value pages - by its
+  categories' link weights - and no record is dropped after a few pages,
+  rather than when its page budget runs out. A site that has given a record
+  is never dropped, and pages worth following for their links do not count.
 - **`skip_url_extensions`**: links to documents, images and archives are
   dropped before fetching. A browser starts a download for them instead of
   rendering a page, so each one cost a failed navigation.
@@ -164,5 +168,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 506 tests. Each regression test names the failure it exists to
+178 → 513 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

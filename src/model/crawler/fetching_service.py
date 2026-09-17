@@ -15,6 +15,9 @@ processed_urls = {}
 _robots_cache = {}
 _last_request_time:dict[str, float] = {}
 _site_counts:dict[str, int] = {}  # pages queued per registrable domain
+_site_low_value:dict[str, int] = {}  # low-value pages seen per domain
+_productive_sites:set[str] = set()  # domains something was extracted from
+abandoned_sites:set[str] = set()  # domains no longer worth a fetch
 fetched_content:dict[str, tuple] = {}  # url -> (sha256, page_store path)
 # url -> why its fetch failed. Recorded here because the reason is only known
 # at the point of failure; auditing a run's failures without it means guessing
@@ -231,6 +234,46 @@ def mark_processed(url:str):
         url_service.canonicalize(url, drop_params=config.drop_query_params), None)
 
 
+def record_page_value(url:str, category):
+    """
+    Note what a classified page turned out to be, and give up on its site once
+    it has produced enough pages of no value and nothing worth extracting.
+
+    The per-site page budget stops one site absorbing a crawl, but only after
+    it has taken its whole allowance: one run spent 39 pages on nih.gov, all
+    IRRELEVANT, and 34 on an agriculture news site. Five low-value pages in,
+    neither was going to become a rescue organisation - while a site that has
+    given one record is kept whatever its other pages are, and pages worth
+    following for their links (advice, hubs) never count against a site.
+    """
+    site = url_service.registrable_domain(url)
+    limit = getattr(config, "abandon_site_after", 0)
+    if not site or not limit or category is None:
+        return
+    if category.is_relevant:
+        _productive_sites.add(site)
+        return
+    if site in _productive_sites or site in abandoned_sites:
+        return
+    weight = config.referrer_weights.get(category.name, 0.0)
+    if weight > config.abandon_site_max_weight:
+        return
+    _site_low_value[site] = _site_low_value.get(site, 0) + 1
+    if _site_low_value[site] >= limit:
+        abandon_site(site)
+
+
+def abandon_site(site:str):
+    """Drop a site's queued URLs and refuse any it is offered later."""
+    global url_queue
+    abandoned_sites.add(site)
+    kept = [u for u in url_queue if url_service.registrable_domain(u) != site]
+    dropped = len(url_queue) - len(kept)
+    url_queue = kept
+    logger.info("Abandoning %s after %d low-value page(s) - dropped %d queued URL(s)",
+                site, _site_low_value.get(site, 0), dropped)
+
+
 def queue_url(url:str, priority:float=0.0):
     """
     Add a URL to the fetch queue, skipping it if already queued or fetched.
@@ -261,6 +304,9 @@ def queue_url(url:str, priority:float=0.0):
             return
 
     site = url_service.registrable_domain(canonical)
+    if site and site in abandoned_sites:
+        logger.debug("Skipping %s - site abandoned as unproductive", canonical)
+        return
     if site and site in config.domain_denylist:
         logger.debug("Skipping %s - domain is denylisted", canonical)
         return

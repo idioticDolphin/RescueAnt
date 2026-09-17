@@ -1002,3 +1002,20 @@ def test_a_mislabeled_page_passes_on_the_weight_of_its_new_category(monkeypatch)
     orchestrator.process_page(7, "https://e.com/p", "<html/>", make_fake_category("STATION"))
     assert queued, "links from a mislabeled page are still followed"
     assert scores == [1.0]
+
+
+def test_every_classified_page_tells_the_frontier_what_it_was_worth(monkeypatch):
+    _config_with_extraction_budget(monkeypatch, 0)
+    category = make_fake_category("STATION")
+    extraction_service = MagicMock()
+    extraction_service.extract_information.return_value = None
+    monkeypatch.setattr(orchestrator, "extraction_service", extraction_service)
+    monkeypatch.setattr(orchestrator, "category_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "monitor_service", MagicMock())
+    monkeypatch.setattr(orchestrator, "data_service", MagicMock())
+    fetching_service = MagicMock()
+    monkeypatch.setattr(orchestrator, "fetching_service", fetching_service)
+
+    orchestrator.process_page(1, "https://a.example/kontakt", "<html/>", category)
+
+    fetching_service.record_page_value.assert_called_once_with("https://a.example/kontakt", category)

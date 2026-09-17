@@ -598,3 +598,25 @@ def test_skip_url_extensions_default_to_none():
     configs.pop("skip_url_extensions", None)
     config_service.load_config(configs)
     assert config_service.get_config().skip_url_extensions == []
+
+
+def test_site_abandoning_is_off_unless_configured():
+    from model.tools import config_service
+    configs = config_service._read_config()
+    configs.pop("abandon_site_after", None)
+    configs.pop("abandon_site_max_weight", None)
+    config_service.load_config(configs)
+    cfg = config_service.get_config()
+    assert cfg.abandon_site_after == 0
+    assert cfg.abandon_site_max_weight == 0.5
+
+
+def test_site_abandoning_reads_its_settings():
+    from model.tools import config_service
+    configs = config_service._read_config()
+    configs["abandon_site_after"] = "5"
+    configs["abandon_site_max_weight"] = "-1"
+    config_service.load_config(configs)
+    cfg = config_service.get_config()
+    assert cfg.abandon_site_after == 5
+    assert cfg.abandon_site_max_weight == -1.0

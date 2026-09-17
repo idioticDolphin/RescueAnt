@@ -287,6 +287,8 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
         data_service.set_crawl_state(crawl_id, data_service.STATE_CATEGORIZED)
         logger.info("Categorized %s as %s", url, category.name)
 
+    fetching_service.record_page_value(url, category)
+
     # A site that has already given up its details a few times has nothing
     # left to give. The classifier cannot be relied on to notice this: it is
     # inconsistent about which subpages introduce an organisation (observed on

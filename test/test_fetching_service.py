@@ -1011,3 +1011,59 @@ def test_no_skipped_extensions_blocks_nothing(monkeypatch):
     monkeypatch.setattr(fetching_service.config, "skip_url_extensions", [], raising=False)
     fetching_service.queue_url("https://station.de/flyer.pdf")
     assert fetching_service.url_queue == ["https://station.de/flyer.pdf"]
+
+
+# ---------------------------------------------------------------------------
+# abandoning sites that yield nothing of value
+# ---------------------------------------------------------------------------
+
+def _cat(name, relevant=False):
+    category = MagicMock()
+    category.name = name
+    category.is_relevant = relevant
+    return category
+
+
+@pytest.fixture
+def _abandon_after_three(monkeypatch):
+    monkeypatch.setattr(fetching_service, "_site_low_value", {})
+    monkeypatch.setattr(fetching_service, "_productive_sites", set())
+    monkeypatch.setattr(fetching_service, "abandoned_sites", set())
+    monkeypatch.setattr(fetching_service.config, "abandon_site_after", 3, raising=False)
+    monkeypatch.setattr(fetching_service.config, "abandon_site_max_weight", 0.5, raising=False)
+    monkeypatch.setattr(fetching_service.config, "referrer_weights",
+                        {"IRRELEVANT": -4.0, "COMMERCIAL": -10.0, "AUTHORITY": 0.5,
+                         "ADVICE": 5.0, "STATION": 4.0}, raising=False)
+
+
+def test_a_site_is_abandoned_after_enough_low_value_pages(_abandon_after_three):
+    fetching_service.queue_url("https://news.example/a")
+    fetching_service.queue_url("https://news.example/b")
+    fetching_service.queue_url("https://station.de/kontakt")
+    for page in ("x", "y", "z"):
+        fetching_service.record_page_value(f"https://news.example/{page}", _cat("IRRELEVANT"))
+
+    assert "news.example" in fetching_service.abandoned_sites
+    assert fetching_service.url_queue == ["https://station.de/kontakt"]
+    fetching_service.queue_url("https://www.news.example/c")
+    assert fetching_service.url_queue == ["https://station.de/kontakt"]
+
+
+def test_pages_worth_following_do_not_count_against_a_site(_abandon_after_three):
+    for page, name in (("a", "COMMERCIAL"), ("b", "ADVICE"), ("c", "ADVICE"), ("d", "AUTHORITY")):
+        fetching_service.record_page_value(f"https://mixed.example/{page}", _cat(name))
+    assert "mixed.example" not in fetching_service.abandoned_sites
+
+
+def test_a_site_that_yielded_a_record_is_never_abandoned(_abandon_after_three):
+    fetching_service.record_page_value("https://shelter.de/", _cat("STATION", relevant=True))
+    for page in ("a", "b", "c", "d"):
+        fetching_service.record_page_value(f"https://shelter.de/{page}", _cat("COMMERCIAL"))
+    assert "shelter.de" not in fetching_service.abandoned_sites
+
+
+def test_abandoning_is_off_when_not_configured(_abandon_after_three, monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "abandon_site_after", 0, raising=False)
+    for page in ("a", "b", "c", "d"):
+        fetching_service.record_page_value(f"https://news.example/{page}", _cat("IRRELEVANT"))
+    assert fetching_service.abandoned_sites == set()
