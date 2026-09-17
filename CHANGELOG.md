@@ -64,6 +64,10 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`label_prefixes_to_strip`**: a name arriving as "Contact : DHORNE" keeps
+  only what follows the prefix. Five French rescue centres were stored that
+  way; a rule that *rejected* such records instead would have thrown away
+  three real stations whose names repeat their location.
 - **`queue_record_urls_at_start`** (on by default): a run begins by queueing
   the websites named in records already in the database that no crawl has
   visited - 26% of them in the project's own database.
@@ -221,5 +225,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 564 tests. Each regression test names the failure it exists to
+178 → 567 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

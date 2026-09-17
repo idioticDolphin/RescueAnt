@@ -241,6 +241,7 @@ def load_config(configs:dict=None):
             if key.startswith("category_host_tokens[") and key.endswith("]")}
         exclude_record_name_tokens = [t.lower() for t in _csv_list(configs.get("exclude_record_name_tokens", ""))]
         keep_record_name_tokens = [t.lower() for t in _csv_list(configs.get("keep_record_name_tokens", ""))]
+        label_prefixes_to_strip = _csv_list(configs.get("label_prefixes_to_strip", ""))
         skip_url_extensions = [e.lower() for e in _csv_list(configs.get("skip_url_extensions", ""))]
         try:
             referrer_weights = {k: float(v) for k, v in
@@ -389,6 +390,7 @@ def load_config(configs:dict=None):
             category_host_tokens = category_host_tokens,
             exclude_record_name_tokens = exclude_record_name_tokens,
             keep_record_name_tokens = keep_record_name_tokens,
+            label_prefixes_to_strip = label_prefixes_to_strip,
             skip_url_extensions = skip_url_extensions,
             referrer_weights = referrer_weights,
             discovery_priority = _opt_float(configs, "discovery_priority", 50.0),

@@ -119,6 +119,8 @@ class Config(BaseModel):
     # ...unless the name also carries one of these: a care word outranks the
     # kind word, as in "Igelpflegestation Walter Zoo".
     keep_record_name_tokens: list[str] = []
+    # Dropped from the front of a label field: "Contact: DHORNE" -> "DHORNE".
+    label_prefixes_to_strip: list[str] = []
     # Links whose path ends in one of these are never fetched.
     skip_url_extensions: list[str] = []
     # Stop crawling a site after this many low-value pages with nothing

@@ -461,3 +461,18 @@ def test_a_date_is_still_rejected_after_tidying():
 
 def test_a_phone_field_with_no_number_in_it_is_left_for_the_gate():
     assert entity_service.tidy("Nicht angegeben", "phone") == "Nicht angegeben"
+
+
+def test_a_label_keeps_only_the_name_after_a_contact_prefix():
+    # Listings write "Contact : DHORNE" where the organisation's name belongs.
+    assert entity_service.tidy_label("Contact : J. DHORNE", ["contact", "kontakt"]) == "J. DHORNE"
+    assert entity_service.tidy_label("Kontakt- Frau Meier", ["contact", "kontakt"]) == "Frau Meier"
+
+
+def test_a_label_that_only_starts_similarly_is_left_alone():
+    assert entity_service.tidy_label("Kontaktstelle Igel", ["contact", "kontakt"]) == "Kontaktstelle Igel"
+    assert entity_service.tidy_label("Igelhilfe Luzern", ["contact"]) == "Igelhilfe Luzern"
+
+
+def test_tidying_a_label_without_prefixes_configured_changes_nothing():
+    assert entity_service.tidy_label("Contact : X", []) == "Contact : X"

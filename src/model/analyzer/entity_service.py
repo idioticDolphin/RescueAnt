@@ -56,6 +56,28 @@ _MIN_PHONE_DIGITS = 6
 _OUR_MARKUP = re.compile(r"^[\s#\-*>]+")
 
 
+def tidy_label(value, prefixes):
+    """
+    Drop a leading "Contact:" or "Kontakt -" from a name.
+
+    A listing that has no name for an entry often writes how to reach it
+    instead, and the extractor copies that faithfully: five French rescue
+    centres arrived as "Contact : DHORNE". The prefix is ours to remove; the
+    name behind it is the best the page offers.
+
+    Only a whole word followed by a separator counts, so "Kontaktstelle Igel"
+    keeps its name.
+    """
+    if not value or not prefixes:
+        return value
+    text = str(value)
+    for prefix in prefixes:
+        match = re.match(rf"\s*{re.escape(prefix)}\s*[:\-–]\s*", text, re.IGNORECASE)
+        if match and match.end() < len(text):
+            return text[match.end():].strip()
+    return value
+
+
 def tidy(value, normalizer):
     """
     Strip this project's own structural markup from a typed value.

@@ -199,6 +199,7 @@ python experiments/model_sweep.py --only <name>
    | `fields`, `field[name]` | schema | what to extract, and each field's role/weight/normaliser/fusion strategy |
    | `require_fields`, `require_any_role` | schema | the admissibility gate a record must pass to be stored |
    | `url_tokens[...]`, `domain_denylist` | lexicon | path tokens and domains to prefer or refuse |
+   | `label_prefixes_to_strip` | lexicon | prefixes dropped from a name field, e.g. "Contact:" |
    | `category_host_tokens[...]`, `exclude_record_name_tokens`, `keep_record_name_tokens` | lexicon | host substrings that decide a site's category without asking the model; name substrings that make a record inadmissible, and care words that override them |
    | `record_filter_prompt[...]` | taxonomy | one call per listing page naming which extracted entries to keep (or, with `record_filter_names_removals`, to drop) |
 

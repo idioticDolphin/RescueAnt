@@ -322,6 +322,9 @@ def scrub_implausible(record):
     cleaned, dropped = dict(record), []
     for name, value in record.items():
         semantics = config.field_semantics.get(name) or {}
+        if semantics.get("role") == "label":
+            cleaned[name] = entity_service.tidy_label(
+                value, getattr(config, "label_prefixes_to_strip", None) or ())
         normalizer = semantics.get("normalize")
         if not normalizer:
             continue
