@@ -1067,3 +1067,20 @@ def test_abandoning_is_off_when_not_configured(_abandon_after_three, monkeypatch
     for page in ("a", "b", "c", "d"):
         fetching_service.record_page_value(f"https://news.example/{page}", _cat("IRRELEVANT"))
     assert fetching_service.abandoned_sites == set()
+
+
+def test_parse_queue_can_fetch_an_explicit_batch_without_touching_the_queue(monkeypatch):
+    fetched = []
+
+    async def fake_fetch_all(urls, max_concurrency):
+        fetched.extend(urls)
+        for url in urls:
+            fetching_service.processed_urls[url] = "<html/>"
+
+    monkeypatch.setattr(fetching_service, "_fetch_all", fake_fetch_all)
+    fetching_service.url_queue = ["http://later.example/"]
+
+    asyncio.run(fetching_service.parse_queue(urls=["http://now.example/"]))
+
+    assert fetched == ["http://now.example/"]
+    assert fetching_service.url_queue == ["http://later.example/"]

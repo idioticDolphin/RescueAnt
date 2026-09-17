@@ -6,6 +6,7 @@ import model.tools.monitor_service as monitor_service
 import model.crawler.fetching_service as fetching_service
 import model.crawler.discovery_service as discovery_service
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import time
 import model.analyzer.category_service as category_service
 import model.analyzer.extraction_service as extraction_service
@@ -116,6 +117,7 @@ def run():
 
     start_time = time.monotonic()
     rounds = 0
+    pipeline = _Pipeline(config) if getattr(config, "prefetch_next_batch", False) else None
     discovery_batches_used = 0
     stop_reason = "queue and discovery queries exhausted"
 
@@ -137,6 +139,8 @@ def run():
         discovery never ran again and the crawl churned low-value pages
         indefinitely. Exhaustion has to mean "no promising work left".
         """
+        if pipeline is not None and pipeline.has_pending():
+            return False  # a batch is already claimed and being fetched
         if not fetching_service.url_queue:
             return True
         threshold = config.discovery_when_below
@@ -154,7 +158,7 @@ def run():
                     stop_reason = f"reached max_discovery_batches ({config.max_discovery_batches})"
                 if fetching_service.url_queue:
                     # No discovery left, but there is still (low-value) work.
-                    process_batch()
+                    (pipeline.round if pipeline else process_batch)()
                     rounds += 1
                     if _time_or_round_limit_reached():
                         break
@@ -166,10 +170,13 @@ def run():
                 break
             continue  # queue may still be empty - loop back and try the next discovery batch
 
-        process_batch()
+        (pipeline.round if pipeline else process_batch)()
         rounds += 1
         if _time_or_round_limit_reached():
             break
+
+    if pipeline:
+        pipeline.close()
 
     elapsed = time.monotonic() - start_time
     logger.info(
@@ -203,24 +210,110 @@ def process_batch(urls:list[str]|None=None):
         for url in urls:
             fetching_service.queue_url(url)
 
-    # Fetching is far cheaper than analysis, so an unbounded round fetches
-    # thousands of pages and then processes them one slow page at a time.
-    # They are durable either way, but the useful output (entries) lags far
-    # behind the crawling, and stopping mid-round leaves most of the work
-    # unfinished. Capping the round keeps fetching and processing in step.
     config = config_service.get_config()
-    # Best-first: take the most promising URLs when the round is capped,
-    # rather than whatever happened to be discovered earliest.
+    batch, remainder = _take_batch(config)
+    fetched = _fetch_and_record(batch)
+    _analyse(fetched)
+    _return_remainder(remainder)
+    monitor_service.round_end()
+
+
+class _Pipeline:
+    """
+    Run one round's fetching while the previous round is analysed.
+
+    A round fetched its pages and then analysed them with the network idle;
+    fetching and its politeness delays were about a third of a measured run's
+    wall-clock time. Here the next batch is claimed and handed to a worker
+    thread as soon as this batch's pages are in hand, so the browser works
+    while the GPU does.
+
+    The cost is a less informed frontier: the next batch is chosen before this
+    one's links are known, so a page linked from this round waits a round
+    longer than it otherwise would. Only fetching runs in the worker - the
+    database and the frontier stay with the caller.
+    """
+
+    def __init__(self, config):
+        self._config = config
+        self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="prefetch")
+        self._pending = None  # (batch, future)
+
+    def round(self):
+        if self._pending is None:
+            batch, remainder = _take_batch(self._config)
+            _return_remainder(remainder)
+            self._pending = (batch, self._pool.submit(fetch_batch, batch))
+        batch, future = self._pending
+        try:
+            future.result()
+        except Exception as e:
+            logger.warning("Prefetching a batch failed (%s) - fetching it here instead", e)
+            fetch_batch(batch)
+        # Claim and start the next batch before analysing this one: that is
+        # the whole point of the pipeline.
+        next_batch, remainder = _take_batch(self._config)
+        self._pending = ((next_batch, self._pool.submit(fetch_batch, next_batch))
+                         if next_batch else None)
+        fetched = _fetch_and_record(batch, already_fetched=True)
+        _analyse(fetched)
+        _return_remainder(remainder)
+        monitor_service.round_end()
+
+    def has_pending(self):
+        return self._pending is not None
+
+    def close(self):
+        self._pool.shutdown(wait=True)
+
+
+def _take_batch(config):
+    """
+    Claim this round's URLs from the frontier, best-first.
+
+    Fetching is far cheaper than analysis, so an unbounded round fetches
+    thousands of pages and then processes them one slow page at a time. They
+    are durable either way, but the useful output (entries) lags far behind
+    the crawling, and stopping mid-round leaves most of the work unfinished.
+    Capping the round keeps fetching and processing in step.
+
+    :return: (batch, remainder) - the remainder is put back after the round.
+    """
     fetching_service.url_queue.sort(
         key=lambda u: fetching_service.url_priorities.get(u, 0.0), reverse=True)
     remainder = []
     if config.max_batch_size and len(fetching_service.url_queue) > config.max_batch_size:
         remainder = fetching_service.url_queue[config.max_batch_size:]
         fetching_service.url_queue = fetching_service.url_queue[:config.max_batch_size]
-    batch = fetching_service.url_queue
+    batch = list(fetching_service.url_queue)
+    fetching_service.url_queue = []
+    return batch, remainder
+
+
+def _return_remainder(remainder):
+    """Put URLs held back from a round behind the links it discovered."""
+    for url in remainder:
+        if url not in fetching_service.url_queue:
+            fetching_service.url_queue.append(url)
+
+
+def fetch_batch(batch):
+    """Fetch one claimed batch. Safe to run while another batch is analysed:
+    it touches neither the frontier nor the database."""
+    if batch:
+        asyncio.run(fetching_service.parse_queue(urls=batch))
+    return batch
+
+
+def _fetch_and_record(batch, already_fetched=False):
+    """Fetch (unless already done) and write each page's crawl row.
+
+    :return: [(crawl_id, Website)] for the pages that came back.
+    """
     round_number = monitor_service.round_start(len(batch))
     logger.info("Processing batch of %d URL(s) (round %d)", len(batch), round_number)
-    asyncio.run(fetching_service.parse_queue())
+    if not already_fetched:
+        fetch_batch(batch)
     fetched = []
     for url in batch:
         html = asyncio.run(fetching_service.get_content(url))
@@ -245,18 +338,13 @@ def process_batch(urls:list[str]|None=None):
             fetched.append((crawl_id, Website(url=url, crawl_time=crawl_time, html=html)))
     if batch:
         logger.info("Fetched %d/%d URL(s) successfully", len(fetched), len(batch))
+    return fetched
 
-    ### Categorization + extraction, page by page
+
+def _analyse(fetched):
+    """Categorize and extract each fetched page, one at a time."""
     for crawl_id, website in fetched:
         process_page_safely(crawl_id, website.url, website.html)
-
-    # Anything held back from this round goes to the back of the queue, behind
-    # the links this round discovered.
-    for url in remainder:
-        if url not in fetching_service.url_queue:
-            fetching_service.url_queue.append(url)
-
-    monitor_service.round_end()
 
 
 def process_page_safely(crawl_id:int, url:str, html:str, category=None):

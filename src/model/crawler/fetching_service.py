@@ -155,9 +155,13 @@ _FETCH_ATTEMPTS = 3
 _RETRY_BACKOFF_SECONDS = 5
 
 
-async def parse_queue(max_concurrency: int = 4):
+async def parse_queue(max_concurrency: int = 4, urls=None):
     """
     Crawl everything currently in the queue, reusing one browser instance.
+
+    With `urls`, that explicit batch is fetched instead and the shared queue is
+    left alone - which is what lets one batch be fetched while another is being
+    analysed, without the two treading on each other's queue.
     Politeness delay is enforced per-domain, so different domains can
     still be fetched concurrently while same-domain requests are spaced out.
 
@@ -167,13 +171,14 @@ async def parse_queue(max_concurrency: int = 4):
     to persist and process, and a transient browser fault must not end the run.
     """
     global url_queue
+    batch = list(url_queue) if urls is None else list(urls)
     # Serve what the store already holds first, so a round replayed entirely
     # from disk never starts a browser at all.
-    for url in url_queue:
+    for url in batch:
         if url not in processed_urls:
             _serve_from_store(url)
     for attempt in range(1, _FETCH_ATTEMPTS + 1):
-        pending = [url for url in url_queue if url not in processed_urls]
+        pending = [url for url in batch if url not in processed_urls]
         if not pending:
             break
         try:
@@ -191,7 +196,8 @@ async def parse_queue(max_concurrency: int = 4):
             if _RETRY_BACKOFF_SECONDS:
                 await asyncio.sleep(_RETRY_BACKOFF_SECONDS)
 
-    url_queue = []
+    if urls is None:
+        url_queue = []
 
 
 async def _fetch_all(urls, max_concurrency):

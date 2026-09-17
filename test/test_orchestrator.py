@@ -23,10 +23,11 @@ def _isolate_fetching_service_state(monkeypatch):
 
 
 def _fake_parse_queue_returning(html_by_url):
-    async def fake_parse_queue():
-        for url in list(fetching_service.url_queue):
+    async def fake_parse_queue(max_concurrency=4, urls=None):
+        for url in (list(fetching_service.url_queue) if urls is None else list(urls)):
             fetching_service.processed_urls[url] = html_by_url.get(url, "")
-        fetching_service.url_queue = []
+        if urls is None:
+            fetching_service.url_queue = []
     return fake_parse_queue
 
 
@@ -79,6 +80,7 @@ def _make_orchestrator_config(**overrides):
     config.discovery_priority = 50.0
     config.discovery_when_below = None
     config.referrer_weights = {}
+    config.prefetch_next_batch = False
     for key, value in overrides.items():
         setattr(config, key, value)
     return config
@@ -1107,3 +1109,71 @@ def test_record_urls_are_left_alone_unless_the_category_asks(monkeypatch):
     _listing_run(monkeypatch, [{"name": "A", "station_url": "https://station-a.de/"}], follow=False)
 
     assert "https://station-a.de/" not in fetching_service.url_priorities
+
+
+# ---------------------------------------------------------------------------
+# fetching the next batch while this one is analysed
+# ---------------------------------------------------------------------------
+
+def _pipelining_config(monkeypatch, **overrides):
+    cfg = config_service.get_config().model_copy(update={
+        "max_batch_size": 1, "max_rounds": 2, "max_runtime_seconds": 0,
+        "prefetch_next_batch": True, "discover_urls": False,
+        "max_extractions_per_site": 0, **overrides})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+    return cfg
+
+
+def test_the_next_batch_is_fetched_while_this_one_is_analysed(monkeypatch):
+    import threading
+    _pipelining_config(monkeypatch)
+    _patch_data_service(monkeypatch)
+    fetching_started = threading.Event()
+    order = []
+
+    async def fake_parse_queue(max_concurrency=4, urls=None):
+        order.append(("fetch", tuple(urls or ())))
+        fetching_started.set()
+        for url in urls or ():
+            fetching_service.processed_urls[url] = f"<html>{url}</html>"
+
+    monkeypatch.setattr(fetching_service, "parse_queue", fake_parse_queue)
+    monkeypatch.setattr(fetching_service, "get_crawl_time", lambda url: 1.0)
+
+    def fake_process_page(crawl_id, url, html, category=None):
+        # Analysis must not have to wait for the next batch's fetch.
+        assert fetching_started.wait(timeout=5), "next batch was not being fetched"
+        order.append(("analyse", url))
+
+    monkeypatch.setattr(orchestrator, "process_page_safely", fake_process_page)
+    fetching_service.url_queue = ["http://a.example/", "http://b.example/"]
+    fetching_service.url_priorities = {"http://a.example/": 2.0, "http://b.example/": 1.0}
+
+    orchestrator.run()
+
+    assert [step for step, _ in order[:3]] == ["fetch", "fetch", "analyse"]
+    assert ("analyse", "http://a.example/") in order
+    assert ("analyse", "http://b.example/") in order
+
+
+def test_without_prefetching_each_batch_is_fetched_when_its_turn_comes(monkeypatch):
+    _pipelining_config(monkeypatch, prefetch_next_batch=False)
+    _patch_data_service(monkeypatch)
+    order = []
+
+    async def fake_parse_queue(max_concurrency=4, urls=None):
+        order.append("fetch")
+        for url in (urls if urls is not None else list(fetching_service.url_queue)):
+            fetching_service.processed_urls[url] = f"<html>{url}</html>"
+        if urls is None:
+            fetching_service.url_queue = []
+
+    monkeypatch.setattr(fetching_service, "parse_queue", fake_parse_queue)
+    monkeypatch.setattr(fetching_service, "get_crawl_time", lambda url: 1.0)
+    monkeypatch.setattr(orchestrator, "process_page_safely",
+                        lambda *a, **k: order.append("analyse"))
+    fetching_service.url_queue = ["http://a.example/", "http://b.example/"]
+
+    orchestrator.run()
+
+    assert order[:3] == ["fetch", "analyse", "fetch"]

@@ -89,6 +89,10 @@ class Config(BaseModel):
     # Take the category of an already-analysed page with byte-identical
     # content instead of analysing this one again.
     skip_identical_content: bool = True
+    # Fetch the next batch while this one is analysed. The next batch is then
+    # chosen before this batch's links are known, so the frontier is one round
+    # less informed.
+    prefetch_next_batch: bool = False
     reuse_max_age_days: float = 0
 
     # --- Boilerplate stripping (P8) --------------------------------------
