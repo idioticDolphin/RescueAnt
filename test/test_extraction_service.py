@@ -487,3 +487,101 @@ def test_a_record_is_still_a_record_with_the_check_on(monkeypatch):
 
     assert data is not extraction_service.MISLABELED
     assert data["name"] == "Station"
+
+
+# --- free generation with a grammar fallback ---------------------------------
+
+def _make_llm_answering(*raw):
+    """LLM stub returning each raw completion in turn."""
+    llm = MagicMock()
+    llm.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": text}}]} for text in raw
+    ]
+    return llm
+
+
+def test_by_default_every_call_is_constrained(monkeypatch):
+    llm = _make_llm_answering('{"name": "X"}')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "extraction_grammar", "always", raising=False)
+
+    extraction_service.extract_information("<html>x</html>", make_fake_category(), "http://e.com/")
+
+    assert llm.create_chat_completion.call_count == 1
+    _, kwargs = llm.create_chat_completion.call_args
+    assert "response_format" in kwargs
+
+
+def test_in_fallback_mode_parseable_output_needs_no_grammar(monkeypatch):
+    llm = _make_llm_answering('```json\n{"name": "Igelstation"}\n```')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "extraction_grammar", "fallback", raising=False)
+
+    data, _ = extraction_service.extract_information(
+        "<html>x</html>", make_fake_category(), "http://e.com/")
+
+    assert data == {"name": "Igelstation"}
+    assert llm.create_chat_completion.call_count == 1
+    _, kwargs = llm.create_chat_completion.call_args
+    assert "response_format" not in kwargs
+
+
+def test_in_fallback_mode_unparseable_output_is_retried_with_the_grammar(monkeypatch):
+    llm = _make_llm_answering('Here is the data: {"name": "Igel', '{"name": "Igelstation"}')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "extraction_grammar", "fallback", raising=False)
+
+    data, _ = extraction_service.extract_information(
+        "<html>x</html>", make_fake_category(), "http://e.com/")
+
+    assert data == {"name": "Igelstation"}
+    assert llm.create_chat_completion.call_count == 2
+    _, kwargs = llm.create_chat_completion.call_args
+    assert kwargs["response_format"]["schema"] == make_fake_category().fields
+
+
+def test_in_fallback_mode_output_of_the_wrong_shape_is_retried(monkeypatch):
+    llm = _make_llm_answering('[{"name": "A"}]', '{"name": "A"}')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+    monkeypatch.setattr(extraction_service.config, "extraction_grammar", "fallback", raising=False)
+
+    data, _ = extraction_service.extract_information(
+        "<html>x</html>", make_fake_category(), "http://e.com/")
+
+    assert data == {"name": "A"}
+    assert llm.create_chat_completion.call_count == 2
+
+
+def test_free_output_drops_fields_the_schema_does_not_have():
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    assert extraction_service.parse_free_output('{"name": "A", "notes": "x"}', schema) == {"name": "A"}
+
+
+def test_free_output_for_a_listing_keeps_only_objects():
+    schema = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}
+    raw = '```json\n[{"name": "A"}, "stray", {"name": "B", "extra": 1}]\n```'
+    assert extraction_service.parse_free_output(raw, schema) == [{"name": "A"}, {"name": "B"}]
+
+
+def test_free_output_salvages_a_truncated_listing():
+    schema = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}
+    raw = '```json\n[{"name": "A"}, {"name": "B"}, {"na'
+    assert extraction_service.parse_free_output(raw, schema) == [{"name": "A"}, {"name": "B"}]
+
+
+def test_free_output_ignores_a_reasoning_block():
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    raw = '<think>\nThe page names one station.\n</think>\n{"name": "A"}'
+    assert extraction_service.parse_free_output(raw, schema) == {"name": "A"}
+
+
+def test_free_output_accepts_the_mislabel_verdict_when_offered():
+    schema = extraction_service.with_mislabel_option(
+        {"type": "object", "properties": {"name": {"type": "string"}}})
+    assert extraction_service.parse_free_output('{"mislabeled": true}', schema) == {"mislabeled": True}
+    assert extraction_service.parse_free_output('{"name": "A"}', schema) == {"name": "A"}
+
+
+def test_free_output_does_not_invent_a_verdict_that_was_not_offered():
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    assert extraction_service.parse_free_output('{"mislabeled": true}', schema) == {}

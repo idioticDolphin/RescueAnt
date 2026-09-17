@@ -7,6 +7,7 @@ import model.analyzer.entity_service as entity_service
 import model.tools.config_service as config_service
 import model.tools.llm_service as llm_service
 import json
+import re
 
 logger = logging.getLogger(__name__)
 config = config_service.get_config()
@@ -129,6 +130,58 @@ def _salvage_truncated_json(raw):
     return objects or None
 
 
+_REASONING = re.compile(r"<think>.*?</think>", re.DOTALL)
+_FENCE = re.compile(r"^```[a-zA-Z]*\s*|\s*```\s*$")
+
+
+def parse_free_output(raw, schema):
+    """
+    Read JSON the model wrote without a grammar, held to the schema's shape.
+
+    Unconstrained, the model wraps its answer in a code fence and may add
+    fields of its own; a listing can still be cut off at max_tokens. Returns
+    None when the text cannot be read as the shape the schema asks for, so the
+    caller can fall back to constrained decoding rather than store a guess.
+    """
+    if not isinstance(raw, str):
+        return None
+    text = _FENCE.sub("", _REASONING.sub("", raw).strip()).strip()
+    try:
+        data = json.loads(text)
+    except ValueError:
+        data = _salvage_truncated_json(text)
+        if data is None:
+            return None
+    return _conform(data, schema)
+
+
+def _conform(data, schema):
+    """Fit parsed data to a schema's shape, or None if it cannot be made to."""
+    if "anyOf" in schema:
+        for option in schema["anyOf"]:
+            if _is_mislabel_verdict(data) and option.get("required") == ["mislabeled"]:
+                return data
+        for option in schema["anyOf"]:
+            if option.get("required") != ["mislabeled"]:
+                conformed = _conform(data, option)
+                if conformed is not None:
+                    return conformed
+        return None
+    if schema.get("type") == "array":
+        if not isinstance(data, list):
+            return None
+        items = schema.get("items", {})
+        return [_conform(item, items) for item in data if isinstance(item, dict)]
+    if schema.get("type") == "object":
+        if not isinstance(data, dict):
+            return None
+        known = schema.get("properties")
+        if known is None:
+            return data
+        return {key: value for key, value in data.items() if key in known}
+    return data
+
+
 def extract_information(html: str, category:Category, base_url: str):
     """
     Extract structured data from a page's HTML per its category's field
@@ -181,45 +234,58 @@ def extract_information(html: str, category:Category, base_url: str):
         llm_service.get_context(category.analysis_model_id),
         category.analysis_max_tokens, overhead=prompt)
 
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": f"Website content:\n{site_content}"}
+    ]
+    call = dict(
+        # A token cap alone does not bound wall-clock time; without this a
+        # single page held the whole crawl for 30 minutes and yielded
+        # nothing. The budget scales with the tokens this category is
+        # allowed to produce, so a long listing is not cut short by a cap
+        # sized for a single record. Partial output is still salvaged.
+        timeout_seconds=llm_service.budget_seconds(
+            category.analysis_max_tokens,
+            config.llm_call_timeout_seconds,
+            config.min_generation_tokens_per_second),
+        temperature=0,
+        # Without an explicit cap llama-cpp generates until the context
+        # window is exhausted; a degenerate repetition then costs tens of
+        # thousands of tokens (observed: 90-120 minutes, ending in
+        # unparseable truncated JSON). analysis_max_tokens comes straight
+        # from the category's configured max_tokens[...].
+        max_tokens=category.analysis_max_tokens,
+        repeat_penalty=config.repeat_penalty,
+    )
+
     try:
-        result = llm_service.complete(
-            llm,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Website content:\n{site_content}"}
-            ],
-            # A token cap alone does not bound wall-clock time; without this a
-            # single page held the whole crawl for 30 minutes and yielded
-            # nothing. The budget scales with the tokens this category is
-            # allowed to produce, so a long listing is not cut short by a cap
-            # sized for a single record. Partial output is still salvaged.
-            timeout_seconds=llm_service.budget_seconds(
-                category.analysis_max_tokens,
-                config.llm_call_timeout_seconds,
-                config.min_generation_tokens_per_second),
-            response_format={
-                "type": "json_object",
-                "schema": response_schema
-            },
-            temperature=0,
-            # Without an explicit cap llama-cpp generates until the context
-            # window is exhausted; a degenerate repetition then costs tens of
-            # thousands of tokens (observed: 90-120 minutes, ending in
-            # unparseable truncated JSON). analysis_max_tokens comes straight
-            # from the category's configured max_tokens[...].
-            max_tokens=category.analysis_max_tokens,
-            repeat_penalty=config.repeat_penalty,
-        )
-        extracted = result['choices'][0]['message']['content']
-        logger.debug("Extracted from %s: %s", base_url, extracted)
-        try:
-            data = json.loads(extracted)
-        except ValueError:
-            data = _salvage_truncated_json(extracted)
+        data = None
+        if getattr(config, "extraction_grammar", "always") == "fallback":
+            # Grammar-constrained sampling checks every candidate token on the
+            # CPU and measured ten times slower than free generation (8 against
+            # 82 tokens/s), which made it most of the cost of extraction. The
+            # model writes the schema's JSON reliably unaided; the grammar is
+            # kept for the answers it does not.
+            result = llm_service.complete(llm, messages=messages, **call)
+            data = parse_free_output(result['choices'][0]['message']['content'], response_schema)
             if data is None:
-                raise
-            logger.warning("Extraction for %s was truncated - salvaged %d complete record(s)",
-                           base_url, len(data))
+                logger.info("Unconstrained extraction for %s did not parse - "
+                            "retrying with the grammar", base_url)
+        if data is None:
+            result = llm_service.complete(
+                llm, messages=messages,
+                response_format={"type": "json_object", "schema": response_schema},
+                **call)
+            extracted = result['choices'][0]['message']['content']
+            logger.debug("Extracted from %s: %s", base_url, extracted)
+            try:
+                data = json.loads(extracted)
+            except ValueError:
+                data = _salvage_truncated_json(extracted)
+                if data is None:
+                    raise
+                logger.warning("Extraction for %s was truncated - salvaged %d complete record(s)",
+                               base_url, len(data))
         if _is_mislabel_verdict(data):
             logger.info("Extractor judged %s not to be a %s", base_url, category.name)
             return MISLABELED, links

@@ -88,10 +88,16 @@ def main():
                          "gold records and a single-record one otherwise")
     ap.add_argument("--show-misses", action="store_true",
                     help="print gold against extracted for every field scoring below 1")
+    ap.add_argument("--extraction-grammar", choices=("always", "fallback"),
+                    help="override the configured extraction_grammar")
     args = ap.parse_args()
 
     config_service.load_config()
     config = config_service.get_config()
+    if args.extraction_grammar:
+        config = config.model_copy(update={"extraction_grammar": args.extraction_grammar})
+        config_service._session_config = config
+        extraction_service.config = config
 
     if args.model:
         # Repoint every extracting category at the candidate, so the whole
