@@ -44,7 +44,10 @@ def main():
     ap.add_argument("--db", nargs="+", default=DEFAULT_DBS)
     ap.add_argument("--instruction", default=None,
                     help="mislabel instruction to test, overriding the config")
+    ap.add_argument("--instruction-first", action="store_true",
+                    help="place the instruction before the category prompt instead of after it")
     args = ap.parse_args()
+    extraction_service.MISLABEL_INSTRUCTION_FIRST = args.instruction_first
 
     config_service.load_config()
     config = config_service.get_config()
@@ -93,7 +96,8 @@ def main():
 
     real = len(false_reject) + len(true_keep)
     wrong = len(caught) + len(missed)
-    print(f"\n--- instruction: {config.mislabel_instruction or '(default)'}")
+    placement = "first" if args.instruction_first else "last"
+    print(f"\n--- instruction ({placement}): {config.mislabel_instruction or '(default)'}")
     if real:
         print(f"real pages wrongly rejected: {len(false_reject)}/{real} "
               f"({100 * len(false_reject) / real:.0f}%)   <- must be near zero")

@@ -22,6 +22,11 @@ class _Mislabeled:
 
 MISLABELED = _Mislabeled()
 
+# Where the mislabel instruction goes in the system prompt. Last is the most
+# prominent position, which may be exactly what makes the verdict over-eager;
+# kept switchable so that can be measured rather than assumed.
+MISLABEL_INSTRUCTION_FIRST = False
+
 DEFAULT_MISLABEL_INSTRUCTION = (
     'If the page is not in fact what these instructions describe, do not '
     'extract anything: answer only {"mislabeled": true}.'
@@ -157,7 +162,11 @@ def extract_information(html: str, category:Category, base_url: str):
     prompt = f"{category.analysis_prompt} The return schema is {schema}"
     response_schema = schema
     if getattr(config, "mislabel_check", False):
-        prompt = f"{prompt} {getattr(config, 'mislabel_instruction', None) or DEFAULT_MISLABEL_INSTRUCTION}"
+        instruction = getattr(config, 'mislabel_instruction', None) or DEFAULT_MISLABEL_INSTRUCTION
+        if MISLABEL_INSTRUCTION_FIRST:
+            prompt = f"{instruction} {prompt}"
+        else:
+            prompt = f"{prompt} {instruction}"
         response_schema = with_mislabel_option(schema)
     # A page too large for prompt + reply is refused outright by llama-cpp,
     # losing it entirely; keep the head, which is where its own content is.
