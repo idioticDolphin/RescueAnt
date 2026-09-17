@@ -18,6 +18,10 @@
 # attention keeps a full-size sliding-window cache. Always measure rather
 # than inferring from the download size.
 #
+# Measured on one 8 GB card, by timing an 8k-token page (see model_sweep.py):
+# Qwen3.5-4B 4.1 s at 32k. Llama 3.1 8B spills at 32k (74 s) and fits at 16k
+# (13.6 s). Ministral 3 8B spills at 16k (64 s) and fits at 12k (13.7 s).
+#
 # Every entry must be a GGUF that llama.cpp can load and that supports
 # grammar-constrained generation, since both classification and extraction
 # rely on it.
@@ -41,9 +45,9 @@ qwen3.5-4b,unsloth/Qwen3.5-4B-GGUF,Qwen3.5-4B-UD-Q4_K_XL.gguf,default,32768
 # which on this workload has cost more than the extra parameters returned.
 
 gemma-3-4b,unsloth/gemma-3-4b-it-GGUF,gemma-3-4b-it-UD-Q4_K_XL.gguf,candidate,16384
-llama-3.1-8b,unsloth/Llama-3.1-8B-Instruct-GGUF,Llama-3.1-8B-Instruct-UD-Q4_K_XL.gguf,candidate,
+llama-3.1-8b,unsloth/Llama-3.1-8B-Instruct-GGUF,Llama-3.1-8B-Instruct-UD-Q4_K_XL.gguf,candidate,16384
 eurollm-9b,bartowski/EuroLLM-9B-Instruct-GGUF,EuroLLM-9B-Instruct-Q4_K_M.gguf,candidate,
-ministral-3-8b,unsloth/Ministral-3-8B-Instruct-2512-GGUF,Ministral-3-8B-Instruct-2512-UD-Q4_K_XL.gguf,candidate,
+ministral-3-8b,unsloth/Ministral-3-8B-Instruct-2512-GGUF,Ministral-3-8B-Instruct-2512-UD-Q4_K_XL.gguf,candidate,12288
 granite-4.2-8b,ibm-granite/granite-4.2-8b-GGUF,granite-4.2-8b-Q4_K_M.gguf,candidate,
 teuken-7b,mradermacher/Teuken-7B-instruct-commercial-v0.4-GGUF,Teuken-7B-instruct-commercial-v0.4.Q4_K_M.gguf,candidate,
 qwen3.5-2b,unsloth/Qwen3.5-2B-GGUF,Qwen3.5-2B-UD-Q4_K_XL.gguf,candidate,32768

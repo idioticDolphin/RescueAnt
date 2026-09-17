@@ -46,7 +46,14 @@ def catalogue():
     return by_file
 
 
-MIN_TOKENS_PER_SECOND = 4.0
+# How long a realistic page may take, prompt included, before the model is
+# judged to have fallen off the card. Calibrated on an 8 GB card with an
+# 8k-token page: models that fit took 4.1-13.7 s, models whose cache had
+# spilled took 64-74 s. Spilling is a cliff, not a slope, and 30 s sits well
+# inside the gap. (A first cutoff of 60 s would have passed one spilled case
+# by four seconds.)
+PROBE_PROMPT_TOKENS = 8000
+PROBE_MAX_SECONDS = 30
 
 # A card counts as idle below this. The threshold has to sit between two
 # numbers: a normal desktop - browser, launcher, chat app - already holds about
@@ -86,38 +93,40 @@ def wait_for_idle_card(timeout=120, idle_mib=None):
         time.sleep(5)
 
 
-def probe_context(model, candidates=(32768, 16384, 8192, 4096)):
-    """Largest context this model can load and generate at a usable rate.
+def probe_context(model, candidates=(32768, 16384, 12288, 8192)):
+    """Largest context this model can serve a realistic page at.
 
-    Two thresholds matter, and only the second one is any good. Loading
-    succeeds well past the point where the model is usable, because llama.cpp
-    spills to host memory rather than failing. Requiring a token out is not
-    enough either: a CPU-offloaded model still emits one, just slowly - a 9B
-    that passed a token-only probe at 32k then took over 23 minutes on a
-    benchmark the 4B finishes in four.
+    Every cheap signal has been wrong at least once here. A successful load
+    proves nothing, because llama.cpp spills to host memory rather than
+    failing. A token coming out proves nothing either. And a *fast* token out
+    of a short prompt proves nothing, which cost a second night's run: a
+    short prompt barely touches the KV cache, so a model whose cache has
+    spilled still answers quickly, then takes 24 minutes over a benchmark the
+    default model finishes in four.
 
-    So the probe measures the generation rate and rejects anything under
-    MIN_TOKENS_PER_SECOND, which is the actual signature of a model that has
-    fallen off the GPU.
+    So the probe sends a prompt about as long as a real page and times the
+    whole call. The cache is exercised exactly as a crawl would exercise it.
     """
     for ctx in candidates:
+        if PROBE_PROMPT_TOKENS >= ctx:
+            continue
         code = (
             "import time;from llama_cpp import Llama;"
             f"m=Llama(model_path=r'{model}',n_ctx={ctx},n_gpu_layers=-1,verbose=False);"
+            "unit='Die Station nimmt verletzte Wildtiere auf und pflegt sie. ';"
+            "n=len(m.tokenize(unit.encode()));"
+            f"text=unit*max(1,{PROBE_PROMPT_TOKENS}//n);"
             "t=time.monotonic();"
-            "r=m.create_chat_completion("
-            "messages=[{'role':'user','content':'Count from one to twenty.'}],max_tokens=48);"
-            "d=time.monotonic()-t;"
-            "n=len(r['choices'][0]['message']['content'].split());"
-            "print(f'RATE {n/d:.2f}' if d>0 else 'RATE 0')"
+            "m.create_chat_completion(messages=[{'role':'user','content':text+' Fasse zusammen.'}],max_tokens=16);"
+            "print(f'SECONDS {time.monotonic()-t:.1f}')"
         )
         try:
             out = subprocess.run([PY, "-c", code], cwd=ROOT, capture_output=True,
-                                 text=True, timeout=240).stdout
+                                 text=True, timeout=PROBE_MAX_SECONDS + 120).stdout
         except subprocess.TimeoutExpired:
             continue
-        m = re.search(r"RATE ([\d.]+)", out or "")
-        if m and float(m.group(1)) >= MIN_TOKENS_PER_SECOND:
+        m = re.search(r"SECONDS ([\d.]+)", out or "")
+        if m and float(m.group(1)) <= PROBE_MAX_SECONDS:
             return ctx
     return None
 
