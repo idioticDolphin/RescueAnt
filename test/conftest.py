@@ -79,3 +79,21 @@ def make_fake_config():
 # module-level `config = config_service.get_config()` calls in other
 # modules safe to import anywhere in the test suite.
 config_service._session_config = make_fake_config()
+
+
+import pytest  # noqa: E402
+
+from model.tools import page_store  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_page_store(tmp_path, monkeypatch):
+    """Give every test its own page store, and restore the real root after.
+
+    page_store.STORE_ROOT is module-level state, and orchestrator.init()
+    reassigns it from config. Tests that run init() against a MagicMock config
+    set it to the path "MagicMock/mock.page_store_path/<id>" and nothing put it
+    back, so every later test that stored a page wrote into a stray MagicMock/
+    directory inside the repository.
+    """
+    monkeypatch.setattr(page_store, "STORE_ROOT", tmp_path / "store")
