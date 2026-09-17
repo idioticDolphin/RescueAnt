@@ -22,14 +22,20 @@ class _Mislabeled:
 
 MISLABELED = _Mislabeled()
 
-# Where the mislabel instruction goes in the system prompt. Last is the most
-# prominent position, which may be exactly what makes the verdict over-eager;
-# kept switchable so that can be measured rather than assumed.
+# Where the mislabel instruction goes in the system prompt. After the category
+# prompt: placed before it, the same wording rejected a third of real pages
+# (vet clinic and shelter home pages among them) against one in twenty after.
 MISLABEL_INSTRUCTION_FIRST = False
 
+# Worded to make rejection the exception. A plain "if the page is not what
+# these instructions describe" rejected most real pages with little text on
+# them, because a sparse home page does not look like a full record.
 DEFAULT_MISLABEL_INSTRUCTION = (
-    'If the page is not in fact what these instructions describe, do not '
-    'extract anything: answer only {"mislabeled": true}.'
+    'Nearly every page given to you has been classified correctly and must be '
+    'extracted. Only if you are certain the page is not about what these '
+    'instructions describe at all, answer {"mislabeled": true} instead. A home '
+    'page, contact page or legal notice of such an organisation must always be '
+    'extracted, however little else it contains.'
 )
 
 
