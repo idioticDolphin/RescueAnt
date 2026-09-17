@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from categorization_benchmark import CASES  # noqa: E402
+from categorization_benchmark import load_cases  # noqa: E402
 from model.tools import config_service, data_service, page_store  # noqa: E402
 from model.analyzer import extraction_service, boilerplate_service  # noqa: E402
 
@@ -44,6 +44,9 @@ def main():
     ap.add_argument("--db", nargs="+", default=DEFAULT_DBS)
     ap.add_argument("--instruction", default=None,
                     help="mislabel instruction to test, overriding the config")
+    ap.add_argument("--cases", choices=("original", "dev", "test", "all"), default="dev",
+                    help="which labelled pages to use; pin this when comparing runs, "
+                         "since results over different case sets are not comparable")
     ap.add_argument("--instruction-first", action="store_true",
                     help="place the instruction before the category prompt instead of after it")
     args = ap.parse_args()
@@ -72,7 +75,12 @@ def main():
 
     false_reject, true_keep, caught, missed = [], [], [], []
     started = time.monotonic()
-    for needle, label in CASES:
+    if args.cases == "original":
+        cases = load_cases(original_only=True)
+    else:
+        cases = load_cases(split=args.cases)
+    print(f"{len(cases)} labelled pages ({args.cases})", flush=True)
+    for needle, label in cases:
         match = next(((u, p) for u, p in stored.items() if needle in u and p), None)
         html = page_store.load(match[1]) if match else None
         if not html:

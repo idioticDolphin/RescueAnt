@@ -28,7 +28,10 @@ from model.analyzer import category_service, boilerplate_service  # noqa: E402
 LABELS = Path(__file__).parent / "data" / "page_labels.csv"
 
 
-def load_cases(split="all", include_unsure=False, path=LABELS):
+ORIGINAL_NOTE = "original 50-case benchmark"
+
+
+def load_cases(split="all", include_unsure=False, path=LABELS, original_only=False):
     """(url, label) pairs from the labelled page set.
 
     Labels describe a page's role, not its site: a shelter's job-ad page is
@@ -48,6 +51,8 @@ def load_cases(split="all", include_unsure=False, path=LABELS):
             if split != "all" and row.get("split") != split:
                 continue
             if row.get("confidence") != "sure" and not include_unsure:
+                continue
+            if original_only and row.get("note") != ORIGINAL_NOTE:
                 continue
             cases.append((row["url"], row["label"]))
     return cases
