@@ -300,6 +300,34 @@ def delete_entries_for_crawl(crawl_id:int):
         connection.commit()
 
 
+def get_record_urls(field:str):
+    """Every value stored in one field of `entries`, list-valued ones flattened."""
+    with get_connection() as connection:
+        try:
+            rows = connection.execute(
+                f"SELECT {_quote_identifier(field)} AS value FROM entries "
+                f"WHERE {_quote_identifier(field)} IS NOT NULL").fetchall()
+        except sqlite3.OperationalError:
+            return []  # no such column in this schema
+    values = []
+    for row in rows:
+        raw = row["value"]
+        if isinstance(raw, str) and raw.startswith("["):
+            try:
+                raw = json.loads(raw)
+            except ValueError:
+                pass
+        values.extend(raw if isinstance(raw, list) else [raw])
+    return [v for v in values if isinstance(v, str) and v.strip()]
+
+
+def get_crawled_sites():
+    """The registrable domain of every page any crawl has recorded."""
+    with get_connection() as connection:
+        return {row["site"] for row in connection.execute(
+            "SELECT DISTINCT site FROM crawls WHERE site IS NOT NULL")}
+
+
 def find_analysed_twin(crawl_id:int):
     """
     Return (crawl_id, category) of an already-analysed page whose stored

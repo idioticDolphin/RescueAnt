@@ -680,3 +680,27 @@ def test_reclassification_counts_by_original_category(monkeypatch):
         data_service.reclassify_page(cid, "HUB", from_category=original)
 
     assert data_service.count_reclassifications() == {"STATION": 2, "LIST": 1}
+
+
+def test_get_record_urls_returns_every_stored_website(monkeypatch):
+    _init_with_fields(monkeypatch, "name", "station_url")
+
+    def crawl(url):
+        return data_service.save_crawl_instance(url, 1.0, True, site="x.de")
+
+    data_service.save_extraction(crawl("http://x.de/1"), {"name": "A", "station_url": "https://a.de/"})
+    data_service.save_extraction(crawl("http://x.de/2"),
+                                 {"name": "B", "station_url": ["https://b.de/", "https://b.de/kontakt"]})
+    data_service.save_extraction(crawl("http://x.de/3"), {"name": "C"})
+
+    assert sorted(data_service.get_record_urls("station_url")) == [
+        "https://a.de/", "https://b.de/", "https://b.de/kontakt"]
+
+
+def test_get_crawled_sites_lists_each_domain_once(monkeypatch):
+    _init_with_fields(monkeypatch, "name")
+    data_service.save_crawl_instance("https://a.de/one", 1.0, True, site="a.de")
+    data_service.save_crawl_instance("https://a.de/two", 1.0, True, site="a.de")
+    data_service.save_crawl_instance("https://b.de/", 1.0, False, site="b.de")
+
+    assert data_service.get_crawled_sites() == {"a.de", "b.de"}

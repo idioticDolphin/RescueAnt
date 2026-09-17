@@ -93,6 +93,9 @@ class Config(BaseModel):
     # chosen before this batch's links are known, so the frontier is one round
     # less informed.
     prefetch_next_batch: bool = False
+    # At the start of a run, queue the websites named in already-extracted
+    # records that no crawl has visited yet.
+    queue_record_urls_at_start: bool = True
     reuse_max_age_days: float = 0
 
     # --- Boilerplate stripping (P8) --------------------------------------

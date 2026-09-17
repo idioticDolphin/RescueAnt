@@ -64,6 +64,10 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`queue_record_urls_at_start`** (on by default): a run begins by queueing
+  the websites named in records already in the database that no crawl has
+  visited - 26% of them in the project's own database.
+  `experiments/coverage_gap.py` reports that share.
 - **`--export stations.csv`** writes the resolved entities as CSV, with a
   `review` column naming what a person should look at: a record nobody could
   contact, or one whose contact details disagree between pages. `--export ...
@@ -217,5 +221,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 560 tests. Each regression test names the failure it exists to
+178 → 564 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

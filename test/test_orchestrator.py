@@ -1177,3 +1177,39 @@ def test_without_prefetching_each_batch_is_fetched_when_its_turn_comes(monkeypat
     orchestrator.run()
 
     assert order[:3] == ["fetch", "analyse", "fetch"]
+
+
+# ---------------------------------------------------------------------------
+# websites named in records but never visited
+# ---------------------------------------------------------------------------
+
+def test_known_but_unvisited_websites_are_queued_at_start(monkeypatch):
+    base = config_service.get_config()
+    listing = base.get_category("LIST").model_copy(
+        update={"follow_record_urls": True, "record_url_priority": 60.0})
+    cfg = base.model_copy(update={
+        "categories": [listing],
+        "field_semantics": {"station_url": {"role": "identifier", "normalize": "url"}},
+        "queue_record_urls_at_start": True})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+    data_service = _patch_data_service(monkeypatch)
+    data_service.get_record_urls.return_value = [
+        "https://station-a.de/", "wildvogelhilfe-b.de", "https://already.de/kontakt", "not a url"]
+    data_service.get_crawled_sites.return_value = {"already.de"}
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+
+    orchestrator.queue_known_record_urls()
+
+    assert fetching_service.url_queue == ["https://station-a.de/", "https://wildvogelhilfe-b.de/"]
+    assert fetching_service.url_priorities["https://station-a.de/"] == 60.0
+
+
+def test_queueing_known_websites_can_be_switched_off(monkeypatch):
+    cfg = config_service.get_config().model_copy(update={"queue_record_urls_at_start": False})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+    data_service = _patch_data_service(monkeypatch)
+
+    orchestrator.queue_known_record_urls()
+
+    data_service.get_record_urls.assert_not_called()
+    assert fetching_service.url_queue == []
