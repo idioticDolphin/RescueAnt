@@ -476,3 +476,49 @@ def test_a_label_that_only_starts_similarly_is_left_alone():
 
 def test_tidying_a_label_without_prefixes_configured_changes_nothing():
     assert entity_service.tidy_label("Contact : X", []) == "Contact : X"
+
+
+def test_a_website_compares_the_same_however_it_is_written():
+    same = ["https://pfalzstorch.de/", "http://www.pfalzstorch.de", "HTTPS://Pfalzstorch.DE",
+            "www.pfalzstorch.de/", "pfalzstorch.de"]
+    normalised = {entity_service.normalize(value, "url") for value in same}
+    assert len(normalised) == 1, normalised
+
+
+def test_different_pages_of_one_site_are_still_different_identifiers():
+    # Six organisations once shared an umbrella site; their pages must not merge.
+    assert (entity_service.normalize("https://umbrella.de/a", "url")
+            != entity_service.normalize("https://umbrella.de/b", "url"))
+
+
+def _url_semantics():
+    return {"name": {"role": "label", "weight": 0.3},
+            "station_url": {"role": "identifier", "weight": 0.8, "normalize": "url"}}
+
+
+def test_a_listing_entry_and_the_organisations_own_page_merge():
+    # The listing links to the station; the station's own page is where that
+    # link leads. Agreement there is worth more than two listings agreeing.
+    listing = {"name": "Aktion Pfalzstorch e.V.", "station_url": "http://www.pfalzstorch.de", "_trust": 0.5}
+    own = {"name": "Pfalzstorch", "station_url": "https://pfalzstorch.de/", "_trust": 1.0}
+    resolver = entity_service.Resolver(field_semantics=_url_semantics(), own_site_url_bonus=0.2)
+
+    assert resolver.score(listing, own) >= resolver.accept_at
+
+
+def test_two_listings_naming_the_same_directory_page_do_not_merge():
+    # Several stations were listed with the directory's own URL; they are not
+    # one organisation, and neither record was extracted from that site.
+    a = {"name": "Greifvogelhilfe Sachsen e. V.", "station_url": "https://directory.org/stations", "_trust": 0.5}
+    b = {"name": "NABU Wildvogelhilfe Jena", "station_url": "https://directory.org/stations", "_trust": 0.5}
+    resolver = entity_service.Resolver(field_semantics=_url_semantics(), own_site_url_bonus=0.2)
+
+    assert resolver.score(a, b) < resolver.accept_at
+
+
+def test_without_the_bonus_nothing_changes():
+    listing = {"name": "Aktion Pfalzstorch e.V.", "station_url": "http://www.pfalzstorch.de", "_trust": 0.5}
+    own = {"name": "Pfalzstorch", "station_url": "https://pfalzstorch.de/", "_trust": 1.0}
+    resolver = entity_service.Resolver(field_semantics=_url_semantics(), own_site_url_bonus=0.0)
+
+    assert resolver.score(listing, own) < resolver.accept_at

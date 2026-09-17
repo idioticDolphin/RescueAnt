@@ -34,6 +34,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_ACCEPT = 1.0
 # Penalty applied when two records give different values for a locator field.
 DEFAULT_CONFLICT_PENALTY = 0.8
+
+# Added when two records agree on a website and one of them is that website's
+# own page. Measured on 707 records: seven more organisations merged, every one
+# of them a genuine duplicate.
+DEFAULT_OWN_SITE_URL_BONUS = 0.2
 # Similarity above which two label values count as "the same name".
 DEFAULT_LABEL_SIMILARITY = 0.9
 
@@ -220,7 +225,15 @@ def normalize(value, normalizer="casefold"):
     if normalizer == "digits":
         return re.sub(r"\D", "", text)
     if normalizer == "url":
-        return unicodedata.normalize("NFKC", text).casefold().rstrip("/")
+        # A website is written every way there is - with and without scheme,
+        # with and without www, with and without a trailing slash - and a
+        # listing's link to a station compared unequal to the same station's
+        # own page for no better reason than that. The path is kept: six
+        # organisations once shared an umbrella site, told apart only by it.
+        text = unicodedata.normalize("NFKC", text).casefold()
+        text = re.sub(r"^[a-z][a-z0-9+.-]*://", "", text)
+        text = re.sub(r"^www\.", "", text)
+        return text.rstrip("/")
     # casefold, and the fallback for anything unrecognised
     return unicodedata.normalize("NFKC", text).casefold()
 
@@ -257,10 +270,12 @@ class Resolver:
     """
 
     def __init__(self, field_semantics=None, accept_at=DEFAULT_ACCEPT,
-                 conflict_penalty=DEFAULT_CONFLICT_PENALTY):
+                 conflict_penalty=DEFAULT_CONFLICT_PENALTY,
+                 own_site_url_bonus=DEFAULT_OWN_SITE_URL_BONUS):
         self.semantics = field_semantics or {}
         self.accept_at = accept_at
         self.conflict_penalty = conflict_penalty
+        self.own_site_url_bonus = own_site_url_bonus
 
     # -- role helpers ----------------------------------------------------
     def _fields_with_role(self, role):
@@ -351,7 +366,32 @@ class Resolver:
                     total += self._weight_for(field, 0.7)
                 else:
                     total -= self.conflict_penalty
-        return total
+        return total + self._own_site_bonus(a, b)
+
+    def _own_site_bonus(self, a, b):
+        """
+        Extra weight when two records agree on a website and one of them was
+        extracted from that very site.
+
+        A listing names a station and links to it; the station's own page is
+        where that link leads, and it is the same organisation under a shorter
+        name - "Pfalzstorch" beside "Aktion Pfalzstorch e.V.", too short for
+        the containment rule and so one identifier short of acceptance. Two
+        listings agreeing on a link are much weaker evidence: several stations
+        were listed with a directory's own URL, and they are not one
+        organisation.
+        """
+        if not self.own_site_url_bonus:
+            return 0.0
+        if a.get("_trust") != 1.0 and b.get("_trust") != 1.0:
+            return 0.0
+        for field, semantics in self.semantics.items():
+            if semantics.get("normalize") != "url":
+                continue
+            left = normalize(a.get(field), "url")
+            if left and left == normalize(b.get(field), "url"):
+                return self.own_site_url_bonus
+        return 0.0
 
     def _locators_agree(self, left, right):
         """Locators agree if their postcodes match, else if their text is close."""

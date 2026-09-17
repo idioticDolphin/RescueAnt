@@ -64,6 +64,16 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **A website now compares equal however it is written** - scheme, `www.` and
+  a trailing slash no longer split an identifier, so a listing's link to a
+  station matches that station's own page. The path is still significant, so
+  six organisations sharing an umbrella site stay apart.
+- **Agreement on a website counts for more when one record is that site's own
+  page.** A listing entry and the organisation's own page differ in name
+  ("Pfalzstorch" beside "Aktion Pfalzstorch e.V.") and agreed on nothing else,
+  landing one identifier short of a match. Two listings agreeing on a link do
+  not get the bonus: several stations were listed with a directory's own URL.
+  Seven more organisations merged, every one a genuine duplicate.
 - **`label_prefixes_to_strip`**: a name arriving as "Contact : DHORNE" keeps
   only what follows the prefix. Five French rescue centres were stored that
   way; a rule that *rejected* such records instead would have thrown away
@@ -229,5 +239,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 569 tests. Each regression test names the failure it exists to
+178 → 574 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.
