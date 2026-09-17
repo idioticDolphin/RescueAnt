@@ -157,3 +157,10 @@ def test_a_tel_link_with_no_text_still_yields_the_number():
     html = '<p><a href="tel:+4917655376864"></a></p>'
     out = cleaning_service.clean(html)
     assert "+4917655376864" in out
+
+
+def test_a_malformed_link_is_skipped_without_losing_the_others():
+    # A single href that urllib cannot parse ended a whole crawl run.
+    html = ('<a href="http://[broken/page">bad</a>'
+            '<a href="/kontakt">good</a>')
+    assert cleaning_service.extract_links(html, "https://station.de/") == ["https://station.de/kontakt"]

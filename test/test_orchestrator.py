@@ -1019,3 +1019,26 @@ def test_every_classified_page_tells_the_frontier_what_it_was_worth(monkeypatch)
     orchestrator.process_page(1, "https://a.example/kontakt", "<html/>", category)
 
     fetching_service.record_page_value.assert_called_once_with("https://a.example/kontakt", category)
+
+
+def test_a_page_that_raises_is_marked_failed_instead_of_ending_the_run(monkeypatch):
+    data_service = MagicMock()
+    monkeypatch.setattr(orchestrator, "data_service", data_service)
+    seen = []
+
+    def process_page(crawl_id, url, html, category=None):
+        seen.append(url)
+        if url.endswith("/bad"):
+            raise ValueError("Invalid IPv6 URL")
+
+    monkeypatch.setattr(orchestrator, "process_page", process_page)
+
+    orchestrator.process_page_safely(1, "https://a.example/bad", "<html/>")
+    orchestrator.process_page_safely(2, "https://a.example/good", "<html/>")
+
+    assert seen == ["https://a.example/bad", "https://a.example/good"]
+    data_service.set_crawl_state.assert_called_once()
+    args, kwargs = data_service.set_crawl_state.call_args
+    assert args[0] == 1
+    assert args[1] == data_service.STATE_FAILED
+    assert "Invalid IPv6 URL" in kwargs["last_error"]

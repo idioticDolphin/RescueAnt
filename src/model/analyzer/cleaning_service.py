@@ -15,8 +15,12 @@ def extract_links(html, base_url):
         if not href or href.startswith("#"):
             continue
 
-        full_url = urljoin(base_url, href)
-        if urlparse(full_url).scheme not in CRAWLABLE_SCHEMES:
+        try:
+            full_url = urljoin(base_url, href)
+            scheme = urlparse(full_url).scheme
+        except ValueError:
+            continue  # e.g. "http://[broken" - one bad href once ended a crawl
+        if scheme not in CRAWLABLE_SCHEMES:
             continue  # skips mailto:, tel:, javascript:, ftp:, data:, etc.
 
         links.add(full_url)

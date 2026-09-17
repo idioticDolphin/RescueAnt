@@ -248,7 +248,7 @@ def process_batch(urls:list[str]|None=None):
 
     ### Categorization + extraction, page by page
     for crawl_id, website in fetched:
-        process_page(crawl_id, website.url, website.html)
+        process_page_safely(crawl_id, website.url, website.html)
 
     # Anything held back from this round goes to the back of the queue, behind
     # the links this round discovered.
@@ -257,6 +257,23 @@ def process_batch(urls:list[str]|None=None):
             fetching_service.url_queue.append(url)
 
     monitor_service.round_end()
+
+
+def process_page_safely(crawl_id:int, url:str, html:str, category=None):
+    """
+    process_page, but a failure on one page cannot end the run.
+
+    Individual stages already handle the failures they expect. This catches
+    the ones nobody expected: a single malformed link (urllib's "Invalid IPv6
+    URL") once stopped an overnight crawl. The page is recorded as failed with
+    the reason, so it is visible and not retried forever.
+    """
+    try:
+        process_page(crawl_id, url, html, category)
+    except Exception as e:
+        logger.exception("Processing %s failed - marking it failed and continuing", url)
+        data_service.set_crawl_state(crawl_id, data_service.STATE_FAILED,
+                                     last_error=f"processing failed: {type(e).__name__}: {e}")
 
 
 def process_page(crawl_id:int, url:str, html:str, category=None):
@@ -422,7 +439,7 @@ def resume_pending():
         # here, a link to it found later in the run would queue it for a fresh
         # fetch, producing a second crawl row and a duplicate set of records.
         fetching_service.mark_processed(row["source_url"])
-        process_page(row["crawl_id"], row["source_url"], html, category)
+        process_page_safely(row["crawl_id"], row["source_url"], html, category)
         processed += 1
     logger.info("Resumed %d page(s)", processed)
     return processed

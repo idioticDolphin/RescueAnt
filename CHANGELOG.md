@@ -126,6 +126,10 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Fixed
 
+- **One malformed link ended the whole crawl.** An `href` urllib could not parse
+  ("Invalid IPv6 URL") raised out of link extraction and stopped the run.
+  Such links are now skipped, and any unexpected error while processing a
+  page marks that page failed, with the reason, instead of ending the run.
 - **Pages fetched but never processed were recorded as finished** and
   therefore never retried. 4,303 of 5,796 pages in one run — 74% of its
   fetching — were unreachable this way.
@@ -168,5 +172,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 513 tests. Each regression test names the failure it exists to
+178 → 515 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.
