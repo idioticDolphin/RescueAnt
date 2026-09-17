@@ -107,6 +107,43 @@ def is_admissible(record):
     return True, None
 
 
+def _salvage_truncated_object(text):
+    """
+    Recover the complete fields of a record cut off mid-value.
+
+    A single record is one object, so the list salvage above cannot help it and
+    the whole page was discarded - a station's name and phone number lost
+    because its description ran past the token cap. Closing the object after
+    the last field that arrived intact keeps them.
+    """
+    decoder = json.JSONDecoder()
+    depth, in_string, escaped, cuts = 0, False, False, []
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            depth += 1
+        elif char in "}]":
+            depth -= 1
+        elif char == "," and depth == 1:
+            cuts.append(index)
+    for cut in reversed(cuts):
+        try:
+            obj, _ = decoder.raw_decode(text[:cut] + "}")
+        except ValueError:
+            continue
+        return obj if obj else None
+    return None
+
+
 def _salvage_truncated_json(raw):
     """
     Recover whatever is parseable from a completion that was cut off.
@@ -121,6 +158,8 @@ def _salvage_truncated_json(raw):
     if not isinstance(raw, str):
         return None
     text = raw.strip()
+    if text.startswith("{"):
+        return _salvage_truncated_object(text)
     if not text.startswith("["):
         return None
     decoder = json.JSONDecoder()

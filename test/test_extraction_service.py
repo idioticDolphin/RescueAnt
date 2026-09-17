@@ -603,3 +603,25 @@ def test_a_care_word_in_the_name_overrides_an_excluded_token(monkeypatch):
     monkeypatch.setattr(extraction_service.config, "keep_record_name_tokens", ["igelpflegestation"], raising=False)
     assert extraction_service.is_admissible({"name": "Alpenzoo Innsbruck"})[0] is False
     assert extraction_service.is_admissible({"name": "Igelpflegestation Walter Zoo"})[0] is True
+
+
+def test_a_truncated_single_record_keeps_the_fields_that_arrived(monkeypatch):
+    # Generation stops at max_tokens wherever it happens to be; the page's
+    # name and phone number are no less true for the description being cut.
+    raw = ('{"name": "Wildtierhilfe Schellhorn", "telephone": "01525 4990", '
+           '"description": "Wir betreuen verletzte Wildtiere und ')
+    llm = _make_llm_returning_raw(raw)
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+
+    data, _ = extraction_service.extract_information("<html>x</html>", make_fake_category(), "http://e.com/")
+
+    assert data["name"] == "Wildtierhilfe Schellhorn"
+    assert data["telephone"] == "01525 4990"
+    assert "description" not in data
+
+
+def test_a_record_truncated_before_anything_usable_is_still_nothing(monkeypatch):
+    llm = _make_llm_returning_raw('{"name": "Wildtierhilfe Schel')
+    monkeypatch.setattr(extraction_service.llm_service, "get_model", lambda mid: llm)
+
+    assert extraction_service.extract_information("<html>x</html>", make_fake_category(), "http://e.com/") is None

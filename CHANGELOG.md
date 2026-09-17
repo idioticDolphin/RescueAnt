@@ -179,6 +179,10 @@ Entries begin at the first release; earlier development is not itemised.
   reclassified into a category that produces no records kept the ones it had
   when the per-site extraction cap applied. Both are cleared now, and
   reprocessing no longer applies the page budget to pages already fetched.
+- **A single record cut off mid-value was discarded whole.** Salvage only
+  understood truncated listings, so a station page whose description ran past
+  the token cap lost its name and phone number too. The record is now closed
+  after the last field that arrived intact.
 - **One malformed link ended the whole crawl.** An `href` urllib could not parse
   ("Invalid IPv6 URL") raised out of link extraction and stopped the run.
   Such links are now skipped, and any unexpected error while processing a
@@ -225,5 +229,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 567 tests. Each regression test names the failure it exists to
+178 → 569 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.
