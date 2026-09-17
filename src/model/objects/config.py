@@ -81,6 +81,12 @@ class Config(BaseModel):
     mislabel_instruction: str | None = None
     # Where a page judged mislabeled is re-filed; None keeps its category.
     mislabeled_category: str | None = None
+    # Development only: serve pages already in the store instead of fetching
+    # them again. A crawl run this way sees no site changes since the page was
+    # stored, which is the point for a reproducible dev run and wrong for a
+    # production one.
+    reuse_stored_pages: bool = False
+    reuse_max_age_days: float = 0
 
     # --- Boilerplate stripping (P8) --------------------------------------
     # Remove lines that recur across a site's pages (headers/footers carrying

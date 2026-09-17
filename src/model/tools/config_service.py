@@ -207,6 +207,8 @@ def load_config(configs:dict=None):
         max_pages_per_site = _opt_int(configs, "max_pages_per_site", 0)
         max_extractions_per_site = _opt_int(configs, "max_extractions_per_site", 0)
         mislabel_check = configs.get("mislabel_check", "False") == "True"
+        reuse_stored_pages = configs.get("reuse_stored_pages", "False") == "True"
+        reuse_max_age_days = _opt_float(configs, "reuse_max_age_days", 0)
         mislabeled_category = (configs.get("mislabeled_category") or "").strip().strip('"') or None
         mislabel_instruction = (configs.get("mislabel_instruction") or "").strip().strip('"') or None
         strip_site_boilerplate = configs.get("strip_site_boilerplate", "False") == "True"
@@ -328,6 +330,8 @@ def load_config(configs:dict=None):
             max_pages_per_site = max_pages_per_site,
             max_extractions_per_site = max_extractions_per_site,
             mislabel_check = mislabel_check,
+            reuse_stored_pages = reuse_stored_pages,
+            reuse_max_age_days = reuse_max_age_days,
             mislabeled_category = mislabeled_category,
             mislabel_instruction = mislabel_instruction,
             strip_site_boilerplate = strip_site_boilerplate,

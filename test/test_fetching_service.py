@@ -901,3 +901,98 @@ async def test_a_successful_fetch_records_no_error(monkeypatch):
     await fetching_service.get_content("https://a.example/ok", browser=browser)
 
     assert "https://a.example/ok" not in fetching_service.fetch_errors
+
+
+# ---------------------------------------------------------------------------
+# reusing stored pages instead of refetching (development runs)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def reuse_env(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetching_service.page_store, "STORE_ROOT", tmp_path / "store")
+    monkeypatch.setattr(fetching_service, "processed_urls", {})
+    monkeypatch.setattr(fetching_service, "fetched_content", {})
+    monkeypatch.setattr(fetching_service, "fetch_errors", {})
+    touched = {"robots": 0, "polite": 0}
+    def robots(url, user_agent="*"):
+        touched["robots"] += 1
+        return True
+    async def polite(url):
+        touched["polite"] += 1
+    monkeypatch.setattr(fetching_service, "_is_allowed", robots)
+    monkeypatch.setattr(fetching_service, "_wait_politely", polite)
+    return touched
+
+
+def _set_reuse(monkeypatch, on, max_age_days=0):
+    monkeypatch.setattr(fetching_service.config, "reuse_stored_pages", on, raising=False)
+    monkeypatch.setattr(fetching_service.config, "reuse_max_age_days", max_age_days, raising=False)
+
+
+@pytest.mark.asyncio
+async def test_a_stored_page_is_served_without_touching_the_site(monkeypatch, reuse_env):
+    _set_reuse(monkeypatch, True)
+    digest, path = fetching_service.page_store.store("<html>from disk</html>")
+    fetching_service.page_store.remember("https://a.example/", digest, path)
+    browser = MagicMock()
+
+    html = await fetching_service.get_content("https://a.example/", browser=browser)
+
+    assert html == "<html>from disk</html>"
+    browser.new_page.assert_not_called()
+    assert reuse_env == {"robots": 0, "polite": 0}   # no request of any kind
+    assert fetching_service.fetched_content["https://a.example/"] == (digest, path)
+
+
+@pytest.mark.asyncio
+async def test_with_reuse_off_the_store_is_ignored(monkeypatch, reuse_env):
+    _set_reuse(monkeypatch, False)
+    digest, path = fetching_service.page_store.store("<html>from disk</html>")
+    fetching_service.page_store.remember("https://a.example/", digest, path)
+    browser = MagicMock()
+    browser.new_page = _async_mock(_working_page("<html>live</html>"))
+
+    html = await fetching_service.get_content("https://a.example/", browser=browser)
+
+    assert html == "<html>live</html>"
+
+
+@pytest.mark.asyncio
+async def test_a_page_not_in_the_store_is_fetched_live(monkeypatch, reuse_env):
+    _set_reuse(monkeypatch, True)
+    browser = MagicMock()
+    browser.new_page = _async_mock(_working_page("<html>live</html>"))
+
+    html = await fetching_service.get_content("https://new.example/", browser=browser)
+
+    assert html == "<html>live</html>"
+
+
+@pytest.mark.asyncio
+async def test_a_live_fetch_is_indexed_for_later_crawls(monkeypatch, reuse_env):
+    _set_reuse(monkeypatch, False)
+    browser = MagicMock()
+    browser.new_page = _async_mock(_working_page("<html>live</html>"))
+
+    await fetching_service.get_content("https://b.example/", browser=browser)
+
+    assert fetching_service.page_store.lookup("https://b.example/") is not None
+
+
+@pytest.mark.asyncio
+async def test_a_round_served_entirely_from_the_store_launches_no_browser(monkeypatch, reuse_env):
+    """Starting Chromium costs seconds per round; a development run replaying
+    stored pages should not pay it at all."""
+    _set_reuse(monkeypatch, True)
+    for u in ("https://a.example/", "https://b.example/"):
+        d, p = fetching_service.page_store.store(f"<html>{u}</html>")
+        fetching_service.page_store.remember(u, d, p)
+    launched = []
+    monkeypatch.setattr(fetching_service, "async_playwright",
+                        lambda: launched.append(1) or (_ for _ in ()).throw(AssertionError("launched")))
+    monkeypatch.setattr(fetching_service, "url_queue", ["https://a.example/", "https://b.example/"])
+
+    await fetching_service.parse_queue()
+
+    assert launched == []
+    assert fetching_service.processed_urls["https://b.example/"] == "<html>https://b.example/</html>"

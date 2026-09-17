@@ -26,6 +26,12 @@ def _parse_args():
         help="Limit --reprocess to pages currently in this category",
     )
     parser.add_argument(
+        "--index-store", nargs="+", metavar="DB", default=None,
+        help="Record the pages stored by these crawl databases in the page "
+             "store's URL index and exit, so reuse_stored_pages can serve them "
+             "to later crawls",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Show debug-level logging (raw LLM outputs, per-field config details, ...)",
     )
@@ -48,6 +54,18 @@ if __name__ == "__main__":
     import model.tools.config_service as config_service
     if args.config_path is not None:
         config_service.load_config(config_service._read_config(Path(args.config_path)))
+
+    if args.index_store:
+        from model.tools import page_store
+        page_store.configure(config_service.get_config().page_store_path)
+        for db in args.index_store:
+            count = page_store.index_database(db)
+            logging.getLogger("main").info("Read %d stored page(s) from %s", count, db)
+        # Distinct URLs, not the sum above: the same URL is usually recorded
+        # by more than one database.
+        logging.getLogger("main").info("Page store can now serve %d distinct URL(s)",
+                                       page_store.indexed_count())
+        raise SystemExit(0)
 
     import model.orchestrator as orchestrator
     if args.resolve:

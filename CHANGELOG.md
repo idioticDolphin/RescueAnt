@@ -61,6 +61,17 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **`reuse_stored_pages`**, for development runs: pages already in the page
+  store are served from disk rather than refetched, with no request to the
+  site. The store keeps a URL index of its own, so this works against a fresh
+  crawl database. `--index-store` imports the pages recorded by earlier crawl
+  databases.
+- **`mislabel_check`**: extraction may answer that a page is not what it was
+  classified as, at a cost of a few tokens instead of a full record. The page
+  is re-filed and its original category kept in `reclassified_from`. Off by
+  default.
+- **`--show-misses`** on the extraction benchmark, printing gold against
+  extracted for every field that did not match.
 
 ### Changed
 
@@ -118,11 +129,17 @@ Entries begin at the first release; earlier development is not itemised.
 - **Gold labels were read with the platform's default encoding**, so on
   Windows every umlaut arrived garbled and `accepted_animals` scored 0.00 for
   every record regardless of what was extracted.
+- **Extraction translated values out of the page's language** — a German
+  page's "Greifvögel" was stored as "Raptors". Extraction prompts now require
+  the page's own wording.
+- **A telephone field holding two numbers** joined by a word ("… oder …")
+  was either discarded or stored unusable. The first number is kept, found by
+  its shape rather than by the joining word, so it works in any language.
 - **An interrupted model download was left at the real filename**, where it
   could be loaded as if complete. Downloads now go to `.part` and are renamed
   on success.
 
 ### Testing
 
-178 → 456 tests. Each regression test names the failure it exists to
+178 → 491 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

@@ -107,3 +107,94 @@ def load(relative: str):
 def exists(relative: str) -> bool:
     """True if a stored page is present on disk."""
     return bool(relative) and absolute_path(relative).is_file()
+
+
+# ---------------------------------------------------------------------------
+# URL index
+#
+# Bodies are addressed by content hash, which is what lets two URLs share one
+# file - and also what left a new crawl unable to find anything: the only
+# record of which URL a body came from lived in the crawl database that
+# fetched it. A development run against a fresh database therefore refetched
+# every page it had fetched before.
+#
+# This index lives inside the store directory, so the store describes itself
+# and a crawl with an empty database can still use it.
+# ---------------------------------------------------------------------------
+
+import sqlite3  # noqa: E402
+import time  # noqa: E402
+
+_INDEX_NAME = "urls.sqlite"
+
+
+def _index():
+    STORE_ROOT.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(STORE_ROOT / _INDEX_NAME)
+    connection.execute("""CREATE TABLE IF NOT EXISTS pages (
+        url TEXT PRIMARY KEY, sha256 TEXT, path TEXT NOT NULL, fetched_at REAL)""")
+    return connection
+
+
+def remember(url: str, digest: str, relative: str, fetched_at: float = None):
+    """Record that `url` was fetched as the stored body at `relative`.
+
+    A later fetch of the same URL replaces the entry, so lookups return the
+    most recent body."""
+    if not url or not relative:
+        return
+    with _index() as connection:
+        connection.execute(
+            "INSERT OR REPLACE INTO pages (url, sha256, path, fetched_at) VALUES (?, ?, ?, ?)",
+            (url, digest, relative, time.time() if fetched_at is None else fetched_at))
+
+
+def lookup(url: str, max_age_seconds: float = None, now: float = None):
+    """Return (sha256, relative_path) of the stored body for `url`, or None.
+
+    None when the URL was never stored, when its entry is older than
+    max_age_seconds, or when the file it names has gone - a refetch is better
+    than handing back a path that cannot be read."""
+    if not url or not (STORE_ROOT / _INDEX_NAME).exists():
+        return None
+    with _index() as connection:
+        row = connection.execute(
+            "SELECT sha256, path, fetched_at FROM pages WHERE url = ?", (url,)).fetchone()
+    if row is None:
+        return None
+    digest, relative, fetched_at = row
+    if max_age_seconds and fetched_at is not None:
+        if (time.time() if now is None else now) - fetched_at > max_age_seconds:
+            return None
+    if not exists(relative):
+        return None
+    return digest, relative
+
+
+def index_database(db_path) -> int:
+    """Seed the index from an existing crawl database and return the count.
+
+    Pages fetched before the index existed are recorded only in the crawl
+    databases that fetched them. The file's modification time stands in for
+    when it was fetched, since the crawl database's own timestamps are
+    monotonic-clock values with no fixed origin."""
+    imported = 0
+    with sqlite3.connect(db_path) as source:
+        rows = source.execute(
+            """SELECT source_url, content_sha256, content_path FROM crawls
+               WHERE content_path IS NOT NULL""").fetchall()
+    for url, digest, relative in rows:
+        if not exists(relative):
+            continue
+        remember(url, digest, relative,
+                 fetched_at=absolute_path(relative).stat().st_mtime)
+        imported += 1
+    return imported
+
+
+def indexed_count() -> int:
+    """How many distinct URLs the index can serve."""
+    if not (STORE_ROOT / _INDEX_NAME).exists():
+        return 0
+    with _index() as connection:
+        return connection.execute("SELECT COUNT(*) FROM pages").fetchone()[0]

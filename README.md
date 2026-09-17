@@ -426,6 +426,24 @@ python src/main.py bot.config --reprocess extract --site example.org
 moves *one* boundary, and re-running the whole corpus can take hours to
 re-answer questions that were already right.
 
+### Replaying stored pages during development
+
+Set `reuse_stored_pages = True` and a crawl serves any page already in the
+page store instead of fetching it: no request reaches the site, not even for
+`robots.txt`, and a round served entirely from disk never starts a browser.
+That makes a development run fast, repeatable and free for the sites being
+crawled. It also means the crawl cannot see anything that changed since a page
+was stored - so leave it off when building a directory you intend to use.
+
+Pages stored by earlier crawls can be made available with:
+
+```bash
+python src/main.py bot.config --index-store crawl.db older_crawl.db
+```
+
+`reuse_max_age_days` limits reuse to pages stored within that many days; `0`
+accepts any age.
+
 ### Deduplicating into entities
 
 ```bash

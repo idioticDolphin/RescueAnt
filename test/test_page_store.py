@@ -67,3 +67,67 @@ def test_store_is_sharded_not_one_flat_directory():
     _digest, path = page_store.store("<html>x</html>")
     # <root>/ab/cd/<digest>.html.gz  -> two shard levels
     assert len(page_store.absolute_path(path).relative_to(page_store.STORE_ROOT).parts) == 3
+
+
+# ---------------------------------------------------------------------------
+# finding a stored page by URL, for reuse across crawls
+#
+# A development run against a fresh database refetched every page it had
+# already fetched before, hitting the same sites again for nothing. The bodies
+# were on disk all along, but addressed by content hash, so a new crawl had no
+# way to find them. The index lives inside the store rather than in a crawl
+# database, which is what lets a crawl with an empty database use it.
+# ---------------------------------------------------------------------------
+
+def test_a_remembered_page_is_found_by_url():
+    digest, path = page_store.store("<html>kept</html>")
+    page_store.remember("https://a.example/", digest, path)
+
+    assert page_store.lookup("https://a.example/") == (digest, path)
+
+
+def test_an_unknown_url_is_not_found():
+    assert page_store.lookup("https://never.example/") is None
+
+
+def test_remembering_again_replaces_the_older_body():
+    old = page_store.store("<html>old</html>")
+    new = page_store.store("<html>new</html>")
+    page_store.remember("https://a.example/", *old)
+    page_store.remember("https://a.example/", *new)
+
+    assert page_store.lookup("https://a.example/") == new
+
+
+def test_a_page_older_than_the_limit_is_not_reused():
+    digest, path = page_store.store("<html>stale</html>")
+    page_store.remember("https://a.example/", digest, path, fetched_at=1000.0)
+
+    assert page_store.lookup("https://a.example/", max_age_seconds=60, now=5000.0) is None
+    assert page_store.lookup("https://a.example/", max_age_seconds=10_000, now=5000.0) == (digest, path)
+
+
+def test_an_index_entry_whose_file_is_gone_is_not_returned():
+    """Better a refetch than handing back a path that cannot be read."""
+    digest, path = page_store.store("<html>gone</html>")
+    page_store.remember("https://a.example/", digest, path)
+    page_store.absolute_path(path).unlink()
+
+    assert page_store.lookup("https://a.example/") is None
+
+
+def test_the_index_can_be_seeded_from_an_existing_crawl_database(tmp_path):
+    """Pages fetched before the index existed are only recorded in old crawl
+    databases; importing them makes that whole history reusable."""
+    import sqlite3
+    digest, path = page_store.store("<html>historic</html>")
+    db = tmp_path / "old.db"
+    with sqlite3.connect(db) as c:
+        c.execute("CREATE TABLE crawls (source_url TEXT, content_path TEXT, content_sha256 TEXT)")
+        c.execute("INSERT INTO crawls VALUES (?, ?, ?)", ("https://h.example/", path, digest))
+        c.execute("INSERT INTO crawls VALUES (?, ?, ?)", ("https://failed.example/", None, None))
+
+    imported = page_store.index_database(db)
+
+    assert imported == 1
+    assert page_store.lookup("https://h.example/") == (digest, path)

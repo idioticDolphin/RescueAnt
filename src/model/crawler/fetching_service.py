@@ -58,6 +58,26 @@ async def _wait_politely(url):
             await asyncio.sleep(remaining)
     _last_request_time[domain] = time.monotonic()
 
+def _serve_from_store(url):
+    """Serve a URL from the page store when reuse_stored_pages is on.
+
+    Development runs replay stored bodies rather than refetching them. Returns
+    the HTML, or None when reuse is off or no usable stored body exists."""
+    if not getattr(config, "reuse_stored_pages", False):
+        return None
+    max_age_days = getattr(config, "reuse_max_age_days", 0) or 0
+    hit = page_store.lookup(url, max_age_seconds=max_age_days * 86400 or None)
+    if not hit:
+        return None
+    html = page_store.load(hit[1])
+    if not html:
+        return None
+    logger.debug("Served %s from the page store (reuse_stored_pages)", url)
+    fetched_content[url] = hit
+    processed_urls[url] = html
+    return html
+
+
 async def get_content(url, browser=None):
     """
     Fetch and cache page content for a single URL.
@@ -67,6 +87,12 @@ async def get_content(url, browser=None):
     """
     if url in processed_urls.keys():
         return processed_urls[url]
+
+    # Checked before robots.txt and politeness on purpose: a stored page costs
+    # the site nothing, and asking for its robots.txt again would.
+    stored = _serve_from_store(url)
+    if stored is not None:
+        return stored
 
     if not _is_allowed(url):
         logger.info("Skipping %s (disallowed by robots.txt)", url)
@@ -112,6 +138,9 @@ async def get_content(url, browser=None):
         digest, path = page_store.store(html)
         if path:
             fetched_content[url] = (digest, path)
+            # Index by URL too, so a later crawl - even against a fresh
+            # database - can find this body instead of refetching it.
+            page_store.remember(url, digest, path)
 
     processed_urls[url] = html
     return html
@@ -135,6 +164,11 @@ async def parse_queue(max_concurrency: int = 4):
     to persist and process, and a transient browser fault must not end the run.
     """
     global url_queue
+    # Serve what the store already holds first, so a round replayed entirely
+    # from disk never starts a browser at all.
+    for url in url_queue:
+        if url not in processed_urls:
+            _serve_from_store(url)
     for attempt in range(1, _FETCH_ATTEMPTS + 1):
         pending = [url for url in url_queue if url not in processed_urls]
         if not pending:
