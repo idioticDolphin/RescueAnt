@@ -273,3 +273,20 @@ def test_a_failed_confirmation_keeps_the_first_answer(monkeypatch):
     monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
 
     assert category_service.categorize_website("<html>list</html>").name == "LIST"
+
+
+def test_a_host_token_assigns_its_category_without_asking_the_model(monkeypatch):
+    llm = _make_llm_returning("STATION")
+    monkeypatch.setattr(category_service.llm_service, "get_model", lambda model_id: llm)
+    _configure(monkeypatch, category_host_tokens={"HUB": ["kitz"]})
+
+    result = category_service.categorize_website("<html>x</html>", url="https://www.kitzrettung-holtland.de/kontakt")
+
+    assert result.name == "HUB"
+    llm.create_chat_completion.assert_not_called()
+
+
+def test_host_tokens_match_only_the_host(monkeypatch):
+    _configure(monkeypatch, category_host_tokens={"HUB": ["kitz"]})
+    assert category_service.url_prior("https://wildtierschutz.de/kitzrettung") is None
+    assert category_service.url_prior("https://kitzrettung.de/").name == "HUB"

@@ -64,6 +64,10 @@ Entries begin at the first release; earlier development is not itemised.
   them. Probes for the largest usable context where none is recorded, and
   refuses to score a model unless the card is idle first.
 - **Failed fetches record why they failed** in the crawl row's `last_error`.
+- **Lexicon filters**: `category_host_tokens[...]` gives every page of a site
+  whose host contains a token that category, without a model call;
+  `exclude_record_name_tokens` rejects records by name. The default lexicon
+  uses them to keep fawn-rescue groups out.
 - **`follow_record_urls[...]`**: websites named in a category's records are
   queued ahead of ordinary links, at `record_url_priority[...]`. The default
   taxonomy turns it on for listings, so each listed station's own site - the
@@ -196,5 +200,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 532 tests. Each regression test names the failure it exists to
+178 → 537 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

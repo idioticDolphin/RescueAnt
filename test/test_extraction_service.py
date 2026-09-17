@@ -487,3 +487,10 @@ def test_a_record_is_still_a_record_with_the_check_on(monkeypatch):
 
     assert data is not extraction_service.MISLABELED
     assert data["name"] == "Station"
+
+
+def test_a_record_named_with_an_excluded_token_is_rejected(monkeypatch):
+    monkeypatch.setattr(extraction_service.config, "exclude_record_name_tokens", ["kitz"], raising=False)
+    ok, reason = extraction_service.is_admissible({"name": "Rehkitzrettung Hattingen e.V."})
+    assert not ok and "kitz" in reason
+    assert extraction_service.is_admissible({"name": "Igelhilfe Luzern"})[0] is True

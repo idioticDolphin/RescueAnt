@@ -83,6 +83,14 @@ def is_admissible(record):
         if not record.get(field):
             return False, f"missing required field {field!r}"
 
+    # Listings mix what the database wants with what it does not, and a name
+    # can say which: "Rehkitzrettung ..." is a fawn-rescue group whichever
+    # listing it appears on.
+    name = str(record.get("name") or "").casefold()
+    for token in getattr(config, "exclude_record_name_tokens", None) or ():
+        if token in name:
+            return False, f"name contains excluded token {token!r}"
+
     if config.require_any_role:
         # "any of these roles" - a record qualifies if it carries at least one
         # populated field drawn from the union of the listed roles. Requiring

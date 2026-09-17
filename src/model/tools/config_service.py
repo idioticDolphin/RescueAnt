@@ -232,6 +232,11 @@ def load_config(configs:dict=None):
         boilerplate_threshold = _opt_float(configs, "boilerplate_threshold", 0.6)
         max_batch_size = _opt_int(configs, "max_batch_size", 0)
         domain_denylist = _csv_list(configs.get("domain_denylist", ""))
+        category_host_tokens = {
+            key[len("category_host_tokens["):-1]: [t.lower() for t in _csv_list(value)]
+            for key, value in configs.items()
+            if key.startswith("category_host_tokens[") and key.endswith("]")}
+        exclude_record_name_tokens = [t.lower() for t in _csv_list(configs.get("exclude_record_name_tokens", ""))]
         skip_url_extensions = [e.lower() for e in _csv_list(configs.get("skip_url_extensions", ""))]
         try:
             referrer_weights = {k: float(v) for k, v in
@@ -317,6 +322,9 @@ def load_config(configs:dict=None):
                 category, is_list_category, check_linked_urls, model_path,
             )
         names = {c.name for c in categories}
+        for name in category_host_tokens:
+            if name not in names:
+                raise ValueError(f"category_host_tokens[{name}] names no category")
         for c in categories:
             if c.confirm_fallback and c.confirm_fallback not in names:
                 raise ValueError(f"confirm_fallback[{c.name}] names no category: {c.confirm_fallback!r}")
@@ -369,6 +377,8 @@ def load_config(configs:dict=None):
             boilerplate_threshold = boilerplate_threshold,
             max_batch_size = max_batch_size,
             domain_denylist = domain_denylist,
+            category_host_tokens = category_host_tokens,
+            exclude_record_name_tokens = exclude_record_name_tokens,
             skip_url_extensions = skip_url_extensions,
             referrer_weights = referrer_weights,
             discovery_priority = _opt_float(configs, "discovery_priority", 50.0),

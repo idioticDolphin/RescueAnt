@@ -56,6 +56,10 @@ def main():
     ap.add_argument("--db", default="crawl.db")
     ap.add_argument("--question", default=DEFAULT_QUESTION)
     ap.add_argument("--include-unsure", action="store_true")
+    ap.add_argument("--labels", default=str(LABELS),
+                    help="CSV of url, accept (yes|no) or station_list, confidence")
+    ap.add_argument("--answers", help="pipe-separated answers, the accepted one included")
+    ap.add_argument("--accept", help="the answer that confirms the page")
     args = ap.parse_args()
 
     config_service.load_config()
@@ -66,7 +70,12 @@ def main():
     llm_id = config.get_category_model_id()
     llm = llm_service.get_model(llm_id)
 
-    with open(LABELS, encoding="utf-8") as f:
+    global ANSWERS, ACCEPT
+    if args.answers:
+        ANSWERS = tuple(args.answers.split("|"))
+    if args.accept:
+        ACCEPT = args.accept
+    with open(args.labels, encoding="utf-8") as f:
         labels = [r for r in csv.DictReader(f) if args.include_unsure or r["confidence"] == "sure"]
     c = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     lost = kept_junk = correct = 0
@@ -77,13 +86,14 @@ def main():
         html = page_store.load(hit[0]) if hit else None
         if not html:
             continue
+        want = row.get("accept") or row.get("station_list")
         said = ask(llm, llm_id, args.question, html, row["url"], config)
         answer = "yes" if said == ACCEPT else "no"
-        ok = answer == row["station_list"]
+        ok = answer == want
         correct += ok
-        lost += row["station_list"] == "yes" and answer == "no"
-        kept_junk += row["station_list"] == "no" and answer == "yes"
-        print(f"{'ok  ' if ok else 'FAIL'} want={row['station_list']:<3} got={said:<17} {row['url'][:70]}", flush=True)
+        lost += want == "yes" and answer == "no"
+        kept_junk += want == "no" and answer == "yes"
+        print(f"{'ok  ' if ok else 'FAIL'} want={want:<3} got={said:<17} {row['url'][:70]}", flush=True)
     n = correct + lost + kept_junk
     print(f"\n{correct}/{n} correct; station lists rejected: {lost}; other lists accepted: {kept_junk}; "
           f"{(time.monotonic() - started) / max(n, 1):.1f}s per page")

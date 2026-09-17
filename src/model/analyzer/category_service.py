@@ -1,5 +1,6 @@
 import logging
 from collections import Counter
+from urllib.parse import urlsplit
 
 import model.tools.config_service as config_service
 import model.tools.llm_service as llm_service
@@ -23,10 +24,24 @@ def url_prior(url):
     (`url_prior_category`), so a deployment can route them to a links-only
     category - keeping their outbound links - or discard them outright.
 
+    Before that, a host containing one of `category_host_tokens[...]` decides
+    the category for every page of the site.
+
     Returns None when the feature is unconfigured, keeping this a no-op for
     configs written before it existed.
     """
-    if not url or not config.url_tokens_exclude or not config.url_prior_category:
+    if not url:
+        return None
+    # A host token names what the whole site is: a fawn-rescue group's contact
+    # page says little more than a name and a phone number, and the model
+    # called such pages STATION even when asked about fawn rescue directly -
+    # while the group's domain says "kitzrettung" on every page.
+    host = urlsplit(url).netloc.lower()
+    for name, tokens in (getattr(config, "category_host_tokens", None) or {}).items():
+        if any(token in host for token in tokens):
+            logger.debug("Host token assigned %s to %s", name, url)
+            return config.get_category(name)
+    if not config.url_tokens_exclude or not config.url_prior_category:
         return None
     tokens = url_service.path_tokens(url)
     if not tokens.intersection(config.url_tokens_exclude):

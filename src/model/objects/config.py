@@ -101,6 +101,11 @@ class Config(BaseModel):
     # networks, consent/CDN infrastructure). Deployment-specific, so it lives
     # in configuration rather than in code.
     domain_denylist: list[str] = []
+    # category -> substrings of a page's host that decide its category without
+    # asking the model (a fawn-rescue group's own domain, say).
+    category_host_tokens: dict[str, list[str]] = {}
+    # A record whose name contains one of these is not admissible.
+    exclude_record_name_tokens: list[str] = []
     # Links whose path ends in one of these are never fetched.
     skip_url_extensions: list[str] = []
     # Stop crawling a site after this many low-value pages with nothing

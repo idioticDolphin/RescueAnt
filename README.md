@@ -197,6 +197,7 @@ python experiments/model_sweep.py --only <name>
    | `fields`, `field[name]` | schema | what to extract, and each field's role/weight/normaliser/fusion strategy |
    | `require_fields`, `require_any_role` | schema | the admissibility gate a record must pass to be stored |
    | `url_tokens[...]`, `domain_denylist` | lexicon | path tokens and domains to prefer or refuse |
+   | `category_host_tokens[...]`, `exclude_record_name_tokens` | lexicon | host substrings that decide a site's category without asking the model; name substrings that make a record inadmissible |
 
 7. **Provide seed data**
 

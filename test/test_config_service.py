@@ -682,3 +682,24 @@ def test_record_url_following_is_off_by_default(monkeypatch, tmp_path, sample_co
     config_service.load_config(config_service._read_config(config_file))
     station = config_service.get_config().get_category("STATION")
     assert station.follow_record_urls is False
+
+
+def test_lexicon_filters_are_read(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text.replace("categories = STATION|IRRELEVANT;", "categories = STATION|HUB|IRRELEVANT;")
+                           + "relevancy[HUB] = LINKS;\ncheck_linked_urls[HUB] = True;\n"
+                           + 'category_host_tokens[HUB] = "Kitz", "faon";\n'
+                           + 'exclude_record_name_tokens = "Kitz";\n')
+    config_service.load_config(config_service._read_config(config_file))
+    cfg = config_service.get_config()
+    assert cfg.category_host_tokens == {"HUB": ["kitz", "faon"]}
+    assert cfg.exclude_record_name_tokens == ["kitz"]
+
+
+def test_host_tokens_must_name_a_category(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text + 'category_host_tokens[NOWHERE] = "kitz";\n')
+    with pytest.raises(ConfigError):
+        config_service.load_config(config_service._read_config(config_file))
