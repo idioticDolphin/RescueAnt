@@ -72,6 +72,10 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--split", choices=("all", "dev", "test"), default="all")
     ap.add_argument("--include-unsure", action="store_true")
+    ap.add_argument("--show-test-cases", action="store_true",
+                    help="print per-page results for the test split too; once a "
+                         "test page has been looked at while tuning, it no longer "
+                         "measures generalisation")
     ap.add_argument("--model", help="GGUF to classify with, overriding the config")
     ap.add_argument("--context", type=int, help="context size for --model")
     args = ap.parse_args()
@@ -133,10 +137,13 @@ def main():
         confusion[(expected, got)] += 1
         rows.append((needle, expected, got, ok))
 
+    hide = args.split == "test" and not args.show_test_cases
     width = max(len(r[0]) for r in rows)
-    for needle, expected, got, ok in rows:
+    for needle, expected, got, ok in ([] if hide else rows):
         mark = "ok  " if ok else "FAIL"
         print(f"{mark} {needle:<{width}}  expected={expected:<11} got={got}")
+    if hide:
+        print("(per-page results hidden for the test split; --show-test-cases prints them)")
 
     scored = [r for r in rows if r[2] not in ("MISSING", "NOCONTENT")]
     correct = sum(1 for r in scored if r[3])
@@ -151,6 +158,8 @@ def main():
         print(f"classification: {total:.0f}s for {len(elapsed)} pages "
               f"= {total / len(elapsed):.1f}s per page")
 
+    if hide:
+        return
     print("\nmistakes (expected -> got):")
     for (exp, got), n in sorted(confusion.items(), key=lambda kv: -kv[1]):
         if exp != got:
