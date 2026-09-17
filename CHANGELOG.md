@@ -92,6 +92,10 @@ Entries begin at the first release; earlier development is not itemised.
   page is extracted as a record, as a listing or not at all, with missed and
   spurious extractions counted apart. Per-page results for the test split are
   hidden unless `--show-test-cases` is given.
+- **`experiments/entity_precision.py`** draws a fixed random sample of
+  resolved entities into a labelling sheet and scores the judged sheet,
+  broken down by whether records came from listings or organisations' own
+  pages.
 - **`experiments/extraction_profile.py`** splits extraction calls into prompt
   processing and generation, and **`grammar_sampler_check.py`** verifies that
   the fast sampler produces the same completions as llama-cpp-python's own.
@@ -129,6 +133,11 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Fixed
 
+- **Reprocessing left old records behind.** Pages reprocessed from sites over
+  the page budget were skipped with their records still attached, and a page
+  reclassified into a category that produces no records kept the ones it had
+  when the per-site extraction cap applied. Both are cleared now, and
+  reprocessing no longer applies the page budget to pages already fetched.
 - **One malformed link ended the whole crawl.** An `href` urllib could not parse
   ("Invalid IPv6 URL") raised out of link extraction and stopped the run.
   Such links are now skipped, and any unexpected error while processing a
@@ -175,5 +184,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 515 tests. Each regression test names the failure it exists to
+178 → 517 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

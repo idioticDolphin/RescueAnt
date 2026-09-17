@@ -265,3 +265,56 @@ def test_a_page_whose_content_vanished_is_still_requeued(monkeypatch):
     orchestrator.resume_pending()
 
     assert "https://gone.example/page" in fetching_service.url_queue
+
+
+# ---------------------------------------------------------------------------
+# reprocessing under a changed taxonomy leaves no stale records
+# ---------------------------------------------------------------------------
+
+def _with_config(monkeypatch, **update):
+    hub = Category(name="HUB", relevancy=Relevancy.LINKS, process_links=False)
+    config = config_service.get_config()
+    config = config.model_copy(update={"categories": list(config.categories) + [hub], **update})
+    monkeypatch.setattr(data_service, "config", config)
+    monkeypatch.setattr(config_service, "_session_config", config)
+    monkeypatch.setattr(page_store, "configure", lambda path: None)
+    return config
+
+
+def _extracted_page(url):
+    digest, path = page_store.store(f"<html>{url}</html>")
+    crawl_id = data_service.save_crawl_instance(url, 1.0, True, content_path=path,
+                                                content_sha256=digest, site="a.com")
+    data_service.save_site_category(crawl_id, "STATION")
+    data_service.save_extraction(crawl_id, {"name": url})
+    data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
+    return crawl_id
+
+
+def test_reprocessing_does_not_skip_stored_pages_over_the_page_budget(monkeypatch):
+    # The budget limits what is fetched. Pages already fetched are paid for;
+    # skipping them on reprocess left their old records behind, uncategorised.
+    _with_config(monkeypatch, max_pages_per_site=1)
+    _fake_services(monkeypatch)
+    monkeypatch.setattr(orchestrator, "fetching_service", MagicMock())
+    for page in ("a", "b", "c"):
+        _extracted_page(f"http://a.com/{page}")
+
+    assert orchestrator.reprocess("categorize") == 3
+    with data_service.get_connection() as c:
+        states = {r[0] for r in c.execute("SELECT state FROM crawls")}
+    assert states == {data_service.STATE_EXTRACTED}
+
+
+def test_a_page_reclassified_as_follow_only_loses_its_old_records(monkeypatch):
+    config = _with_config(monkeypatch, max_extractions_per_site=1)
+    category_service, extraction_service = _fake_services(monkeypatch)
+    category_service.categorize_website.return_value = config.get_category("HUB")
+    extraction_service.extract_information.return_value = (None, [])
+    monkeypatch.setattr(orchestrator, "fetching_service", MagicMock())
+    _extracted_page("http://a.com/a")
+    _extracted_page("http://a.com/b")
+
+    orchestrator.reprocess("categorize")
+
+    assert _entries() == []

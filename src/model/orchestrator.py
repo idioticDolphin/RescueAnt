@@ -313,8 +313,15 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
     # HUB), and sites were producing twenty records that resolved to one
     # entity. Listing pages are exempt - each yields *different* entities, so
     # capping them would discard real data rather than redundancy.
+    # Clear anything a previous attempt at this page wrote before deciding
+    # anything else, so reprocessing (after a crash, or under a changed
+    # taxonomy) can neither double-insert nor leave a page's old records behind
+    # when it now yields none - and old records cannot count against the cap.
+    data_service.delete_entries_for_crawl(crawl_id)
+
     cfg = config_service.get_config()
-    if cfg.max_extractions_per_site and not category.is_list_category:
+    if (cfg.max_extractions_per_site and category.is_relevant
+            and not category.is_list_category):
         site = url_service.registrable_domain(url)
         already = data_service.count_extracted_pages_for_site(site)
         if already >= cfg.max_extractions_per_site:
@@ -333,10 +340,6 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
     extract_start = time.monotonic()
     extracted = extraction_service.extract_information(html, category, url)
     monitor_service.page(url, category.name, categorize_seconds, time.monotonic() - extract_start)
-
-    # Clear anything a previous attempt at this page wrote, so reprocessing
-    # (after a crash, or a deliberate replay) can never double-insert.
-    data_service.delete_entries_for_crawl(crawl_id)
 
     if extracted:
         extracted_data, links = extracted
@@ -396,7 +399,7 @@ def _queue_links(links, category, cfg):
             exclude_tokens=cfg.url_tokens_exclude))
 
 
-def resume_pending():
+def resume_pending(skip_over_budget=True):
     """
     Finish pages left unprocessed by an earlier run.
 
@@ -406,12 +409,19 @@ def resume_pending():
     that has gone missing from the store is returned to the fetch queue rather
     than silently dropped.
 
+    :param skip_over_budget: abandon pending pages from sites over the page
+                              budget. Off for reprocessing, where every page
+                              was already fetched and processed once: skipping
+                              them then left their old records in the database
+                              with no category (1,116 records in one reprocess).
     :return: number of pages processed.
     """
     # Sites that already blew through the page budget are not worth spending
     # further analysis on, whatever was fetched from them earlier.
-    abandoned = data_service.skip_pending_over_budget(
-        config_service.get_config().max_pages_per_site)
+    abandoned = 0
+    if skip_over_budget:
+        abandoned = data_service.skip_pending_over_budget(
+            config_service.get_config().max_pages_per_site)
     if abandoned:
         logger.info("Abandoned %d unprocessed page(s) from sites over the page budget", abandoned)
 
@@ -507,6 +517,6 @@ def reprocess(stage="extract", where_site=None, where_category=None):
     reset = data_service.reset_states_for_reprocess(
         target, site=where_site, category=where_category)
     logger.info("Reset %d page(s) to %s for reprocessing", reset, target)
-    processed = resume_pending()
+    processed = resume_pending(skip_over_budget=False)
     logger.info("Reprocessed %d page(s) with no refetching", processed)
     return processed
