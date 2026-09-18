@@ -47,7 +47,7 @@ sees exactly the configuration named on the command line.
 | `CONFIG` | Path to the configuration file. Optional; defaults to `bot.config`. |
 | *(no option)* | Run the full crawl workflow: seed, fetch, classify, extract, discover, repeat until a stopping condition. |
 | `--resolve` | Deduplicate the records already extracted into entities, then exit. No crawling, no network, no model. Safe to re-run after changing field semantics. |
-| `--export CSV` | Write the resolved entities to `CSV` and exit. |
+| `--export CSV` | Write the resolved entities to `CSV` and exit. Each row carries an `evidence` column (`own-page`, `listing+own-page`, `listing-only`) and a `review` column (`no-direct-contact`, `conflicting-contact`). |
 | `--needing-review` | With `--export`, write only the rows carrying a review flag. |
 | `--reprocess extract` | Re-run extraction over pages already in the page store, without refetching. |
 | `--reprocess categorize` | Re-run classification (and the extraction that follows it) over stored pages. Use after a taxonomy or prompt change. |

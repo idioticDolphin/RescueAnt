@@ -92,3 +92,73 @@ def test_only_records_needing_review_can_be_exported(tmp_path):
 def test_lists_are_written_as_plain_text(tmp_path):
     _store([{"name": "Igelhilfe A", "telephone": ["0123", "0456"], "_n_sources": 2}])
     assert _exported(tmp_path)[0]["telephone"] == "0123; 0456"
+
+
+# ---------------------------------------------------------------------------
+# evidence: a listing entry nobody has been to see
+# ---------------------------------------------------------------------------
+
+def _page(url, category):
+    """A crawled page with one extracted record, returning that record's entry id."""
+    crawl_id = data_service.save_crawl_instance(url, 0.0, True)
+    data_service.save_site_category(crawl_id, category)
+    data_service.save_extraction(crawl_id, {"name": "x"})
+    with data_service.get_connection() as connection:
+        return connection.execute(
+            "SELECT entry_id FROM entries WHERE source_crawl_id = ?", (crawl_id,)
+        ).fetchone()["entry_id"]
+
+
+def _store_with_sources(pairs):
+    data_service.replace_entities(pairs)
+
+
+def test_an_entity_known_only_from_a_listing_says_so(tmp_path, monkeypatch):
+    # Records taken off a listing are right about two thirds of the time;
+    # records from an organisation's own page are nearly always right. The
+    # export should say which kind a row is.
+    monkeypatch.setattr(config_service.get_config().get_category("STATION"),
+                        "is_list_category", True)
+    entry = _page("https://directory.example/list", "STATION")
+
+    _store_with_sources([({"name": "Listed Only", "telephone": "0123",
+                           "station_url": "https://station.example/"}, [entry])])
+
+    assert _exported(tmp_path)[0]["evidence"] == "listing-only"
+
+
+def test_an_entity_seen_on_its_own_site_says_so(tmp_path, monkeypatch):
+    monkeypatch.setattr(config_service.get_config().get_category("STATION"),
+                        "is_list_category", True)
+    listing = _page("https://directory.example/list", "STATION")
+    own = _page("https://station.example/kontakt", "STATION")
+
+    _store_with_sources([({"name": "Listed And Visited", "telephone": "0123",
+                           "station_url": "https://station.example/"},
+                          [listing, own])])
+
+    assert _exported(tmp_path)[0]["evidence"] == "listing+own-page"
+
+
+def test_an_entity_from_an_ordinary_page_is_not_a_listing_entry(tmp_path):
+    # STATION is not a list category here, so this is an organisation's own
+    # page, whatever host it sits on.
+    entry = _page("https://elsewhere.example/verein", "STATION")
+
+    _store_with_sources([({"name": "Own Page", "telephone": "0123"}, [entry])])
+
+    row = _exported(tmp_path)[0]
+    assert row["evidence"] == "own-page"
+    assert row["review"] == ""
+
+
+def test_evidence_does_not_crowd_out_the_review_column(tmp_path, monkeypatch):
+    # Four rows in five come off a listing. Putting that in the review column
+    # would flag four rows in five, which is how a flag stops meaning anything.
+    monkeypatch.setattr(config_service.get_config().get_category("STATION"),
+                        "is_list_category", True)
+    entry = _page("https://directory.example/list", "STATION")
+
+    _store_with_sources([({"name": "Listed Only", "telephone": "0123"}, [entry])])
+
+    assert _exported(tmp_path)[0]["review"] == ""

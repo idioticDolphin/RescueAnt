@@ -452,10 +452,16 @@ python src/main.py bot.config --export needs-a-look.csv --needing-review
 ```
 
 Each row is one resolved organisation, with `n_sources` (how many pages
-agreed), `confidence`, and a `review` column naming what deserves a person's
-eye - `no-direct-contact` for a record with no phone, e-mail or address, and
-`conflicting-contact` where pages disagreed about one. `--needing-review`
-keeps only the flagged rows.
+agreed), `confidence`, an `evidence` column, and a `review` column naming what
+deserves a person's eye - `no-direct-contact` for a record with no phone,
+e-mail or address, and `conflicting-contact` where pages disagreed about one.
+`--needing-review` keeps only the flagged rows.
+
+`evidence` says where the row came from: `own-page` (a page belonging to the
+organisation itself), `listing-only` (somebody else's directory, and nothing
+more), or `listing+own-page`. It is worth sorting by - in this project's
+database a listing entry is a wildlife station about two thirds of the time,
+and an own-page record nearly always.
 
 ### Resuming an interrupted run
 

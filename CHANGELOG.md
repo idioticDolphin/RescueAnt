@@ -10,6 +10,18 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Added
 
+- **An `evidence` column in the export**, saying where a row's records came
+  from: `own-page`, `listing+own-page` or `listing-only`. A listing entry is a
+  wildlife station about two thirds of the time and an own-page record nearly
+  always, so a person cleaning the file needs to know which they are reading.
+  It is a column rather than a review flag because four rows in five of this
+  project's own export are listing-only, and a flag on four rows in five says
+  nothing.
+- **`experiments/enrichment_value.py`** - what visiting a listed
+  organisation's own website adds. On the database as it stands: 6 of 23
+  enriched entities are reachable only because their own site was visited.
+- **`experiments/anchor_text_value.py`** - whether the words on a link predict
+  what is at the other end of it, scored over every stored page.
 - **`docs/MANUAL.md`** - every run argument and every configuration setting in
   one place, with its type, its default and what it does, plus the file
   formats (taxonomy, schema, lexicon, query templates, seeds) and recipes for
