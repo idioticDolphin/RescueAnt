@@ -29,6 +29,10 @@ class Config(BaseModel):
     redo_all_fetches: bool
     redo_failed_fetches: bool
     discovery_batch_size: int = 5
+    # "file" runs the query file's own order; "interleave" takes one query
+    # from each block in turn, so a run that fires discovery a few times
+    # still reaches every language in the file.
+    discovery_query_order: str = "file"
     max_discovery_batches: int = 0
     max_rounds: int = 0
     max_runtime_seconds: float = 0

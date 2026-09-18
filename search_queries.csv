@@ -11,9 +11,17 @@
 # Discovery runs when the frontier has strayed (see discovery_when_below), and
 # takes discovery_batch_size queries per turn, so a long list costs nothing
 # until it is needed. Queries are grouped by language because that is what
-# decides which pages a search engine returns.
+# decides which pages a search engine returns: "wildlife rescue centre Bayern"
+# finds English-language travel guides about Bavaria, not the station down the
+# road. A block's language should match the places it names.
+#
+# Order matters as much as content. With discovery_query_order = "interleave"
+# each turn takes one query from every block, so a run that fires discovery a
+# dozen times has asked in a dozen languages. In file order it would spend its
+# whole life inside the first block: 200 German queries at five per turn is 40
+# discovery rounds before a single English one is sent.
 
-# --- German-speaking -------------------------------------------------------
+# --- German ----------------------------------------------------------------
 location: Baden-Württemberg
 location: Bayern
 location: Berlin
@@ -33,6 +41,7 @@ location: Thüringen
 location: Österreich
 location: Schweiz
 location: Südtirol
+location: Luxemburg
 
 Wildtierauffangstation {location}
 Wildtierhilfe {location}
@@ -46,92 +55,610 @@ verletztes Wildtier gefunden {location}
 Auffangstation Wildvögel {location}
 
 ---
-# --- English ---------------------------------------------------------------
+# --- English: Britain and Ireland ------------------------------------------
 location: England
 location: Scotland
 location: Wales
+location: Northern Ireland
 location: Ireland
-location: United States
-location: Canada
-location: Australia
-location: New Zealand
-location: South Africa
-location: India
-location: Kenya
-location: Singapore
+location: Yorkshire
+location: Cornwall
+location: Devon
+location: Kent
+location: Norfolk
+location: Cumbria
+location: Highlands
 
 wildlife rescue centre {location}
 wildlife rehabilitation centre {location}
 injured wildlife who to call {location}
-bird rescue centre {location}
+bird of prey rescue {location}
 hedgehog rescue {location}
 bat rescue {location}
 wildlife hospital {location}
+seal and seabird rescue {location}
+
+---
+# --- English: North America ------------------------------------------------
+# Wildlife rehabilitation in the United States and Canada is licensed state by
+# state and province by province, and the licensing body usually publishes the
+# list of licence holders - which is a listing page worth reaching.
+location: Alabama
+location: Alaska
+location: Arizona
+location: Arkansas
+location: California
+location: Colorado
+location: Connecticut
+location: Delaware
+location: Florida
+location: Georgia
+location: Hawaii
+location: Idaho
+location: Illinois
+location: Indiana
+location: Iowa
+location: Kansas
+location: Kentucky
+location: Louisiana
+location: Maine
+location: Maryland
+location: Massachusetts
+location: Michigan
+location: Minnesota
+location: Mississippi
+location: Missouri
+location: Montana
+location: Nebraska
+location: Nevada
+location: New Hampshire
+location: New Jersey
+location: New Mexico
+location: New York
+location: North Carolina
+location: North Dakota
+location: Ohio
+location: Oklahoma
+location: Oregon
+location: Pennsylvania
+location: Rhode Island
+location: South Carolina
+location: South Dakota
+location: Tennessee
+location: Texas
+location: Utah
+location: Vermont
+location: Virginia
+location: Washington
+location: West Virginia
+location: Wisconsin
+location: Wyoming
+location: Ontario
+location: Quebec
+location: British Columbia
+location: Alberta
+location: Manitoba
+location: Saskatchewan
+location: Nova Scotia
+location: New Brunswick
+location: Newfoundland
+
+licensed wildlife rehabilitator {location}
+wildlife rehabilitation center {location}
+found an injured wild animal who to call {location}
+raptor rehabilitation center {location}
+list of wildlife rehabilitators {location}
+wildlife rescue hotline {location}
+
+---
+# --- English: Australia, New Zealand and the Pacific -----------------------
+location: New South Wales
+location: Victoria
+location: Queensland
+location: Western Australia
+location: South Australia
+location: Tasmania
+location: Northern Territory
+location: New Zealand
+location: Fiji
+location: Papua New Guinea
+
+wildlife rescue {location}
+wildlife carer network {location}
+injured native animal who to call {location}
+bird rescue and rehabilitation {location}
+wildlife shelter {location}
+
+---
+# --- English: Africa, South and South-East Asia ----------------------------
+location: South Africa
+location: Namibia
+location: Botswana
+location: Zimbabwe
+location: Zambia
+location: Kenya
+location: Tanzania
+location: Uganda
+location: Ghana
+location: Nigeria
+location: India
+location: Sri Lanka
+location: Nepal
+location: Pakistan
+location: Philippines
+location: Malaysia
+location: Singapore
+location: Hong Kong
+location: United Arab Emirates
+location: Israel
+
+wildlife rescue centre {location}
+wildlife rehabilitation centre {location}
+injured wild animal rescue helpline {location}
+bird rescue centre {location}
+wildlife rescue and release {location}
 
 ---
 # --- French ----------------------------------------------------------------
 location: France
+location: Bretagne
+location: Normandie
+location: Occitanie
+location: Nouvelle-Aquitaine
+location: Auvergne-Rhône-Alpes
+location: Grand Est
 location: Belgique
 location: Suisse romande
+location: Luxembourg
 location: Québec
 location: Maroc
+location: Tunisie
+location: Algérie
+location: Sénégal
+location: Côte d'Ivoire
+location: Cameroun
+location: Madagascar
+location: Gabon
+location: Burkina Faso
 
 centre de sauvegarde de la faune sauvage {location}
 centre de soins faune sauvage {location}
 animal sauvage blessé que faire {location}
 refuge pour oiseaux sauvages {location}
+centre de soins pour hérissons {location}
 
 ---
-# --- Spanish ---------------------------------------------------------------
-location: España
-location: México
-location: Argentina
-location: Chile
-location: Colombia
-location: Perú
+# --- Spanish: Spain --------------------------------------------------------
+location: Andalucía
+location: Aragón
+location: Asturias
+location: Baleares
+location: Canarias
+location: Cantabria
+location: Castilla-La Mancha
+location: Castilla y León
+location: Cataluña
+location: Extremadura
+location: Galicia
+location: Madrid
+location: Murcia
+location: Navarra
+location: País Vasco
+location: La Rioja
+location: Comunidad Valenciana
 
 centro de recuperación de fauna silvestre {location}
 centro de rescate de animales silvestres {location}
 he encontrado un animal salvaje herido {location}
 hospital de fauna silvestre {location}
+centro de recuperación de aves rapaces {location}
+
+---
+# --- Spanish: Latin America ------------------------------------------------
+location: México
+location: Argentina
+location: Chile
+location: Colombia
+location: Perú
+location: Ecuador
+location: Bolivia
+location: Uruguay
+location: Paraguay
+location: Venezuela
+location: Costa Rica
+location: Panamá
+location: Guatemala
+location: Honduras
+location: Nicaragua
+location: El Salvador
+location: República Dominicana
+location: Cuba
+location: Puerto Rico
+
+centro de rescate de fauna silvestre {location}
+centro de rehabilitación de vida silvestre {location}
+rescate de animales silvestres heridos {location}
+refugio de fauna silvestre {location}
 
 ---
 # --- Italian ---------------------------------------------------------------
 location: Italia
+location: Lombardia
+location: Piemonte
+location: Veneto
+location: Toscana
+location: Lazio
+location: Emilia-Romagna
+location: Campania
+location: Puglia
 location: Sicilia
 location: Sardegna
+location: Svizzera italiana
 
 centro recupero animali selvatici {location}
-centro fauna selvatica {location}
+CRAS centro recupero fauna selvatica {location}
 ho trovato un animale selvatico ferito {location}
+centro recupero rapaci {location}
 
 ---
 # --- Dutch -----------------------------------------------------------------
 location: Nederland
+location: Noord-Holland
+location: Zuid-Holland
+location: Gelderland
+location: Noord-Brabant
+location: Friesland
+location: Limburg
 location: Vlaanderen
+location: Wallonië
+location: Suriname
 
 vogelopvangcentrum {location}
 wildopvang {location}
 gewond wild dier gevonden {location}
+egelopvang {location}
+opvangcentrum voor wilde dieren {location}
 
 ---
 # --- Portuguese ------------------------------------------------------------
 location: Portugal
+location: Açores
+location: Madeira
 location: Brasil
+location: São Paulo
+location: Minas Gerais
+location: Rio de Janeiro
+location: Bahia
+location: Paraná
+location: Amazonas
+location: Angola
+location: Moçambique
 
 centro de recuperação de animais selvagens {location}
 centro de triagem de animais silvestres {location}
+encontrei um animal silvestre ferido {location}
+centro de reabilitação de fauna selvagem {location}
 
 ---
-# --- Polish, Czech, Nordic -------------------------------------------------
+# --- Polish ----------------------------------------------------------------
 location: Polska
-location: Česko
-location: Sverige
-location: Norge
-location: Danmark
-location: Suomi
+location: Mazowieckie
+location: Małopolska
+location: Wielkopolska
+location: Dolnośląskie
+location: Pomorskie
+location: Śląskie
+location: Podlaskie
 
 ośrodek rehabilitacji dzikich zwierząt {location}
-záchranná stanice pro zvířata {location}
+azyl dla dzikich zwierząt {location}
+ptasi azyl {location}
+znalazłem ranne dzikie zwierzę {location}
+
+---
+# --- Czech -----------------------------------------------------------------
+location: Česko
+location: Morava
+location: Praha
+location: Jihočeský kraj
+
+záchranná stanice pro volně žijící živočichy {location}
+záchranná stanice pro zraněná zvířata {location}
+našel jsem zraněné divoké zvíře {location}
+
+---
+# --- Slovak ----------------------------------------------------------------
+location: Slovensko
+location: Bratislavský kraj
+location: Košický kraj
+
+rehabilitačná stanica pre voľne žijúce zvieratá {location}
+záchranná stanica pre zranené zvieratá {location}
+našiel som zranené divé zviera {location}
+
+---
+# --- Hungarian -------------------------------------------------------------
+location: Magyarország
+location: Budapest
+location: Dunántúl
+location: Alföld
+
+vadállat mentőközpont {location}
+madármentő állomás {location}
+sérült vadállatot találtam {location}
+vadmadár mentés {location}
+
+---
+# --- Romanian --------------------------------------------------------------
+location: România
+location: Transilvania
+location: Moldova
+location: Muntenia
+
+centru de reabilitare a animalelor sălbatice {location}
+centru de salvare a faunei sălbatice {location}
+am găsit un animal sălbatic rănit {location}
+
+---
+# --- Bulgarian -------------------------------------------------------------
+location: България
+location: София
+location: Стара Загора
+
+спасителен център за диви животни {location}
+център за рехабилитация на диви птици {location}
+намерих ранено диво животно {location}
+
+---
+# --- Croatian, Serbian, Bosnian --------------------------------------------
+location: Hrvatska
+location: Srbija
+location: Bosna i Hercegovina
+location: Crna Gora
+
+oporavilište za divlje životinje {location}
+prihvatilište za divlje životinje {location}
+našao sam ranjenu divlju životinju {location}
+
+---
+# --- Slovenian -------------------------------------------------------------
+location: Slovenija
+location: Ljubljana
+
+zatočišče za divje živali {location}
+oskrba prostoživečih živali {location}
+našel sem ranjeno divjo žival {location}
+
+---
+# --- Greek -----------------------------------------------------------------
+location: Ελλάδα
+location: Κρήτη
+location: Μακεδονία
+location: Κύπρος
+
+κέντρο περίθαλψης άγριων ζώων {location}
+κέντρο περίθαλψης άγριας ζωής {location}
+βρήκα τραυματισμένο άγριο ζώο {location}
+
+---
+# --- Turkish ---------------------------------------------------------------
+location: Türkiye
+location: İstanbul
+location: Ankara
+location: İzmir
+location: Antalya
+
+yaban hayatı kurtarma merkezi {location}
+yaban hayvanı rehabilitasyon merkezi {location}
+yaralı yaban hayvanı buldum {location}
+kuş hastanesi yaban {location}
+
+---
+# --- Russian ---------------------------------------------------------------
+location: Россия
+location: Москва
+location: Санкт-Петербург
+location: Сибирь
+location: Урал
+location: Беларусь
+location: Казахстан
+
+центр реабилитации диких животных {location}
+приют для диких животных {location}
+нашел раненое дикое животное куда звонить {location}
+центр помощи дикой птице {location}
+
+---
+# --- Ukrainian -------------------------------------------------------------
+location: Україна
+location: Київ
+location: Львів
+
+центр реабілітації диких тварин {location}
+притулок для диких тварин {location}
+знайшов поранену дику тварину {location}
+
+---
+# --- Lithuanian, Latvian, Estonian -----------------------------------------
+# One block each would be tidier, but two templates per language in one block
+# keeps the round-robin from giving the Baltics three times the share of, say,
+# Brazil. Locations and templates are matched by language inside the queries
+# themselves rather than by pairing, so each template names its own country.
+location: Lietuva
+location: Latvija
+location: Eesti
+
+laukinių gyvūnų globos centras {location}
+savvaļas dzīvnieku rehabilitācijas centrs {location}
+metsloomade rehabilitatsioonikeskus {location}
+
+---
+# --- Swedish ---------------------------------------------------------------
+location: Sverige
+location: Skåne
+location: Västra Götaland
+location: Norrland
+
 viltrehabilitering {location}
-viltvård skadat djur {location}
+viltvårdare skadat vilt {location}
+fågelcentral skadad fågel {location}
+hittat skadat vilt vem ringer man {location}
+
+---
+# --- Norwegian -------------------------------------------------------------
+location: Norge
+location: Vestlandet
+location: Nord-Norge
+
+viltpleiestasjon {location}
+skadet vilt hvem ringer jeg {location}
+fuglehjelp skadet fugl {location}
+
+---
+# --- Danish ----------------------------------------------------------------
+location: Danmark
+location: Jylland
+location: Fyn
+
+vildtplejestation {location}
+fundet såret vildt hvem kontakter jeg {location}
+pindsvineplejer {location}
+
+---
+# --- Finnish ---------------------------------------------------------------
+location: Suomi
+location: Lappi
+location: Uusimaa
+
+villieläinten hoitola {location}
+lintuhoitola {location}
+löysin loukkaantuneen villieläimen {location}
+
+---
+# --- Japanese --------------------------------------------------------------
+location: 日本
+location: 北海道
+location: 東京
+location: 九州
+
+野生動物保護センター {location}
+傷ついた野生動物 保護 相談 {location}
+野鳥保護センター {location}
+
+---
+# --- Korean ----------------------------------------------------------------
+location: 대한민국
+location: 서울
+location: 경기도
+location: 제주
+
+야생동물구조센터 {location}
+야생동물 구조관리센터 {location}
+다친 야생동물 신고 {location}
+
+---
+# --- Chinese, simplified ---------------------------------------------------
+location: 中国
+location: 北京
+location: 广东
+location: 四川
+location: 云南
+
+野生动物救助中心 {location}
+野生动物救护中心 {location}
+受伤野生动物 救助电话 {location}
+
+---
+# --- Chinese, traditional --------------------------------------------------
+location: 台灣
+location: 香港
+
+野生動物救傷中心 {location}
+野生動物急救站 {location}
+受傷野生動物 通報 {location}
+
+---
+# --- Thai ------------------------------------------------------------------
+location: ประเทศไทย
+location: เชียงใหม่
+location: ภูเก็ต
+
+ศูนย์ช่วยเหลือสัตว์ป่า {location}
+สถานพยาบาลสัตว์ป่า {location}
+พบสัตว์ป่าบาดเจ็บ แจ้งที่ไหน {location}
+
+---
+# --- Vietnamese ------------------------------------------------------------
+location: Việt Nam
+location: Hà Nội
+location: Thành phố Hồ Chí Minh
+
+trung tâm cứu hộ động vật hoang dã {location}
+cứu hộ động vật hoang dã bị thương {location}
+
+---
+# --- Indonesian and Malay --------------------------------------------------
+location: Indonesia
+location: Jawa
+location: Sumatera
+location: Kalimantan
+location: Malaysia
+location: Sabah
+
+pusat penyelamatan satwa liar {location}
+pusat rehabilitasi satwa {location}
+pusat penyelamatan hidupan liar {location}
+
+---
+# --- Hindi -----------------------------------------------------------------
+location: भारत
+location: दिल्ली
+location: महाराष्ट्र
+
+वन्यजीव बचाव केंद्र {location}
+घायल पक्षी बचाव केंद्र {location}
+घायल जंगली जानवर मदद {location}
+
+---
+# --- Arabic ----------------------------------------------------------------
+location: مصر
+location: المغرب
+location: الأردن
+location: الإمارات
+location: السعودية
+
+مركز إنقاذ الحياة البرية {location}
+مركز تأهيل الحيوانات البرية {location}
+وجدت حيوانا بريا مصابا {location}
+
+---
+# --- Hebrew ----------------------------------------------------------------
+location: ישראל
+
+מרכז הצלת חיות בר {location}
+בית חולים לחיות בר {location}
+מצאתי חיית בר פצועה {location}
+
+---
+# --- Persian ---------------------------------------------------------------
+location: ایران
+
+مرکز نجات حیات وحش {location}
+مرکز نگهداری حیوانات وحشی مصدوم {location}
+
+---
+# --- Swahili ---------------------------------------------------------------
+location: Kenya
+location: Tanzania
+
+kituo cha uokoaji wanyamapori {location}
+kituo cha kuhifadhi wanyamapori waliojeruhiwa {location}
+
+---
+# --- Afrikaans -------------------------------------------------------------
+location: Suid-Afrika
+location: Wes-Kaap
+location: Gauteng
+
+wildlewe rehabilitasiesentrum {location}
+gewonde wilde dier gevind wie om te bel {location}

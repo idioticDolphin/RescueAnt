@@ -188,9 +188,7 @@ def test_read_query_templates_with_no_locations_produces_no_queries(tmp_path):
 
 
 def test_read_query_templates_default_path_comes_from_config():
-    assert discovery_service.read_query_templates.__defaults__ == (
-        discovery_service.config.get_search_query_path(),
-    )
+    assert discovery_service.read_query_templates.__defaults__[0] ==         discovery_service.config.get_search_query_path()
 
 
 def test_query_blocks_keep_their_own_locations(tmp_path):
@@ -215,3 +213,62 @@ def test_query_files_are_read_as_utf8(tmp_path):
     query_file.write_text("location: München\nWildtierhilfe\n", encoding="utf-8")
 
     assert discovery_service.read_query_templates(str(query_file)) == ["Wildtierhilfe München"]
+
+
+def test_query_order_is_file_order_by_default(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "location: Marburg\nlocation: Berlin\nTierheim in {location}\n"
+        "---\n"
+        "location: Lyon\ncentre de sauvegarde {location}\n",
+        encoding="utf-8")
+
+    result = discovery_service.read_query_templates(str(query_file), order="file")
+
+    assert result == ["Tierheim in Marburg", "Tierheim in Berlin",
+                      "centre de sauvegarde Lyon"]
+
+
+def test_interleaved_order_takes_one_query_per_block_in_turn(tmp_path):
+    # Discovery consumes queries from the front of the list, a handful per
+    # turn. In file order a run reaches the second language only after every
+    # German query has been spent - which, with a world-wide query file, is
+    # never.
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "location: Marburg\nlocation: Berlin\nTierheim in {location}\n"
+        "---\n"
+        "location: Lyon\ncentre de sauvegarde {location}\n",
+        encoding="utf-8")
+
+    result = discovery_service.read_query_templates(str(query_file), order="interleave")
+
+    assert result == ["Tierheim in Marburg", "centre de sauvegarde Lyon",
+                      "Tierheim in Berlin"]
+
+
+def test_interleaved_order_keeps_every_query(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "location: A\nlocation: B\nlocation: C\nx {location}\ny {location}\n"
+        "---\n"
+        "location: D\nz {location}\n",
+        encoding="utf-8")
+
+    interleaved = discovery_service.read_query_templates(str(query_file), order="interleave")
+
+    assert sorted(interleaved) == sorted(
+        discovery_service.read_query_templates(str(query_file), order="file"))
+
+
+def test_query_order_defaults_to_the_configured_one(monkeypatch, tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "location: Marburg\nTierheim in {location}\n"
+        "---\n"
+        "location: Lyon\ncentre de sauvegarde {location}\n",
+        encoding="utf-8")
+    monkeypatch.setattr(discovery_service.config, "discovery_query_order", "interleave")
+
+    assert discovery_service.read_query_templates(str(query_file))[1] == \
+        "centre de sauvegarde Lyon"

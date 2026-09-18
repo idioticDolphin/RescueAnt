@@ -359,6 +359,7 @@ def load_config(configs:dict=None):
             redo_all_fetches = redo_all_fetches,
             redo_failed_fetches = redo_failed_fetches,
             discovery_batch_size = discovery_batch_size,
+            discovery_query_order = configs.get("discovery_query_order", "file").strip('"') or "file",
             max_discovery_batches = max_discovery_batches,
             max_rounds = max_rounds,
             max_runtime_seconds = max_runtime_seconds,

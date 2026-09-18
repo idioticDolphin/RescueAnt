@@ -17,6 +17,7 @@ handling once they're actually fetched.
 from __future__ import annotations
 import logging
 import time
+from itertools import zip_longest
 from typing import Iterable
 from urllib.parse import urlparse
 from model.objects.searchprovider import *
@@ -114,7 +115,8 @@ def queue_discovered_urls(urls: Iterable[str]) -> int:
             added += 1
     return added
 
-def read_query_templates(path: str = config.get_search_query_path()) -> list[str]:
+def read_query_templates(path: str = config.get_search_query_path(),
+                         order: str | None = None) -> list[str]:
     """
     Read keyword templates and locations from a query-template file and
     combine them into a list of search queries via generate_queries().
@@ -127,14 +129,21 @@ def read_query_templates(path: str = config.get_search_query_path()) -> list[str
       - blank lines and lines starting with "#" are ignored
       - every other non-empty line is a keyword template, optionally
         containing "{location}" as a placeholder (see generate_queries())
+
+    :param order: "file" keeps the file's own order; "interleave" takes one
+                  query from each block in turn. run_discovery() consumes a
+                  handful of queries per turn from the front of the list, so
+                  in file order a query file covering many languages spends
+                  its whole run inside the first block. Defaults to
+                  config.discovery_query_order.
     """
-    queries = []
+    blocks: list[list[str]] = []
     templates = []
     locations = []
 
     def flush():
         if templates and locations:
-            queries.extend(generate_queries(templates, locations))
+            blocks.append(generate_queries(templates, locations))
         templates.clear()
         locations.clear()
 
@@ -150,4 +159,9 @@ def read_query_templates(path: str = config.get_search_query_path()) -> list[str
             else:
                 templates.append(line)
     flush()
-    return queries
+
+    if order is None:
+        order = getattr(config_service.get_config(), "discovery_query_order", "file")
+    if order == "interleave":
+        return [query for row in zip_longest(*blocks) for query in row if query is not None]
+    return [query for block in blocks for query in block]

@@ -303,6 +303,16 @@ whatever URLs they turn up, at `discovery_priority` - far above any
 link-derived score, because a search hit answers the configured query
 directly.
 
+The shipped `search_queries.csv` asks in 37 languages across 292 countries,
+states and regions. Its blocks - separated by a line of dashes - each pair
+their own templates with their own locations, because a search engine ranks
+by the language of the page: asking for a "wildlife rescue centre" in Bayern
+returns English travel guides, not the station down the road.
+`discovery_query_order = "interleave"` then takes one query from each block
+per turn, so a run that fires discovery ten times has asked in ten languages
+rather than spending every turn in the first block. See
+[the manual](docs/MANUAL.md#search_queriescsv) for the file format.
+
 ### SearXNG (the default - free, self-hosted, no API key)
 
 Google discontinued unrestricted whole-web results in the free tier of its

@@ -97,8 +97,16 @@ Entries begin at the first release; earlier development is not itemised.
   the order barely at all and never reduced wasted fetches.
 - **Query templates are grouped into blocks** separated by a line of dashes,
   each with its own locations, so a French template is not sent out against
-  German cities. The shipped file now covers ten languages and 50 locations,
-  361 queries in all.
+  German cities. The shipped file covers 37 languages and writing systems and
+  292 countries, states and regions - 1,553 queries in all, from US state
+  rehabilitator licences to Japanese, Thai, Arabic and Swahili.
+- **`discovery_query_order`** decides how that file is consumed.
+  `"interleave"` (the shipped setting) takes one query from each block per
+  turn, so ten discovery turns have asked in ten languages; `"file"` keeps the
+  file's own order. This matters more than the file's length: discovery spends
+  five queries per turn, and in file order a run would still be inside the
+  first block after forty turns, making a world-wide query file German-only in
+  practice.
 - **`queue_record_urls_at_start`** (on by default): a run begins by queueing
   the websites named in records already in the database that no crawl has
   visited - 26% of them in the project's own database.
