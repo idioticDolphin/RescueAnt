@@ -233,6 +233,15 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Changed
 
+- **`discovery_when_below` is 3.0**, up from 0.5, and now set from data rather
+  than guessed. Scoring all 15,048 links the crawl ever followed and reading
+  off what their targets turned out to be
+  (`experiments/frontier_threshold.py`): links whose best offered score
+  reaches 5.0 lead to something worth extracting 16% to 100% of the time,
+  3.0-5.0 manages 4-14%, and 1.0-3.0 falls to 0.2-1.2% - one worthwhile page
+  per hundred fetches. The old threshold worked through that whole band before
+  asking a search engine.
+
 - **Grammar-constrained generation is about seven times faster, with
   identical output.** llama-cpp-python checks the grammar against the whole
   vocabulary for every generated token; RescueAnt now picks the most likely
@@ -264,6 +273,12 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Fixed
 
+- **A comment containing "=" swallowed the setting written under it.** The
+  config parser reads a value from an `=` to the next `;`, and had no notion
+  of comments - they survived only by rarely containing an `=`. Writing a
+  measurement into a comment ("best score >= 5.0") made the setting below it
+  vanish and silently revert to its default. Comments are now stripped before
+  parsing, with quoting tracked so a prompt may still say "#1".
 - **Prefetching silently disabled search discovery.** Discovery fires when the
   best queued score falls below `discovery_when_below`; a batch claimed for
   prefetching had counted as proof that promising work remained, and with

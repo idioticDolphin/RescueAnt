@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 import model.tools.config_service as config_service
@@ -739,3 +741,44 @@ def test_keep_record_name_tokens_are_read():
     configs["keep_record_name_tokens"] = '"Pflegestation"'
     config_service.load_config(configs)
     assert config_service.get_config().keep_record_name_tokens == ["pflegestation"]
+
+
+# ---------------------------------------------------------------------------
+# comments
+# ---------------------------------------------------------------------------
+
+def test_a_comment_containing_an_equals_sign_does_not_eat_the_next_setting(tmp_path):
+    # A comment saying "best score >= 5.0" made the parser read from that "="
+    # to the next semicolon - which was the end of the setting underneath, so
+    # discovery_when_below silently vanished and the crawl used its default.
+    config_file = tmp_path / "bot.config"
+    config_file.write_text("# best score >= 5.0 is worth fetching\n"
+                           "discovery_when_below = 3.0;\n", encoding="utf-8")
+
+    assert config_service._read_config(config_file)["discovery_when_below"] == "3.0"
+
+
+def test_a_trailing_comment_is_not_part_of_the_value(tmp_path):
+    config_file = tmp_path / "bot.config"
+    config_file.write_text("politeness = 5;  # seconds between requests\n", encoding="utf-8")
+
+    assert config_service._read_config(config_file)["politeness"] == "5"
+
+
+def test_a_hash_inside_a_quoted_value_is_kept(tmp_path):
+    # Prompts are quoted strings and may say anything at all.
+    config_file = tmp_path / "bot.config"
+    config_file.write_text('category_prompt = "Answer with #1, #2 or #3.";\n', encoding="utf-8")
+
+    assert config_service._read_config(config_file)["category_prompt"] == "Answer with #1, #2 or #3."
+
+
+def test_the_shipped_config_still_carries_every_setting_it_names():
+    # Guards the whole class of silent loss above: every key written in
+    # bot.config, whatever comments surround it, must survive the parse.
+    root = Path(__file__).parent.parent
+    parsed = config_service._read_config(root / "bot.config")
+    for key in ("discovery_when_below", "discovery_priority", "politeness",
+                "max_batch_size", "leaving_site_penalty", "abandoned_site_penalty",
+                "discovery_query_order", "fetch_timeout_seconds"):
+        assert key in parsed, key

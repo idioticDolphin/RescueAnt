@@ -272,7 +272,7 @@ plus any inherited closeness.
 | `search_extra_params` | JSON object | required (JSON provider) | Constant parameters, e.g. `{"format": "json"}`. |
 | `search_headers` | JSON object | required (JSON provider) | Constant headers. |
 | `search_api_key`, `search_engine_id` | string | required (Google) | Credentials for Google Custom Search. |
-| `discovery_when_below` | float | *(only when empty)* | Run discovery once the best queued score falls below this. With link-following into the open web the queue never empties, so waiting for an empty queue means discovery never runs again. |
+| `discovery_when_below` | float | *(only when empty)* | Run discovery once the best queued score falls below this. With link-following into the open web the queue never empties, so waiting for an empty queue means discovery never runs again. Set it from your own data with `experiments/frontier_threshold.py`, which scores every link the crawl followed and reports what each score band's targets turned out to be; the shipped 3.0 is where this project's yield falls from 4-14% to under 1%. |
 | `discovery_priority` | float | `50.0` | Frontier score given to search hits - deliberately above any link-derived score, because a search hit answers the configured query directly. |
 | `discovery_batch_size` | int | `5` | Queries per discovery turn. |
 | `discovery_query_order` | `file` or `interleave` | `file` | `interleave` takes one query from each block of the query file per turn (or `weight` of them), so a run that fires discovery ten times has asked in ten languages. In file order a world-wide query file is, in practice, single-language. |

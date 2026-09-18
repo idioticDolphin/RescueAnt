@@ -37,7 +37,7 @@ def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.con
     _seen.add(resolved)
 
     with open(path, encoding="utf-8") as f:
-        config_string = f.read()
+        config_string = _strip_comments(f.read())
 
     merged: dict[str, str] = {}
     for include in INCLUDE_PATTERN.finditer(config_string):
@@ -53,6 +53,34 @@ def _read_config(path:Path=Path(__file__).parent.parent.parent.parent / "bot.con
     logger.debug("Read %d config entries from %s (%d total after includes)",
                  len(own), path, len(merged))
     return merged
+
+
+def _strip_comments(text:str) -> str:
+    """
+    Remove "#" comments, except inside a quoted value.
+
+    Comments used to survive only because they rarely contained an "=": the
+    value pattern reads from an "=" to the next ";", so a comment reading
+    "best score >= 5.0" swallowed the setting written underneath it and that
+    setting silently reverted to its default. Prompts are quoted and may
+    contain a "#" ("Answer with #1"), so quoting is tracked rather than
+    stripping every "#".
+    """
+    out, quote = [], None
+    for line in text.splitlines(keepends=True):
+        kept = []
+        for index, character in enumerate(line):
+            if quote:
+                if character == quote:
+                    quote = None
+            elif character in "\"'":
+                quote = character
+            elif character == "#":
+                kept.append("\n" if line.endswith("\n") else "")
+                break
+            kept.append(character)
+        out.append("".join(kept))
+    return "".join(out)
 
 
 def _csv_list(raw:str) -> list[str]:
