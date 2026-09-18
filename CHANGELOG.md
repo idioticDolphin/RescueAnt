@@ -18,7 +18,15 @@ Entries begin at the first release; earlier development is not itemised.
   links and is right 40.2% of the time, where the path lexicon on the same
   text manages 9.2%. A naive Bayes model over link text, split by site, put
   30.5% of its best 5% on target - a written list of words matches it without
-  the training.
+  the training. End to end on the replayed graph, with link text counted:
+  **536 targets found in the first 2,000 fetches instead of 497**, and 294
+  instead of 236 in the first 1,000, with fewer wasted fetches at every mark.
+- **An abandoned site can be demoted instead of refused**
+  (`abandoned_site_penalty`). Replaying the recorded link graph, the two are
+  indistinguishable - 560 targets in the first 2,000 fetches either way - but
+  the replay can only judge tunnels through sites the crawl actually visited,
+  and a wasted fetch costs seconds where a severed tunnel costs a site
+  (Bergmark et al. 2002). The shipped setting demotes.
 - **Name filters in forty languages.** `exclude_record_name_tokens` and
   `keep_record_name_tokens` now cover shelters, vets, zoos, breeders and
   rescue centres in the languages discovery reaches. Checked against the
