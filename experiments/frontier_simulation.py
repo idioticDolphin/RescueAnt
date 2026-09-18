@@ -22,7 +22,8 @@ Usage:
 import argparse
 import json
 import sys
-from heapq import heappush, heappop
+from heapq import heapify, heappush, heappop
+from itertools import product
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -68,13 +69,20 @@ def build_graph(db, cache_path):
 
 def simulate(graph, seeds, config, decay, steps, wanted, prune_below=0.0,
              leaving_site_costs=0.0, hub_categories=("LIST", "ADVICE"),
-             use_link_text=False):
+             use_link_text=False, abandon_after=0, abandon_penalty=0.0):
     """
     Walk the graph best-first under one policy.
 
     :param decay: closeness multiplier per hop; 0 is the policy without it.
     :param prune_below: stop following links once their closeness falls under
                          this - a cut-off rather than a demotion.
+    :param abandon_after: low-value pages a site may give before it is
+                           abandoned; 0 never abandons one.
+    :param abandon_penalty: what an abandoned site's links cost. 0 refuses
+                             them outright, which is what the crawler did
+                             first; anything else demotes them instead, so a
+                             tunnel through a dull site stays passable
+                             (Bergmark et al. 2002).
     :return: list of how many wanted pages had been found after each fetch.
     """
     weights = config.referrer_weights
@@ -83,11 +91,17 @@ def simulate(graph, seeds, config, decay, steps, wanted, prune_below=0.0,
     wasted, waste_curve = 0, []
     off_target = {"IRRELEVANT", "COMMERCIAL", "AUTHORITY", "ADVOCACY", None}
     counter = 0
+    low_value, productive, abandoned = {}, set(), set()
 
     def offer(url, priority, closeness):
         nonlocal counter
         if url in seen:
             return
+        site = url_service.registrable_domain(url)
+        if site in abandoned:
+            if not abandon_penalty:
+                return
+            priority -= abandon_penalty
         if url in queued and queued[url] >= (priority, closeness):
             return
         queued[url] = (priority, closeness)
@@ -104,6 +118,27 @@ def simulate(graph, seeds, config, decay, steps, wanted, prune_below=0.0,
         seen.add(url)
         entry = graph.get(url, [None, []])
         category, links = entry[0], _links_of(entry)
+        this_site = url_service.registrable_domain(url)
+        if abandon_after and this_site and this_site not in abandoned:
+            if category in wanted:
+                productive.add(this_site)
+            elif (this_site not in productive
+                  and weights.get(category, 0.0) <= config.abandon_site_max_weight):
+                low_value[this_site] = low_value.get(this_site, 0) + 1
+                if low_value[this_site] >= abandon_after:
+                    abandoned.add(this_site)
+                    if not abandon_penalty:
+                        queue[:] = [row for row in queue
+                                    if url_service.registrable_domain(row[2]) != this_site]
+                        heapify(queue)
+                    else:
+                        for index, row in enumerate(queue):
+                            if url_service.registrable_domain(row[2]) == this_site:
+                                queue[index] = (row[0] + abandon_penalty, *row[1:])
+                                # queued[] is what tells a stale heap entry
+                                # from a live one, so it has to move too.
+                                queued[row[2]] = (-queue[index][0], row[3])
+                        heapify(queue)
         if category in wanted:
             found += 1
         if category in off_target:
@@ -142,6 +177,10 @@ def main():
                     help="closeness floors to try: below this, links are not followed at all")
     ap.add_argument("--link-text", default="0",
                     help="0/1: whether the words on a link count towards its score")
+    ap.add_argument("--abandon-after", type=int, default=0,
+                    help="low-value pages a site may give before it is abandoned")
+    ap.add_argument("--abandon-penalty", default="0",
+                    help="what an abandoned site's links cost; 0 refuses them outright")
     ap.add_argument("--rebuild", action="store_true")
     args = ap.parse_args()
 
@@ -168,19 +207,22 @@ def main():
 
     marks = [m for m in (250, 500, 1000, 2000, 4000) if m <= args.steps]
     print("cells are: targets found / fetches wasted, after that many fetches")
-    print("\n decay  prune | " + " | ".join(f"{m:>5} fetched" for m in marks) + " |  reached")
-    for decay in (float(d) for d in args.decays.split(",")):
-        for prune in (float(p) for p in args.prune.split(",")):
-          for leaving in (float(v) for v in args.leaving.split(",")):
-           for text in (bool(int(t)) for t in args.link_text.split(",")):
-            curve, waste = simulate(graph, seeds, config, decay, args.steps, wanted, prune,
-                                    leaving, use_link_text=text)
-            cells = []
-            for mark in marks:
-                cells.append(f"{curve[mark - 1]:>5} /{waste[mark - 1]:>6}" if len(curve) >= mark
-                             else f"{'-':>13}")
-            print(f" {decay:4.2f} {prune:4.2f} {leaving:4.1f} {int(text):>4} | "
-                  + " | ".join(cells) + f" | {len(curve):>7}")
+    print("\ndecay prune leav text abdn | "
+          + " | ".join(f"{m:>5} fetched" for m in marks) + " |  reached")
+    policies = product((float(d) for d in args.decays.split(",")),
+                       (float(p) for p in args.prune.split(",")),
+                       (float(v) for v in args.leaving.split(",")),
+                       (bool(int(t)) for t in args.link_text.split(",")),
+                       (float(v) for v in args.abandon_penalty.split(",")))
+    for decay, prune, leaving, text, give_up in policies:
+        curve, waste = simulate(graph, seeds, config, decay, args.steps, wanted, prune,
+                                leaving, use_link_text=text,
+                                abandon_after=args.abandon_after,
+                                abandon_penalty=give_up)
+        cells = [f"{curve[mark - 1]:>5} /{waste[mark - 1]:>6}" if len(curve) >= mark
+                 else f"{'-':>13}" for mark in marks]
+        print(f"{decay:5.2f} {prune:5.2f} {leaving:4.1f} {int(text):>4} {give_up:5.1f} | "
+              + " | ".join(cells) + f" | {len(curve):>7}")
 
 
 if __name__ == "__main__":

@@ -212,6 +212,7 @@ plus any inherited closeness.
 | `max_extractions_per_site` | int | `0` | Extraction calls per site. Three still covers a homepage, a contact page and a legal notice; list categories are exempt, since each listing yields different entities. |
 | `abandon_site_after` | int | `0` | Stop crawling a site after this many low-value pages with nothing extracted. `0` disables it. |
 | `abandon_site_max_weight` | float | `0.5` | What counts as low-value: a page whose category's referrer weight is at or below this. |
+| `abandoned_site_penalty` | float | `0.0` | What an abandoned site's links cost from then on. `0` refuses them outright; anything else demotes them instead, so they drain from the queue last but a strong enough referrer can still pull one through. Bergmark et al. (2002) found pages on one topic separated by 1 to 12 irrelevant ones, so refusing a failed host is how a crawler misses whole clusters - a wasted fetch costs seconds, a severed tunnel costs a site. |
 
 ### Analysis and the model
 

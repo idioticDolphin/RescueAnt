@@ -14,6 +14,9 @@ def _isolate_fetching_service_state(monkeypatch):
     monkeypatch.setattr(fetching_service, "processed_urls", {})
     monkeypatch.setattr(fetching_service, "_robots_cache", {})
     monkeypatch.setattr(fetching_service, "_last_request_time", {})
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+    monkeypatch.setattr(fetching_service, "abandoned_sites", set())
+    monkeypatch.setattr(fetching_service, "_site_low_value", {})
 
 
 # ---------------------------------------------------------------------------
@@ -1161,3 +1164,52 @@ def test_closeness_is_kept_under_the_canonical_url():
     fetching_service.url_closeness.clear()
     fetching_service.queue_url("http://a.com/x?utm_source=news#top", priority=1.0, closeness=1.5)
     assert fetching_service.closeness_of("http://a.com/x") == 1.5
+
+
+# ---------------------------------------------------------------------------
+# abandoning a site: ban, or demote?
+# ---------------------------------------------------------------------------
+
+def test_an_abandoned_site_is_refused_by_default(monkeypatch):
+    fetching_service.abandoned_sites.add("dull.example")
+    monkeypatch.setattr(fetching_service.config, "abandoned_site_penalty", 0.0)
+
+    fetching_service.queue_url("https://dull.example/page", priority=5.0)
+
+    assert fetching_service.url_queue == []
+
+
+def test_with_a_penalty_an_abandoned_site_is_demoted_instead(monkeypatch):
+    # Bergmark et al. 2002: pages relevant to one topic are separated by 1 to
+    # 12 irrelevant ones, so a crawler that refuses a failed host never crosses
+    # between clusters. A demoted link drains from the queue last, which gets
+    # the same effect, and a strong enough referrer can still pull one through.
+    fetching_service.abandoned_sites.add("dull.example")
+    monkeypatch.setattr(fetching_service.config, "abandoned_site_penalty", 20.0)
+
+    fetching_service.queue_url("https://dull.example/page", priority=5.0)
+
+    assert fetching_service.url_queue == ["https://dull.example/page"]
+    assert fetching_service.url_priorities["https://dull.example/page"] == -15.0
+
+
+def test_abandoning_a_site_demotes_what_it_already_queued(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "abandoned_site_penalty", 20.0)
+    fetching_service.queue_url("https://dull.example/a", priority=4.0)
+    fetching_service.queue_url("https://good.example/b", priority=4.0)
+
+    fetching_service.abandon_site("dull.example")
+
+    assert set(fetching_service.url_queue) == {"https://dull.example/a",
+                                               "https://good.example/b"}
+    assert fetching_service.url_priorities["https://dull.example/a"] == -16.0
+    assert fetching_service.url_priorities["https://good.example/b"] == 4.0
+
+
+def test_abandoning_a_site_still_drops_its_queue_without_a_penalty(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "abandoned_site_penalty", 0.0)
+    fetching_service.queue_url("https://dull.example/a", priority=4.0)
+
+    fetching_service.abandon_site("dull.example")
+
+    assert fetching_service.url_queue == []

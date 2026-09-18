@@ -155,6 +155,14 @@ class Config(BaseModel):
     # carries a referrer weight at or below abandon_site_max_weight.
     abandon_site_after: int = 0
     abandon_site_max_weight: float = 0.5
+    # What an abandoned site's links cost instead of being refused outright.
+    # 0 refuses them, which is what this did first. Bergmark et al. (2002)
+    # found pages on one topic separated by 1 to 12 irrelevant ones, so a
+    # crawler that refuses a failed host never crosses between clusters: a
+    # wasted fetch costs seconds, a severed tunnel costs a whole site. A
+    # demoted link drains from the queue last, and a strong enough referrer
+    # can still pull one through.
+    abandoned_site_penalty: float = 0.0
     # Frontier weight contributed by the category of the page a link was found
     # on: links from productive pages are crawled first. Category names are
     # user-defined, so this mapping is configuration.

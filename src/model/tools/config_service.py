@@ -388,6 +388,7 @@ def load_config(configs:dict=None):
             max_pages_per_site = max_pages_per_site,
             abandon_site_after = abandon_site_after,
             abandon_site_max_weight = abandon_site_max_weight,
+            abandoned_site_penalty = _opt_float(configs, "abandoned_site_penalty", 0.0),
             max_extractions_per_site = max_extractions_per_site,
             mislabel_check = mislabel_check,
             reuse_stored_pages = reuse_stored_pages,

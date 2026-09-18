@@ -294,9 +294,27 @@ def record_page_value(url:str, category):
 
 
 def abandon_site(site:str):
-    """Drop a site's queued URLs and refuse any it is offered later."""
+    """
+    Stop spending the crawl on a site that has given nothing back.
+
+    With abandoned_site_penalty set, its queued URLs are demoted rather than
+    dropped, and later ones are demoted as they arrive: a tunnel through a dull
+    site stays passable if something promising points into it (Bergmark et al.
+    2002), while everything else in the frontier is served first. With the
+    penalty at 0 the site is refused outright, which is what this did first.
+    """
     global url_queue
     abandoned_sites.add(site)
+    penalty = getattr(config, "abandoned_site_penalty", 0.0) or 0.0
+    if penalty:
+        demoted = 0
+        for queued in url_queue:
+            if url_service.registrable_domain(queued) == site:
+                url_priorities[queued] = url_priorities.get(queued, 0.0) - penalty
+                demoted += 1
+        logger.info("Abandoning %s after %d low-value page(s) - demoted %d queued URL(s)",
+                    site, _site_low_value.get(site, 0), demoted)
+        return
     kept = [u for u in url_queue if url_service.registrable_domain(u) != site]
     dropped = len(url_queue) - len(kept)
     url_queue = kept
@@ -348,8 +366,11 @@ def queue_url(url:str, priority:float=0.0, closeness:float=0.0):
 
     site = url_service.registrable_domain(canonical)
     if site and site in abandoned_sites:
-        logger.debug("Skipping %s - site abandoned as unproductive", canonical)
-        return
+        penalty = getattr(config, "abandoned_site_penalty", 0.0) or 0.0
+        if not penalty:
+            logger.debug("Skipping %s - site abandoned as unproductive", canonical)
+            return
+        priority -= penalty
     if site and site in config.domain_denylist:
         logger.debug("Skipping %s - domain is denylisted", canonical)
         return
