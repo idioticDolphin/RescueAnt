@@ -1084,3 +1084,47 @@ def test_parse_queue_can_fetch_an_explicit_batch_without_touching_the_queue(monk
 
     assert fetched == ["http://now.example/"]
     assert fetching_service.url_queue == ["http://later.example/"]
+
+
+# ---------------------------------------------------------------------------
+# a page that never returns must not stop the crawl
+# ---------------------------------------------------------------------------
+
+def test_a_fetch_that_never_returns_is_abandoned(monkeypatch):
+    # A wedged browser page stalled one overnight run for eleven hours: the
+    # per-navigation timeout does not bound the whole fetch.
+    monkeypatch.setattr(fetching_service.config, "fetch_timeout_seconds", 0.05, raising=False)
+    fetching_service.fetch_errors.clear()
+
+    async def never_returns(url, browser=None):
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(fetching_service, "get_content", never_returns)
+
+    async def run():
+        await fetching_service._fetch_all(["http://slow.example/"], 2, browser=object())
+
+    asyncio.run(asyncio.wait_for(run(), timeout=5))
+
+    assert "timed out" in fetching_service.fetch_errors["http://slow.example/"].lower()
+    assert fetching_service.processed_urls.get("http://slow.example/") == ""
+
+
+def test_a_slow_page_does_not_hold_up_the_others(monkeypatch):
+    monkeypatch.setattr(fetching_service.config, "fetch_timeout_seconds", 0.05, raising=False)
+    done = []
+
+    async def one_slow(url, browser=None):
+        if "slow" in url:
+            await asyncio.sleep(30)
+        done.append(url)
+
+    monkeypatch.setattr(fetching_service, "get_content", one_slow)
+
+    async def run():
+        await fetching_service._fetch_all(
+            ["http://slow.example/", "http://quick.example/"], 2, browser=object())
+
+    asyncio.run(asyncio.wait_for(run(), timeout=5))
+
+    assert done == ["http://quick.example/"]

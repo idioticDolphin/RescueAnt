@@ -173,6 +173,7 @@ python experiments/model_sweep.py --only <name>
    | `database` | path to the sqlite database that gets created |
    | `page_store_path` | where fetched page bodies are kept, for resume and reprocessing |
    | `politeness` | minimum seconds between two requests to the same domain |
+   | `fetch_timeout_seconds` | bot | deadline for one page's whole fetch, not just its navigation |
    | `queue_record_urls_at_start` | bot | begin a run by queueing websites named in earlier records that were never visited |
    | `skip_identical_content` | bot | reuse the analysis of an already-analysed page with byte-identical content |
    | `max_pages_per_site` | hard ceiling on pages fetched from one registrable domain |

@@ -200,18 +200,38 @@ async def parse_queue(max_concurrency: int = 4, urls=None):
         url_queue = []
 
 
-async def _fetch_all(urls, max_concurrency):
-    """Fetch the given URLs through one browser instance."""
+async def _fetch_all(urls, max_concurrency, browser=None):
+    """
+    Fetch the given URLs through one browser instance.
+
+    Every page is given a deadline of its own. Playwright's navigation timeout
+    bounds page.goto, not the whole fetch: one wedged page - its browser
+    process spinning on 10,000 seconds of CPU - left an overnight run blocked
+    for eleven hours with nothing in the log. A page that overruns is recorded
+    as a failed fetch, like any other, and the rest of the batch goes on.
+    """
+    timeout = getattr(config, "fetch_timeout_seconds", 0) or None
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def fetch_one(url):
+        async with semaphore:
+            try:
+                await asyncio.wait_for(get_content(url, browser=browser), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning("Fetching %s timed out after %ss - abandoning it", url, timeout)
+                fetch_errors[url] = f"fetch timed out after {timeout}s"
+                processed_urls[url] = ""
+
+    if browser is not None:
+        await asyncio.gather(*(fetch_one(url) for url in urls))
+        return
+
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        semaphore = asyncio.Semaphore(max_concurrency)
-
-        async def fetch_one(url):
-            async with semaphore:
-                await get_content(url, browser=browser)
-
-        await asyncio.gather(*(fetch_one(url) for url in urls))
-        await browser.close()
+        try:
+            await asyncio.gather(*(fetch_one(url) for url in urls))
+        finally:
+            await browser.close()
 
 def _scheme_twin(url:str):
     """The same URL under the other web scheme, or None if it has neither."""

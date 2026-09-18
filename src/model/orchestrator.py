@@ -303,7 +303,10 @@ def fetch_batch(batch):
     """Fetch one claimed batch. Safe to run while another batch is analysed:
     it touches neither the frontier nor the database."""
     if batch:
+        logger.info("Fetching %d URL(s)", len(batch))
+        started = time.monotonic()
         asyncio.run(fetching_service.parse_queue(urls=batch))
+        logger.info("Fetched %d URL(s) in %.0fs", len(batch), time.monotonic() - started)
     return batch
 
 

@@ -195,6 +195,12 @@ Entries begin at the first release; earlier development is not itemised.
   understood truncated listings, so a station page whose description ran past
   the token cap lost its name and phone number too. The record is now closed
   after the last field that arrived intact.
+- **A wedged browser page stopped an overnight run for eleven hours.** The
+  navigation timeout bounds `page.goto`, not the whole fetch, so a page whose
+  browser process kept spinning left the crawler blocked with nothing in the
+  log. Every page now has a deadline of its own (`fetch_timeout_seconds`),
+  overruns are recorded as failed fetches, and fetching logs when it starts
+  and how long a batch took.
 - **One malformed link ended the whole crawl.** An `href` urllib could not parse
   ("Invalid IPv6 URL") raised out of link extraction and stopped the run.
   Such links are now skipped, and any unexpected error while processing a
@@ -241,5 +247,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 574 tests. Each regression test names the failure it exists to
+178 → 576 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

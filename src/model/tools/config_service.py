@@ -227,6 +227,7 @@ def load_config(configs:dict=None):
         skip_identical_content = configs.get("skip_identical_content", "True") == "True"
         prefetch_next_batch = configs.get("prefetch_next_batch", "False") == "True"
         queue_record_urls_at_start = configs.get("queue_record_urls_at_start", "True") == "True"
+        fetch_timeout_seconds = _opt_float(configs, "fetch_timeout_seconds", 90)
         reuse_max_age_days = _opt_float(configs, "reuse_max_age_days", 0)
         mislabeled_category = (configs.get("mislabeled_category") or "").strip().strip('"') or None
         mislabel_instruction = (configs.get("mislabel_instruction") or "").strip().strip('"') or None
@@ -379,6 +380,7 @@ def load_config(configs:dict=None):
             skip_identical_content = skip_identical_content,
             prefetch_next_batch = prefetch_next_batch,
             queue_record_urls_at_start = queue_record_urls_at_start,
+            fetch_timeout_seconds = fetch_timeout_seconds,
             reuse_max_age_days = reuse_max_age_days,
             mislabeled_category = mislabeled_category,
             mislabel_instruction = mislabel_instruction,

@@ -96,6 +96,8 @@ class Config(BaseModel):
     # At the start of a run, queue the websites named in already-extracted
     # records that no crawl has visited yet.
     queue_record_urls_at_start: bool = True
+    # Deadline for one page's whole fetch, not just its navigation. 0 = none.
+    fetch_timeout_seconds: float = 90
     reuse_max_age_days: float = 0
 
     # --- Boilerplate stripping (P8) --------------------------------------
