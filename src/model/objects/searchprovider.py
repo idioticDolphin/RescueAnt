@@ -9,8 +9,15 @@ class SearchProvider(abc.ABC):
     """Common interface for anything that can turn a text query into result URLs."""
 
     @abc.abstractmethod
-    def search(self, query: str, max_results: int) -> list[str]:
-        """Return up to max_results URLs for the given query."""
+    def search(self, query: str, max_results: int, params: dict | None = None) -> list[str]:
+        """
+        Return up to max_results URLs for the given query.
+
+        :param params: per-query request parameters from the query file's
+                       block - a language, say. A provider that cannot use
+                       them ignores them; discovery_service only passes them
+                       when a block declares some.
+        """
         raise NotImplementedError
 
     @classmethod
@@ -38,21 +45,31 @@ class GoogleCustomSearchProvider(SearchProvider):
         self.search_engine_id = search_engine_id
         self.timeout = timeout
 
-    def search(self, query: str, max_results: int) -> list[str]:
-        """Return up to max_results result URLs for query, paging through the API as needed."""
+    def search(self, query: str, max_results: int, params: dict | None = None) -> list[str]:
+        """
+        Return up to max_results result URLs for query, paging through the API as needed.
+
+        Google names its language restriction `lr`, in the form `lang_de`, so
+        a block's `language: de` is translated here rather than in the query
+        file - the file names the language once, for whichever provider.
+        """
+        params = dict(params or {})
+        if "language" in params:
+            params["lr"] = f"lang_{params.pop('language')}"
         # Google's API caps each request at 10 results; page via `start` for more.
         urls = []
         start = 1
         while len(urls) < max_results:
             batch_size = min(10, max_results - len(urls))
-            params = {
+            request_params = {
                 "key": self.api_key,
                 "cx": self.search_engine_id,
                 "q": query,
                 "num": batch_size,
                 "start": start,
+                **params,
             }
-            response = requests.get(self.BASE_URL, params=params, timeout=self.timeout)
+            response = requests.get(self.BASE_URL, params=request_params, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             items = data.get("items", [])
@@ -109,10 +126,15 @@ class ConfigurableJsonSearchProvider(SearchProvider):
         self.headers = headers or {}
         self.timeout = timeout
 
-    def search(self, query: str, max_results: int) -> list[str]:
-        """Return up to max_results result URLs for query, walking result_path into the JSON response."""
-        params = {self.query_param: query, **self.extra_params}
-        response = requests.get(self.base_url, params=params, headers=self.headers, timeout=self.timeout)
+    def search(self, query: str, max_results: int, params: dict | None = None) -> list[str]:
+        """
+        Return up to max_results result URLs for query, walking result_path
+        into the JSON response. Per-query params (a block's language, say) are
+        sent as given: SearXNG's own parameter is called `language`, and any
+        other API's spelling can be written into the query file's `params:`.
+        """
+        request_params = {self.query_param: query, **self.extra_params, **(params or {})}
+        response = requests.get(self.base_url, params=request_params, headers=self.headers, timeout=self.timeout)
         response.raise_for_status()
         data = response.json()
 

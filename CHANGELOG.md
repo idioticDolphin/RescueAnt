@@ -100,6 +100,16 @@ Entries begin at the first release; earlier development is not itemised.
   German cities. The shipped file covers 37 languages and writing systems and
   292 countries, states and regions - 1,553 queries in all, from US state
   rehabilitator licences to Japanese, Thai, Arabic and Swahili.
+- **Blocks carry their own search settings.** `language: ja` is passed to the
+  search provider with every query of that block, so a Japanese query is
+  answered with Japanese pages rather than whatever else matches the
+  characters (`ConfigurableJsonSearchProvider` sends it as given, which is
+  SearXNG's own spelling; the Google provider translates it to `lr=lang_ja`).
+  `params: safesearch=0, time_range=year` adds any others, `weight: 2` takes
+  that many queries per interleaved turn, and `set animal = Igel, Dachs`
+  declares a placeholder the block's templates can use, written out once per
+  value. A `SearchProvider` that does not accept per-query parameters is
+  still called the old way.
 - **`discovery_query_order`** decides how that file is consumed.
   `"interleave"` (the shipped setting) takes one query from each block per
   turn, so ten discovery turns have asked in ten languages; `"file"` keeps the

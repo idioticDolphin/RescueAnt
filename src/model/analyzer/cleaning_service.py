@@ -3,7 +3,56 @@ from urllib.parse import urljoin, urlparse
 from model.tools import config_service
 
 CRAWLABLE_SCHEMES = {"http", "https"}
+# Anchor text long enough to carry a heading is worth keeping; a whole
+# paragraph wrapped in a link is not, and it is only ever scanned for tokens.
+MAX_LINK_TEXT = 120
 config = config_service.get_config()
+
+
+def _link_text(a):
+    """The words a reader sees on a link: its text, else its title, else its
+    image's alt text. A logo linking home has none of the three."""
+    for candidate in (a.get_text(" ", strip=True), a.get("title", ""),
+                      " ".join(img.get("alt", "") for img in a.find_all("img"))):
+        text = " ".join((candidate or "").split())
+        if text:
+            return text[:MAX_LINK_TEXT]
+    return ""
+
+
+def extract_links_with_text(html, base_url):
+    """
+    Like extract_links(), but each URL comes with the words that led to it.
+
+    Anchor text is a primary signal in the focused-crawling literature (Lu et
+    al. 2016) and the cheapest one available: "Wildtierauffangstationen in
+    Bayern" and "Datenschutzerklärung" are worth different places in the
+    frontier, and the page has already been parsed.
+
+    Where a page links the same URL more than once - a logo and a menu entry -
+    the longest text wins, since the uninformative occurrence is usually the
+    empty one.
+
+    :return: [(url, text)] sorted by URL; text is "" when the link has none.
+    """
+    best = {}
+    soup = BeautifulSoup(html, 'html.parser')
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        if not href or href.startswith("#"):
+            continue
+        try:
+            full_url = urljoin(base_url, href)
+            scheme = urlparse(full_url).scheme
+        except ValueError:
+            continue
+        if scheme not in CRAWLABLE_SCHEMES:
+            continue
+        text = _link_text(a)
+        if full_url not in best or len(text) > len(best[full_url]):
+            best[full_url] = text
+    return sorted(best.items())
+
 
 def extract_links(html, base_url):
     """Pull all outbound page links worth crawling — filters out

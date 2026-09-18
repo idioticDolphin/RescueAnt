@@ -1,19 +1,32 @@
 # Query template file for discovery_service.read_query_templates().
 #
-# - lines starting with "location:" declare a location to search in
-# - a line of three or more dashes starts a new block: its templates are
-#   combined only with its own locations, so a French template is never sent
-#   out against a German city
-# - a template containing "{location}" gets that location substituted in
-# - a template with no placeholder just gets the location appended
-# - blank lines and lines starting with "#" are ignored
+# A line of three or more dashes starts a new block. Everything a block
+# declares applies to that block alone, which is what keeps a Spanish template
+# away from a Japanese location:
+#
+#   location: Bayern          a place to search in
+#   language: de              sent to the search engine with every query of
+#                             this block, so a German query is answered with
+#                             German pages
+#   params: safesearch=0      any further request parameters, comma-separated
+#   weight: 2                 take this many of the block's queries per
+#                             interleaved turn, for a language worth asking
+#                             about more often than the rest
+#   set animal = Igel, Dachs  a placeholder the block's templates may use
+#   <anything else>           a query template; "{location}" is substituted,
+#                             and a template without it gets the location
+#                             appended
+#
+# Blank lines and lines starting with "#" are ignored.
 #
 # Discovery runs when the frontier has strayed (see discovery_when_below), and
 # takes discovery_batch_size queries per turn, so a long list costs nothing
 # until it is needed. Queries are grouped by language because that is what
 # decides which pages a search engine returns: "wildlife rescue centre Bayern"
 # finds English-language travel guides about Bavaria, not the station down the
-# road. A block's language should match the places it names.
+# road. A block's language should match the places it names - and where a
+# language and a country do not line up, they get a block each, which is why
+# Lithuanian, Latvian and Estonian are three blocks rather than one.
 #
 # Order matters as much as content. With discovery_query_order = "interleave"
 # each turn takes one query from every block, so a run that fires discovery a
@@ -22,6 +35,7 @@
 # discovery rounds before a single English one is sent.
 
 # --- German ----------------------------------------------------------------
+language: de
 location: Baden-Württemberg
 location: Bayern
 location: Berlin
@@ -56,6 +70,7 @@ Auffangstation Wildvögel {location}
 
 ---
 # --- English: Britain and Ireland ------------------------------------------
+language: en
 location: England
 location: Scotland
 location: Wales
@@ -80,6 +95,7 @@ seal and seabird rescue {location}
 
 ---
 # --- English: North America ------------------------------------------------
+language: en
 # Wildlife rehabilitation in the United States and Canada is licensed state by
 # state and province by province, and the licensing body usually publishes the
 # list of licence holders - which is a listing page worth reaching.
@@ -152,6 +168,7 @@ wildlife rescue hotline {location}
 
 ---
 # --- English: Australia, New Zealand and the Pacific -----------------------
+language: en
 location: New South Wales
 location: Victoria
 location: Queensland
@@ -171,6 +188,7 @@ wildlife shelter {location}
 
 ---
 # --- English: Africa, South and South-East Asia ----------------------------
+language: en
 location: South Africa
 location: Namibia
 location: Botswana
@@ -200,6 +218,7 @@ wildlife rescue and release {location}
 
 ---
 # --- French ----------------------------------------------------------------
+language: fr
 location: France
 location: Bretagne
 location: Normandie
@@ -229,6 +248,7 @@ centre de soins pour hérissons {location}
 
 ---
 # --- Spanish: Spain --------------------------------------------------------
+language: es
 location: Andalucía
 location: Aragón
 location: Asturias
@@ -255,6 +275,7 @@ centro de recuperación de aves rapaces {location}
 
 ---
 # --- Spanish: Latin America ------------------------------------------------
+language: es
 location: México
 location: Argentina
 location: Chile
@@ -282,6 +303,7 @@ refugio de fauna silvestre {location}
 
 ---
 # --- Italian ---------------------------------------------------------------
+language: it
 location: Italia
 location: Lombardia
 location: Piemonte
@@ -302,6 +324,7 @@ centro recupero rapaci {location}
 
 ---
 # --- Dutch -----------------------------------------------------------------
+language: nl
 location: Nederland
 location: Noord-Holland
 location: Zuid-Holland
@@ -321,6 +344,7 @@ opvangcentrum voor wilde dieren {location}
 
 ---
 # --- Portuguese ------------------------------------------------------------
+language: pt
 location: Portugal
 location: Açores
 location: Madeira
@@ -341,6 +365,7 @@ centro de reabilitação de fauna selvagem {location}
 
 ---
 # --- Polish ----------------------------------------------------------------
+language: pl
 location: Polska
 location: Mazowieckie
 location: Małopolska
@@ -357,6 +382,7 @@ znalazłem ranne dzikie zwierzę {location}
 
 ---
 # --- Czech -----------------------------------------------------------------
+language: cs
 location: Česko
 location: Morava
 location: Praha
@@ -368,6 +394,7 @@ našel jsem zraněné divoké zvíře {location}
 
 ---
 # --- Slovak ----------------------------------------------------------------
+language: sk
 location: Slovensko
 location: Bratislavský kraj
 location: Košický kraj
@@ -378,6 +405,7 @@ našiel som zranené divé zviera {location}
 
 ---
 # --- Hungarian -------------------------------------------------------------
+language: hu
 location: Magyarország
 location: Budapest
 location: Dunántúl
@@ -390,6 +418,7 @@ vadmadár mentés {location}
 
 ---
 # --- Romanian --------------------------------------------------------------
+language: ro
 location: România
 location: Transilvania
 location: Moldova
@@ -401,6 +430,7 @@ am găsit un animal sălbatic rănit {location}
 
 ---
 # --- Bulgarian -------------------------------------------------------------
+language: bg
 location: България
 location: София
 location: Стара Загора
@@ -411,6 +441,7 @@ location: Стара Загора
 
 ---
 # --- Croatian, Serbian, Bosnian --------------------------------------------
+language: hr
 location: Hrvatska
 location: Srbija
 location: Bosna i Hercegovina
@@ -422,6 +453,7 @@ našao sam ranjenu divlju životinju {location}
 
 ---
 # --- Slovenian -------------------------------------------------------------
+language: sl
 location: Slovenija
 location: Ljubljana
 
@@ -431,6 +463,7 @@ našel sem ranjeno divjo žival {location}
 
 ---
 # --- Greek -----------------------------------------------------------------
+language: el
 location: Ελλάδα
 location: Κρήτη
 location: Μακεδονία
@@ -442,6 +475,7 @@ location: Κύπρος
 
 ---
 # --- Turkish ---------------------------------------------------------------
+language: tr
 location: Türkiye
 location: İstanbul
 location: Ankara
@@ -455,6 +489,7 @@ kuş hastanesi yaban {location}
 
 ---
 # --- Russian ---------------------------------------------------------------
+language: ru
 location: Россия
 location: Москва
 location: Санкт-Петербург
@@ -470,6 +505,7 @@ location: Казахстан
 
 ---
 # --- Ukrainian -------------------------------------------------------------
+language: uk
 location: Україна
 location: Київ
 location: Львів
@@ -479,21 +515,32 @@ location: Львів
 знайшов поранену дику тварину {location}
 
 ---
-# --- Lithuanian, Latvian, Estonian -----------------------------------------
-# One block each would be tidier, but two templates per language in one block
-# keeps the round-robin from giving the Baltics three times the share of, say,
-# Brazil. Locations and templates are matched by language inside the queries
-# themselves rather than by pairing, so each template names its own country.
+# --- Lithuanian ------------------------------------------------------------
+language: lt
 location: Lietuva
-location: Latvija
-location: Eesti
 
 laukinių gyvūnų globos centras {location}
+radau sužeistą laukinį gyvūną {location}
+
+---
+# --- Latvian ---------------------------------------------------------------
+language: lv
+location: Latvija
+
 savvaļas dzīvnieku rehabilitācijas centrs {location}
+atradu ievainotu savvaļas dzīvnieku {location}
+
+---
+# --- Estonian --------------------------------------------------------------
+language: et
+location: Eesti
+
 metsloomade rehabilitatsioonikeskus {location}
+leidsin vigastatud metslooma {location}
 
 ---
 # --- Swedish ---------------------------------------------------------------
+language: sv
 location: Sverige
 location: Skåne
 location: Västra Götaland
@@ -506,6 +553,7 @@ hittat skadat vilt vem ringer man {location}
 
 ---
 # --- Norwegian -------------------------------------------------------------
+language: no
 location: Norge
 location: Vestlandet
 location: Nord-Norge
@@ -516,6 +564,7 @@ fuglehjelp skadet fugl {location}
 
 ---
 # --- Danish ----------------------------------------------------------------
+language: da
 location: Danmark
 location: Jylland
 location: Fyn
@@ -526,6 +575,7 @@ pindsvineplejer {location}
 
 ---
 # --- Finnish ---------------------------------------------------------------
+language: fi
 location: Suomi
 location: Lappi
 location: Uusimaa
@@ -536,6 +586,7 @@ löysin loukkaantuneen villieläimen {location}
 
 ---
 # --- Japanese --------------------------------------------------------------
+language: ja
 location: 日本
 location: 北海道
 location: 東京
@@ -547,6 +598,7 @@ location: 九州
 
 ---
 # --- Korean ----------------------------------------------------------------
+language: ko
 location: 대한민국
 location: 서울
 location: 경기도
@@ -558,6 +610,7 @@ location: 제주
 
 ---
 # --- Chinese, simplified ---------------------------------------------------
+language: zh-CN
 location: 中国
 location: 北京
 location: 广东
@@ -570,6 +623,7 @@ location: 云南
 
 ---
 # --- Chinese, traditional --------------------------------------------------
+language: zh-TW
 location: 台灣
 location: 香港
 
@@ -579,6 +633,7 @@ location: 香港
 
 ---
 # --- Thai ------------------------------------------------------------------
+language: th
 location: ประเทศไทย
 location: เชียงใหม่
 location: ภูเก็ต
@@ -589,6 +644,7 @@ location: ภูเก็ต
 
 ---
 # --- Vietnamese ------------------------------------------------------------
+language: vi
 location: Việt Nam
 location: Hà Nội
 location: Thành phố Hồ Chí Minh
@@ -597,20 +653,32 @@ trung tâm cứu hộ động vật hoang dã {location}
 cứu hộ động vật hoang dã bị thương {location}
 
 ---
-# --- Indonesian and Malay --------------------------------------------------
+# --- Indonesian ------------------------------------------------------------
+language: id
 location: Indonesia
 location: Jawa
 location: Sumatera
 location: Kalimantan
-location: Malaysia
-location: Sabah
+location: Sulawesi
 
 pusat penyelamatan satwa liar {location}
 pusat rehabilitasi satwa {location}
+menemukan satwa liar terluka {location}
+
+---
+# --- Malay -----------------------------------------------------------------
+language: ms
+location: Malaysia
+location: Sabah
+location: Sarawak
+location: Brunei
+
 pusat penyelamatan hidupan liar {location}
+pusat pemulihan hidupan liar {location}
 
 ---
 # --- Hindi -----------------------------------------------------------------
+language: hi
 location: भारत
 location: दिल्ली
 location: महाराष्ट्र
@@ -621,6 +689,7 @@ location: महाराष्ट्र
 
 ---
 # --- Arabic ----------------------------------------------------------------
+language: ar
 location: مصر
 location: المغرب
 location: الأردن
@@ -633,6 +702,7 @@ location: السعودية
 
 ---
 # --- Hebrew ----------------------------------------------------------------
+language: he
 location: ישראל
 
 מרכז הצלת חיות בר {location}
@@ -641,6 +711,7 @@ location: ישראל
 
 ---
 # --- Persian ---------------------------------------------------------------
+language: fa
 location: ایران
 
 مرکز نجات حیات وحش {location}
@@ -648,6 +719,7 @@ location: ایران
 
 ---
 # --- Swahili ---------------------------------------------------------------
+language: sw
 location: Kenya
 location: Tanzania
 
@@ -656,6 +728,7 @@ kituo cha kuhifadhi wanyamapori waliojeruhiwa {location}
 
 ---
 # --- Afrikaans -------------------------------------------------------------
+language: af
 location: Suid-Afrika
 location: Wes-Kaap
 location: Gauteng

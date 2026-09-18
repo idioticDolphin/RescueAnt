@@ -303,15 +303,19 @@ whatever URLs they turn up, at `discovery_priority` - far above any
 link-derived score, because a search hit answers the configured query
 directly.
 
-The shipped `search_queries.csv` asks in 37 languages across 292 countries,
+The shipped `search_queries.csv` asks in 40 languages across 300 countries,
 states and regions. Its blocks - separated by a line of dashes - each pair
-their own templates with their own locations, because a search engine ranks
-by the language of the page: asking for a "wildlife rescue centre" in Bayern
-returns English travel guides, not the station down the road.
-`discovery_query_order = "interleave"` then takes one query from each block
-per turn, so a run that fires discovery ten times has asked in ten languages
-rather than spending every turn in the first block. See
-[the manual](docs/MANUAL.md#search_queriescsv) for the file format.
+their own templates with their own locations and declare the language they
+ask in, because a search engine ranks by the language of the page: asking for
+a "wildlife rescue centre" in Bayern returns English travel guides, not the
+station down the road. That language is sent to the search engine with every
+query of the block, and `discovery_query_order = "interleave"` takes one query
+from each block per turn, so a run that fires discovery ten times has asked in
+ten languages rather than spending every turn in the first block. A block can
+also declare extra request `params`, a `weight`, and `set` placeholders its
+templates expand over. See [the manual](docs/MANUAL.md#search_queriescsv) for
+the file format, and `examples/search_queries.csv` for a short one using all
+of it.
 
 ### SearXNG (the default - free, self-hosted, no API key)
 

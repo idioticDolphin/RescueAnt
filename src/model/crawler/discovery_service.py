@@ -31,22 +31,59 @@ CRAWLABLE_SCHEMES = {"http", "https"}
 config = config_service.get_config()
 
 
-def generate_queries(keyword_templates: Iterable[str], locations: Iterable[str]) -> list[str]:
+class Query(str):
+    """
+    A search query, plus the parameters its block says to send with it.
+
+    It is a string, so everything that logs, compares or hands a query to a
+    provider keeps working; `params` rides along for providers that can use
+    it - `language=ja` on a Japanese block, so a Japanese query is answered
+    with Japanese pages instead of whatever else matches the characters.
+    """
+
+    def __new__(cls, text: str, params: dict | None = None, block: str = ""):
+        query = super().__new__(cls, text)
+        query.params = dict(params or {})
+        query.block = block
+        return query
+
+
+def generate_queries(keyword_templates: Iterable[str], locations: Iterable[str],
+                     value_sets: dict[str, list[str]] | None = None,
+                     params: dict | None = None, block: str = "") -> list[Query]:
     """
     Combine keyword templates with locations to build a list of search
     queries. A template containing "{location}" gets that substituted in
     directly (e.g. "Tierheim in {location}" -> "Tierheim in Marburg");
     a plain keyword with no placeholder is just appended with a space
     (e.g. "Wildtierhilfe" -> "Wildtierhilfe Marburg").
+
+    :param value_sets: further placeholders declared by the block, as
+                       {"animal": ["Igel", "Fledermaus"]}. A template naming
+                       one is written out once per value, so a file can say
+                       "{animal}station {location}" instead of listing the
+                       product by hand. Templates naming none are unaffected.
     """
     queries = []
     for template in keyword_templates:
-        for location in locations:
-            if "{location}" in template:
-                queries.append(template.format(location=location))
-            else:
-                queries.append(f"{template} {location}")
+        for variant in _expand_value_sets(template, value_sets or {}):
+            for location in locations:
+                text = (variant.replace("{location}", location) if "{location}" in variant
+                        else f"{variant} {location}")
+                queries.append(Query(text, params, block))
     return queries
+
+
+def _expand_value_sets(template: str, value_sets: dict[str, list[str]]) -> list[str]:
+    """Write a template out once per combination of the sets it names."""
+    variants = [template]
+    for name, values in value_sets.items():
+        placeholder = "{" + name + "}"
+        if not any(placeholder in variant for variant in variants):
+            continue
+        variants = [variant.replace(placeholder, value)
+                    for variant in variants for value in values]
+    return variants
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +116,11 @@ def discover_urls(
     queries = list(queries)
     for i, query in enumerate(queries):
         try:
-            results = provider.search(query, results_per_query)
+            params = getattr(query, "params", None)
+            # Only providers that accept per-query parameters are given them,
+            # so a provider written before blocks carried a language still works.
+            results = (provider.search(query, results_per_query, params=params) if params
+                       else provider.search(query, results_per_query))
         except Exception as e:
             logger.warning("Search failed for query %r: %r", query, e)
             results = []
@@ -126,26 +167,43 @@ def read_query_templates(path: str = config.get_search_query_path(),
       - a line of three or more dashes starts a new block: the templates in a
         block are combined only with that block's locations, so a French
         template is not sent out against German cities
+      - "language: ja" gives the block's queries a language parameter, passed
+        to the search provider so a Japanese query is answered with Japanese
+        pages; "params: safesearch=0, time_range=year" adds any others
+      - "weight: 2" takes that many of the block's queries per interleaved
+        turn, for a language worth asking about more often than the rest
+      - "set animal = Igel, Fledermaus" declares a placeholder the block's
+        templates can use, written out once per value (see generate_queries())
       - blank lines and lines starting with "#" are ignored
       - every other non-empty line is a keyword template, optionally
         containing "{location}" as a placeholder (see generate_queries())
 
     :param order: "file" keeps the file's own order; "interleave" takes one
-                  query from each block in turn. run_discovery() consumes a
-                  handful of queries per turn from the front of the list, so
-                  in file order a query file covering many languages spends
-                  its whole run inside the first block. Defaults to
-                  config.discovery_query_order.
+                  query from each block in turn (or `weight` of them).
+                  run_discovery() consumes a handful of queries per turn from
+                  the front of the list, so in file order a query file
+                  covering many languages spends its whole run inside the
+                  first block. Defaults to config.discovery_query_order.
     """
-    blocks: list[list[str]] = []
-    templates = []
-    locations = []
+    blocks: list[list[Query]] = []
+    weights: list[int] = []
+    templates, locations = [], []
+    directives: dict[str, str] = {}
+    value_sets: dict[str, list[str]] = {}
 
     def flush():
         if templates and locations:
-            blocks.append(generate_queries(templates, locations))
+            params = {}
+            if directives.get("language"):
+                params["language"] = directives["language"]
+            params.update(_parse_params(directives.get("params", "")))
+            blocks.append(generate_queries(templates, locations, value_sets, params,
+                                           directives.get("language", "")))
+            weights.append(max(1, int(directives.get("weight", 1) or 1)))
         templates.clear()
         locations.clear()
+        directives.clear()
+        value_sets.clear()
 
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -156,6 +214,12 @@ def read_query_templates(path: str = config.get_search_query_path(),
                 flush()
             elif line.lower().startswith("location:"):
                 locations.append(line.split(":", 1)[1].strip())
+            elif line.lower().startswith("set "):
+                name, _, values = line[4:].partition("=")
+                value_sets[name.strip()] = [v.strip() for v in values.split(",") if v.strip()]
+            elif _directive(line):
+                key, value = _directive(line)
+                directives[key] = value
             else:
                 templates.append(line)
     flush()
@@ -163,5 +227,37 @@ def read_query_templates(path: str = config.get_search_query_path(),
     if order is None:
         order = getattr(config_service.get_config(), "discovery_query_order", "file")
     if order == "interleave":
-        return [query for row in zip_longest(*blocks) for query in row if query is not None]
+        return _interleave(blocks, weights)
     return [query for block in blocks for query in block]
+
+
+BLOCK_DIRECTIVES = ("language", "params", "weight")
+
+
+def _directive(line: str):
+    """("language", "ja") for a block directive line, None for a template."""
+    key, separator, value = line.partition(":")
+    if separator and key.strip().lower() in BLOCK_DIRECTIVES:
+        return key.strip().lower(), value.strip()
+    return None
+
+
+def _parse_params(text: str) -> dict:
+    """"safesearch=0, time_range=year" -> {"safesearch": "0", "time_range": "year"}"""
+    params = {}
+    for pair in text.split(","):
+        key, separator, value = pair.partition("=")
+        if separator and key.strip():
+            params[key.strip()] = value.strip()
+    return params
+
+
+def _interleave(blocks: list[list[Query]], weights: list[int]) -> list[Query]:
+    """Take `weight` queries from each block per turn until every block is spent."""
+    queries, cursors = [], [0] * len(blocks)
+    while any(cursor < len(block) for cursor, block in zip(cursors, blocks)):
+        for index, block in enumerate(blocks):
+            take = block[cursors[index]:cursors[index] + weights[index]]
+            cursors[index] += len(take)
+            queries.extend(take)
+    return queries

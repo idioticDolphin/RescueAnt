@@ -272,3 +272,120 @@ def test_query_order_defaults_to_the_configured_one(monkeypatch, tmp_path):
 
     assert discovery_service.read_query_templates(str(query_file))[1] == \
         "centre de sauvegarde Lyon"
+
+
+# ---------------------------------------------------------------------------
+# block directives: placeholder sets, search parameters, weight
+# ---------------------------------------------------------------------------
+
+def test_a_declared_set_expands_its_placeholder(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "set animal = Igel, Fledermaus\n"
+        "location: Bayern\n"
+        "{animal}station {location}\n",
+        encoding="utf-8")
+
+    assert discovery_service.read_query_templates(str(query_file)) == [
+        "Igelstation Bayern", "Fledermausstation Bayern"]
+
+
+def test_a_set_belongs_to_its_own_block(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "set animal = Igel\nlocation: Bayern\n{animal}station {location}\n"
+        "---\n"
+        "location: France\ncentre de soins {location}\n",
+        encoding="utf-8")
+
+    assert discovery_service.read_query_templates(str(query_file)) == [
+        "Igelstation Bayern", "centre de soins France"]
+
+
+def test_a_template_naming_no_set_is_left_alone(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "set animal = Igel, Fledermaus\nlocation: Bayern\nWildtierhilfe {location}\n",
+        encoding="utf-8")
+
+    assert discovery_service.read_query_templates(str(query_file)) == ["Wildtierhilfe Bayern"]
+
+
+def test_block_language_rides_along_with_every_query_of_that_block(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "language: de\nlocation: Bayern\nWildtierhilfe {location}\n"
+        "---\n"
+        "language: ja\nlocation: 北海道\n野生動物保護センター {location}\n",
+        encoding="utf-8")
+
+    german, japanese = discovery_service.read_query_templates(str(query_file), order="file")
+
+    assert german.params == {"language": "de"}
+    assert japanese.params == {"language": "ja"}
+
+
+def test_extra_search_params_are_parsed_and_merged_with_the_language(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "language: de\nparams: safesearch=0, time_range=year\n"
+        "location: Bayern\nWildtierhilfe {location}\n",
+        encoding="utf-8")
+
+    query, = discovery_service.read_query_templates(str(query_file))
+
+    assert query.params == {"language": "de", "safesearch": "0", "time_range": "year"}
+
+
+def test_queries_without_directives_carry_no_params(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text("location: Bayern\nWildtierhilfe {location}\n", encoding="utf-8")
+
+    assert discovery_service.read_query_templates(str(query_file))[0].params == {}
+
+
+def test_a_query_is_still_a_plain_string(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text("language: de\nlocation: Bayern\nWildtierhilfe {location}\n",
+                          encoding="utf-8")
+
+    assert discovery_service.read_query_templates(str(query_file)) == ["Wildtierhilfe Bayern"]
+
+
+def test_block_weight_takes_that_many_queries_per_interleaved_turn(tmp_path):
+    # The deployment's own language is worth asking about more often than the
+    # thirty-sixth language in the file.
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "weight: 2\nlocation: A\nlocation: B\nlocation: C\nx {location}\n"
+        "---\n"
+        "location: D\nlocation: E\ny {location}\n",
+        encoding="utf-8")
+
+    assert discovery_service.read_query_templates(str(query_file), order="interleave") == [
+        "x A", "x B", "y D", "x C", "y E"]
+
+
+def test_search_params_reach_the_provider(monkeypatch):
+    seen = {}
+
+    class Provider:
+        def search(self, query, max_results, params=None):
+            seen[query] = params
+            return ["http://found.example/"]
+
+    discovery_service.discover_urls(
+        Provider(), [discovery_service.Query("Wildtierhilfe Bayern", {"language": "de"})],
+        results_per_query=3, politeness=0)
+
+    assert seen == {"Wildtierhilfe Bayern": {"language": "de"}}
+
+
+def test_a_provider_without_params_support_still_works(monkeypatch):
+    class OldProvider:
+        def search(self, query, max_results):
+            return ["http://found.example/"]
+
+    assert discovery_service.discover_urls(
+        OldProvider(), ["Wildtierhilfe Bayern"], results_per_query=3,
+        politeness=0) == ["http://found.example/"]

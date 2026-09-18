@@ -1,9 +1,22 @@
 # Small example query-template file for discovery_service.read_query_templates() -
 # see search_queries.csv at the project root for the full-size version, and its
 # comments (or the function's docstring) for the exact file format.
+#
+# This one shows every directive a block can carry. The second block is the
+# reason blocks exist: its templates meet only its own locations, so the
+# French wording is never sent out against a German city.
 
+language: de
+set tier = Igel, Fledermaus, Eichhörnchen
 location: Marburg
 location: Berlin
 
-Tierheim in {location}
+{tier} Auffangstation {location}
 Wildtierhilfe {location}
+
+---
+language: fr
+weight: 2
+location: Strasbourg
+
+centre de soins faune sauvage {location}

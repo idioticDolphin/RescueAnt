@@ -176,3 +176,33 @@ def test_configurable_provider_sends_extra_params_and_headers(monkeypatch):
 
     assert get.call_args.kwargs["params"] == {"q": "query", "api_key": "secret"}
     assert get.call_args.kwargs["headers"] == {"X-Test": "1"}
+
+
+# ---------------------------------------------------------------------------
+# per-query parameters from a query-file block
+# ---------------------------------------------------------------------------
+
+def test_configurable_provider_sends_per_query_params(monkeypatch):
+    provider = ConfigurableJsonSearchProvider(
+        base_url="http://searx/search", query_param="q", result_path=["results"],
+        url_field="url", extra_params={"format": "json"})
+    get = MagicMock(return_value=_fake_response({"results": [{"url": "http://a.com"}]}))
+    monkeypatch.setattr("model.objects.searchprovider.requests.get", get)
+
+    provider.search("野生動物保護センター 北海道", max_results=5, params={"language": "ja"})
+
+    params = get.call_args.kwargs["params"]
+    assert params["language"] == "ja"
+    assert params["format"] == "json"
+
+
+def test_google_provider_translates_language_into_its_own_spelling(monkeypatch):
+    provider = GoogleCustomSearchProvider(api_key="k", search_engine_id="cx")
+    get = MagicMock(return_value=_fake_response({"items": [{"link": "http://a.com"}]}))
+    monkeypatch.setattr("model.objects.searchprovider.requests.get", get)
+
+    provider.search("Wildtierhilfe Bayern", max_results=5, params={"language": "de"})
+
+    params = get.call_args.kwargs["params"]
+    assert params["lr"] == "lang_de"
+    assert "language" not in params

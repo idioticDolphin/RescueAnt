@@ -52,6 +52,54 @@ def test_extract_links_empty_html_returns_empty_list():
 
 
 # ---------------------------------------------------------------------------
+# extract_links_with_text
+# ---------------------------------------------------------------------------
+
+def test_link_text_is_returned_with_the_url():
+    html = '<a href="/kontakt">Kontakt und Anfahrt</a>'
+    assert cleaning_service.extract_links_with_text(html, "http://example.com/") == [
+        ("http://example.com/kontakt", "Kontakt und Anfahrt")]
+
+
+def test_link_text_collapses_whitespace_and_nested_markup():
+    html = '<a href="/x"><span>Wildtier</span>\n  <b>hilfe</b></a>'
+    assert cleaning_service.extract_links_with_text(html, "http://example.com/") == [
+        ("http://example.com/x", "Wildtier hilfe")]
+
+
+def test_link_without_text_falls_back_to_title_then_image_alt():
+    html = ('<a href="/a" title="Zur Auffangstation"><img src="x.png"></a>'
+            '<a href="/b"><img src="y.png" alt="Igelstation"></a>'
+            '<a href="/c"><img src="z.png"></a>')
+    assert cleaning_service.extract_links_with_text(html, "http://example.com/") == [
+        ("http://example.com/a", "Zur Auffangstation"),
+        ("http://example.com/b", "Igelstation"),
+        ("http://example.com/c", "")]
+
+
+def test_repeated_link_keeps_the_most_informative_text():
+    # A site's logo links home from every page with no text at all; the same
+    # URL in a menu carries the words worth having.
+    html = ('<a href="/"><img src="logo.png"></a>'
+            '<a href="/">Startseite Wildtierstation</a>')
+    assert cleaning_service.extract_links_with_text(html, "http://example.com/") == [
+        ("http://example.com/", "Startseite Wildtierstation")]
+
+
+def test_link_text_is_bounded():
+    html = '<a href="/x">' + ("wort " * 100) + "</a>"
+    url, text = cleaning_service.extract_links_with_text(html, "http://example.com/")[0]
+    assert len(text) <= cleaning_service.MAX_LINK_TEXT
+
+
+def test_links_with_text_follow_the_same_filters_as_extract_links():
+    html = ('<a href="mailto:a@b.c">Mail</a><a href="#top">Top</a>'
+            '<a href="/real">Real</a>')
+    assert [url for url, _ in cleaning_service.extract_links_with_text(
+        html, "http://example.com/")] == ["http://example.com/real"]
+
+
+# ---------------------------------------------------------------------------
 # clean
 # ---------------------------------------------------------------------------
 
