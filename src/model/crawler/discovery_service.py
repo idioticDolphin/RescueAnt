@@ -121,19 +121,33 @@ def read_query_templates(path: str = config.get_search_query_path()) -> list[str
 
     File format - one entry per line:
       - lines starting with "location:" declare a location (e.g. "location: Marburg")
+      - a line of three or more dashes starts a new block: the templates in a
+        block are combined only with that block's locations, so a French
+        template is not sent out against German cities
       - blank lines and lines starting with "#" are ignored
       - every other non-empty line is a keyword template, optionally
         containing "{location}" as a placeholder (see generate_queries())
     """
+    queries = []
     templates = []
     locations = []
-    with open(path) as f:
+
+    def flush():
+        if templates and locations:
+            queries.extend(generate_queries(templates, locations))
+        templates.clear()
+        locations.clear()
+
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            if line.lower().startswith("location:"):
+            if set(line) == {"-"} and len(line) >= 3:
+                flush()
+            elif line.lower().startswith("location:"):
                 locations.append(line.split(":", 1)[1].strip())
             else:
                 templates.append(line)
-    return generate_queries(templates, locations)
+    flush()
+    return queries

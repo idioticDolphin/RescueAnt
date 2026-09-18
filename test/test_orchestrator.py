@@ -7,6 +7,7 @@ import pytest
 import model.orchestrator as orchestrator
 import model.crawler.fetching_service as fetching_service
 import model.tools.config_service as config_service
+from model.tools import url_service
 from conftest import make_fake_category
 from model.objects.category import Category, Relevancy
 
@@ -978,7 +979,7 @@ def _mislabel_setup(monkeypatch, target="HUB"):
     monkeypatch.setattr(orchestrator, "data_service", data)
     queued = []
     monkeypatch.setattr(orchestrator.fetching_service, "queue_url",
-                        lambda url, priority=0.0: queued.append((url, priority)))
+                        lambda url, priority=0.0, closeness=0.0: queued.append((url, priority)))
     return data, queued, cfg
 
 
@@ -1213,3 +1214,64 @@ def test_queueing_known_websites_can_be_switched_off(monkeypatch):
 
     data_service.get_record_urls.assert_not_called()
     assert fetching_service.url_queue == []
+
+
+# ---------------------------------------------------------------------------
+# priority decaying with distance from a station or a listing
+# ---------------------------------------------------------------------------
+
+def _decay_config(monkeypatch, decay=0.5, source_min=3.0):
+    cfg = config_service.get_config().model_copy(update={
+        "referrer_weights": {"STATION": 4.0, "LIST": 6.0, "HUB": 1.0},
+        "link_closeness_decay": decay, "closeness_source_min": source_min,
+        "url_tokens_identity": [], "url_tokens_exclude": []})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+    monkeypatch.setattr(fetching_service, "url_closeness", {})
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+    return cfg
+
+
+def test_links_from_a_station_start_at_its_weight_decayed_once(monkeypatch):
+    cfg = _decay_config(monkeypatch)
+    orchestrator._queue_links(["http://next.example/a"], _make_category("STATION"), cfg,
+                              "http://station.example/")
+    assert fetching_service.closeness_of("http://next.example/a") == 2.0
+
+
+def test_each_further_hop_decays_the_closeness_again(monkeypatch):
+    cfg = _decay_config(monkeypatch)
+    orchestrator._queue_links(["http://hop1.example/"], _make_category("STATION"), cfg,
+                              "http://station.example/")
+    orchestrator._queue_links(["http://hop2.example/"], _make_links_only_category("HUB"), cfg,
+                              "http://hop1.example/")
+    orchestrator._queue_links(["http://hop3.example/"], _make_links_only_category("HUB"), cfg,
+                              "http://hop2.example/")
+
+    assert fetching_service.closeness_of("http://hop2.example/") == 1.0
+    assert fetching_service.closeness_of("http://hop3.example/") == 0.5
+
+
+def test_an_interesting_page_restores_closeness_however_far_it_was_found(monkeypatch):
+    cfg = _decay_config(monkeypatch)
+    fetching_service.queue_url("http://far.example/", priority=0.1, closeness=0.125)
+
+    orchestrator._queue_links(["http://near.example/"], _make_category("LIST"), cfg,
+                              "http://far.example/")
+
+    assert fetching_service.closeness_of("http://near.example/") == 3.0
+
+
+def test_closeness_is_added_to_the_links_priority(monkeypatch):
+    cfg = _decay_config(monkeypatch)
+    orchestrator._queue_links(["http://next.example/a"], _make_category("STATION"), cfg,
+                              "http://station.example/")
+    plain = url_service.score_url("http://next.example/a", referrer_category_weight=4.0)
+    assert fetching_service.url_priorities["http://next.example/a"] == pytest.approx(plain + 2.0)
+
+
+def test_without_decay_configured_nothing_changes(monkeypatch):
+    cfg = _decay_config(monkeypatch, decay=0.0)
+    orchestrator._queue_links(["http://next.example/a"], _make_category("STATION"), cfg,
+                              "http://station.example/")
+    plain = url_service.score_url("http://next.example/a", referrer_category_weight=4.0)
+    assert fetching_service.url_priorities["http://next.example/a"] == pytest.approx(plain)

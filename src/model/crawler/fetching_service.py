@@ -24,6 +24,10 @@ fetched_content:dict[str, tuple] = {}  # url -> (sha256, page_store path)
 # from hostnames.
 fetch_errors:dict[str, str] = {}
 url_priorities:dict[str, float] = {}   # url -> frontier score (higher first)
+# url -> how close this URL is to a page worth extracting, decayed once per
+# hop. A page reached from a station is close; a page five links further into
+# the open web is not, however plausible its path looks.
+url_closeness:dict[str, float] = {}
 config = config_service.get_config()
 politeness_delay = config.get_politeness()
 
@@ -300,7 +304,15 @@ def abandon_site(site:str):
                 site, _site_low_value.get(site, 0), dropped)
 
 
-def queue_url(url:str, priority:float=0.0):
+def closeness_of(url:str) -> float:
+    """How close a URL is known to be to a page worth extracting."""
+    if not url:
+        return 0.0
+    canonical = url_service.canonicalize(url, drop_params=config.drop_query_params)
+    return url_closeness.get(canonical, 0.0)
+
+
+def queue_url(url:str, priority:float=0.0, closeness:float=0.0):
     """
     Add a URL to the fetch queue, skipping it if already queued or fetched.
 
@@ -311,6 +323,9 @@ def queue_url(url:str, priority:float=0.0):
 
     :param priority: frontier score; higher is crawled sooner. A URL already
                       queued keeps the best score it has been offered.
+    :param closeness: how close this URL is to a page worth extracting. Like
+                      the score, the best value offered wins: finding a shorter
+                      way to a page raises it, a longer way never lowers it.
     """
     global url_queue
     if not url:
@@ -321,6 +336,8 @@ def queue_url(url:str, priority:float=0.0):
     # time (observed: the same homepage came back LIST over http and STATION
     # over https). The scheme is not rewritten - sites that only serve http
     # must stay fetchable - only this "already done?" test ignores it.
+    if closeness:
+        url_closeness[canonical] = max(url_closeness.get(canonical, 0.0), closeness)
     twin = _scheme_twin(canonical)
     for known in (canonical, twin):
         if known and known in url_queue:

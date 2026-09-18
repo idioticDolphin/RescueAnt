@@ -98,6 +98,11 @@ class Config(BaseModel):
     queue_record_urls_at_start: bool = True
     # Deadline for one page's whole fetch, not just its navigation. 0 = none.
     fetch_timeout_seconds: float = 90
+    # Each hop away from an interesting page multiplies a link's closeness by
+    # this; 0 disables the whole idea. A category whose referrer weight reaches
+    # closeness_source_min starts the count again from that weight.
+    link_closeness_decay: float = 0.0
+    closeness_source_min: float = 3.0
     reuse_max_age_days: float = 0
 
     # --- Boilerplate stripping (P8) --------------------------------------

@@ -1,23 +1,137 @@
 # Query template file for discovery_service.read_query_templates().
 #
 # - lines starting with "location:" declare a location to search in
+# - a line of three or more dashes starts a new block: its templates are
+#   combined only with its own locations, so a French template is never sent
+#   out against a German city
 # - a template containing "{location}" gets that location substituted in
 # - a template with no placeholder just gets the location appended
 # - blank lines and lines starting with "#" are ignored
+#
+# Discovery runs when the frontier has strayed (see discovery_when_below), and
+# takes discovery_batch_size queries per turn, so a long list costs nothing
+# until it is needed. Queries are grouped by language because that is what
+# decides which pages a search engine returns.
 
-location: Marburg
+# --- German-speaking -------------------------------------------------------
+location: Baden-Württemberg
+location: Bayern
 location: Berlin
+location: Brandenburg
+location: Bremen
 location: Hamburg
-location: Muenchen
-location: Koeln
-location: Frankfurt am Main
-location: Leipzig
-location: Dresden
+location: Hessen
+location: Mecklenburg-Vorpommern
+location: Niedersachsen
+location: Nordrhein-Westfalen
+location: Rheinland-Pfalz
+location: Saarland
+location: Sachsen
+location: Sachsen-Anhalt
+location: Schleswig-Holstein
+location: Thüringen
+location: Österreich
+location: Schweiz
+location: Südtirol
 
-Tierheim in {location}
-Tierrettung {location}
-Wildtierhilfe
 Wildtierauffangstation {location}
-Pflegestelle fuer Wildtiere {location}
+Wildtierhilfe {location}
+Wildvogelstation {location}
 Igelstation {location}
-Tierschutzverein {location}
+Eichhörnchen Auffangstation {location}
+Fledermaus Pflegestelle {location}
+Greifvogelstation {location}
+Wildtierpflegestelle {location}
+verletztes Wildtier gefunden {location}
+Auffangstation Wildvögel {location}
+
+---
+# --- English ---------------------------------------------------------------
+location: England
+location: Scotland
+location: Wales
+location: Ireland
+location: United States
+location: Canada
+location: Australia
+location: New Zealand
+location: South Africa
+location: India
+location: Kenya
+location: Singapore
+
+wildlife rescue centre {location}
+wildlife rehabilitation centre {location}
+injured wildlife who to call {location}
+bird rescue centre {location}
+hedgehog rescue {location}
+bat rescue {location}
+wildlife hospital {location}
+
+---
+# --- French ----------------------------------------------------------------
+location: France
+location: Belgique
+location: Suisse romande
+location: Québec
+location: Maroc
+
+centre de sauvegarde de la faune sauvage {location}
+centre de soins faune sauvage {location}
+animal sauvage blessé que faire {location}
+refuge pour oiseaux sauvages {location}
+
+---
+# --- Spanish ---------------------------------------------------------------
+location: España
+location: México
+location: Argentina
+location: Chile
+location: Colombia
+location: Perú
+
+centro de recuperación de fauna silvestre {location}
+centro de rescate de animales silvestres {location}
+he encontrado un animal salvaje herido {location}
+hospital de fauna silvestre {location}
+
+---
+# --- Italian ---------------------------------------------------------------
+location: Italia
+location: Sicilia
+location: Sardegna
+
+centro recupero animali selvatici {location}
+centro fauna selvatica {location}
+ho trovato un animale selvatico ferito {location}
+
+---
+# --- Dutch -----------------------------------------------------------------
+location: Nederland
+location: Vlaanderen
+
+vogelopvangcentrum {location}
+wildopvang {location}
+gewond wild dier gevonden {location}
+
+---
+# --- Portuguese ------------------------------------------------------------
+location: Portugal
+location: Brasil
+
+centro de recuperação de animais selvagens {location}
+centro de triagem de animais silvestres {location}
+
+---
+# --- Polish, Czech, Nordic -------------------------------------------------
+location: Polska
+location: Česko
+location: Sverige
+location: Norge
+location: Danmark
+location: Suomi
+
+ośrodek rehabilitacji dzikich zwierząt {location}
+záchranná stanice pro zvířata {location}
+viltrehabilitering {location}
+viltvård skadat djur {location}

@@ -393,7 +393,7 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
             data_service.save_site_category(crawl_id, twin_category)
             data_service.delete_entries_for_crawl(crawl_id)
             links = cleaning_service.extract_links(html, url)
-            _queue_links(links, _category_named(cfg, twin_category, None), cfg)
+            _queue_links(links, _category_named(cfg, twin_category, None), cfg, url)
             monitor_service.page(url, twin_category, 0.0, 0.0)
             data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
             return
@@ -441,7 +441,7 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
             logger.debug("Not extracting from %s - %s already yielded %d page(s) "
                          "of records; following %d link(s)",
                          url, site, already, len(links))
-            _queue_links(links, category, cfg)
+            _queue_links(links, category, cfg, url)
             monitor_service.page(url, category.name, categorize_seconds, 0.0)
             data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
             return
@@ -465,7 +465,7 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
                         url, category.name, target)
             # Links inherit the weight of what the page actually is, not of
             # the category it was wrongly given.
-            _queue_links(links, _category_named(cfg, target, category), cfg)
+            _queue_links(links, _category_named(cfg, target, category), cfg, url)
             data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
             return
         if extracted_data is None:
@@ -482,7 +482,7 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
             data_service.save_extraction(crawl_id, extracted_data)
             logger.info("Extracted %d field(s) from %s", len(extracted_data), url)
             _queue_record_urls([extracted_data], category, config_service.get_config(), url)
-        _queue_links(links, category, config_service.get_config())
+        _queue_links(links, category, config_service.get_config(), url)
     else:
         logger.debug("No data extracted from %s (category=%s)", url, category.name)
 
@@ -497,17 +497,32 @@ def _category_named(cfg, name, fallback):
         return fallback
 
 
-def _queue_links(links, category, cfg):
-    """Queue a page's outbound links, scored by the page that offered them.
+def _queue_links(links, category, cfg, page_url=None):
+    """
+    Queue a page's outbound links, scored by the page that offered them.
 
     Links inherit a score from their referrer: pages found via a productive
-    page are likelier to be productive themselves."""
+    page are likelier to be productive themselves. They also inherit a
+    *closeness* - the weight of the last interesting page on the way here,
+    decayed once per hop. A crawl that follows links indiscriminately drifts:
+    one run spent its night on Slovak charity sites and university
+    departments, each page plausible on its own and none of them near a
+    station. Decay makes distance cost something, and leaves the frontier's
+    best score as a signal of how far the crawl has strayed - which is what
+    tells discovery to fire.
+    """
     weight = cfg.referrer_weights.get(category.name, 0.0)
+    decay = getattr(cfg, "link_closeness_decay", 0.0) or 0.0
+    source = weight if weight >= getattr(cfg, "closeness_source_min", 0.0) else         fetching_service.closeness_of(page_url)
+    closeness = source * decay
     for link in links:
-        fetching_service.queue_url(link, priority=url_service.score_url(
-            link, referrer_category_weight=weight,
-            identity_tokens=cfg.url_tokens_identity,
-            exclude_tokens=cfg.url_tokens_exclude))
+        fetching_service.queue_url(
+            link,
+            priority=url_service.score_url(
+                link, referrer_category_weight=weight,
+                identity_tokens=cfg.url_tokens_identity,
+                exclude_tokens=cfg.url_tokens_exclude) + closeness,
+            closeness=closeness)
 
 
 def queue_known_record_urls():

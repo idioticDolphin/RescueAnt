@@ -78,6 +78,17 @@ Entries begin at the first release; earlier development is not itemised.
   only what follows the prefix. Five French rescue centres were stored that
   way; a rule that *rejected* such records instead would have thrown away
   three real stations whose names repeat their location.
+- **Link priority decays with distance from an interesting page.**
+  `link_closeness_decay` multiplies a link's inherited closeness at every hop;
+  a category whose referrer weight reaches `closeness_source_min` starts the
+  count again from that weight. Finding a shorter way to a page raises its
+  priority, a longer way never lowers it. The frontier's best score therefore
+  says how far the crawl has strayed, which is what `discovery_when_below`
+  reads.
+- **Query templates are grouped into blocks** separated by a line of dashes,
+  each with its own locations, so a French template is not sent out against
+  German cities. The shipped file now covers ten languages and 50 locations,
+  361 queries in all.
 - **`queue_record_urls_at_start`** (on by default): a run begins by queueing
   the websites named in records already in the database that no crawl has
   visited - 26% of them in the project's own database.
@@ -247,5 +258,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 576 tests. Each regression test names the failure it exists to
+178 → 587 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

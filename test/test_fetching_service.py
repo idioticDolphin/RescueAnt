@@ -1128,3 +1128,36 @@ def test_a_slow_page_does_not_hold_up_the_others(monkeypatch):
     asyncio.run(asyncio.wait_for(run(), timeout=5))
 
     assert done == ["http://quick.example/"]
+
+
+# ---------------------------------------------------------------------------
+# closeness to an interesting page, carried along links
+# ---------------------------------------------------------------------------
+
+def test_queueing_records_how_close_a_url_is_to_something_interesting():
+    fetching_service.url_closeness.clear()
+    fetching_service.queue_url("http://a.com/x", priority=1.0, closeness=2.0)
+    assert fetching_service.closeness_of("http://a.com/x") == 2.0
+
+
+def test_a_shorter_path_raises_a_urls_closeness_and_priority():
+    fetching_service.url_closeness.clear()
+    fetching_service.queue_url("http://a.com/x", priority=0.5, closeness=0.25)
+    fetching_service.queue_url("http://a.com/x", priority=2.5, closeness=2.0)
+
+    assert fetching_service.closeness_of("http://a.com/x") == 2.0
+    assert fetching_service.url_priorities["http://a.com/x"] == 2.5
+
+
+def test_a_longer_path_does_not_lower_what_is_already_known():
+    fetching_service.url_closeness.clear()
+    fetching_service.queue_url("http://a.com/x", priority=2.5, closeness=2.0)
+    fetching_service.queue_url("http://a.com/x", priority=0.5, closeness=0.25)
+
+    assert fetching_service.closeness_of("http://a.com/x") == 2.0
+
+
+def test_closeness_is_kept_under_the_canonical_url():
+    fetching_service.url_closeness.clear()
+    fetching_service.queue_url("http://a.com/x?utm_source=news#top", priority=1.0, closeness=1.5)
+    assert fetching_service.closeness_of("http://a.com/x") == 1.5

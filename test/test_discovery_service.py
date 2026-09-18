@@ -191,3 +191,27 @@ def test_read_query_templates_default_path_comes_from_config():
     assert discovery_service.read_query_templates.__defaults__ == (
         discovery_service.config.get_search_query_path(),
     )
+
+
+def test_query_blocks_keep_their_own_locations(tmp_path):
+    # Without blocks every template meets every location, and a French
+    # template is paired with German cities.
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text(
+        "location: Marburg\n"
+        "Tierheim in {location}\n"
+        "---\n"
+        "location: Lyon\n"
+        "centre de sauvegarde {location}\n",
+        encoding="utf-8")
+
+    result = discovery_service.read_query_templates(str(query_file))
+
+    assert result == ["Tierheim in Marburg", "centre de sauvegarde Lyon"]
+
+
+def test_query_files_are_read_as_utf8(tmp_path):
+    query_file = tmp_path / "queries.csv"
+    query_file.write_text("location: München\nWildtierhilfe\n", encoding="utf-8")
+
+    assert discovery_service.read_query_templates(str(query_file)) == ["Wildtierhilfe München"]
