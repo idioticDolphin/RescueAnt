@@ -185,7 +185,9 @@ def same_site(a: str, b: str) -> bool:
     return bool(da) and da == registrable_domain(b)
 
 
-def score_url(url, referrer_category_weight=0.0, identity_tokens=(), exclude_tokens=()):
+def score_url(url, referrer_category_weight=0.0, identity_tokens=(), exclude_tokens=(),
+              link_text="", anchor_identity_tokens=(), anchor_exclude_tokens=(),
+              anchor_identity_bonus=2.0, anchor_exclude_penalty=1.5):
     """
     Score how promising a URL looks, for ordering the crawl frontier.
 
@@ -200,7 +202,15 @@ def score_url(url, referrer_category_weight=0.0, identity_tokens=(), exclude_tok
         weight, so the meaning of each category stays configuration)
       - whether the path contains configured identity tokens (contact, about)
         or excluded ones (privacy, shop, press)
+      - the words a reader would have clicked, against the anchor lexicons
       - depth, as a mild tie-breaker toward shallower pages
+
+    Link text is the strongest of the cheap signals and the last one added:
+    measured over 221,930 links whose target was crawled, the words on a link
+    put its target among the 6% worth extracting far better than its path
+    does. Tokens are matched as substrings of the casefolded text, so
+    "Igelstationen" carries "igelstation"; each token counts once however
+    often it occurs.
 
     :return: a float; higher is crawled sooner.
     """
@@ -210,5 +220,11 @@ def score_url(url, referrer_category_weight=0.0, identity_tokens=(), exclude_tok
         score += 2.0 * len(tokens & set(identity_tokens))
     if exclude_tokens:
         score -= 1.5 * len(tokens & set(exclude_tokens))
+    if link_text:
+        text = link_text.casefold()
+        score += anchor_identity_bonus * sum(
+            1 for token in anchor_identity_tokens if token and token.casefold() in text)
+        score -= anchor_exclude_penalty * sum(
+            1 for token in anchor_exclude_tokens if token and token.casefold() in text)
     score -= 0.25 * url_depth(url)
     return score

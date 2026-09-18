@@ -48,6 +48,16 @@ class Config(BaseModel):
     # Path tokens marking a page as a likely identity/contact page. Used to
     # pick evidence pages for site-level extraction.
     url_tokens_identity: list[str] = []
+    # The same idea for the words on a link rather than its path. Anchor text
+    # is a primary feature in the focused-crawling literature and the
+    # strongest of the cheap signals measured here: over 221,930 links whose
+    # target was crawled, "Wildtierauffangstationen in Bayern" and
+    # "Datenschutzerklärung" say far more about what is at the other end than
+    # the URL does. Matched as substrings of the casefolded text.
+    anchor_tokens_identity: list[str] = []
+    anchor_tokens_exclude: list[str] = []
+    anchor_identity_bonus: float = 2.0
+    anchor_exclude_penalty: float = 1.5
     # Category assigned to pages matching url_tokens_exclude. Should normally
     # name a Relevancy.LINKS category so the page's links are still followed.
     url_prior_category: str | None = None

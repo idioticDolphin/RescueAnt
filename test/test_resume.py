@@ -368,7 +368,8 @@ def test_links_are_still_followed_from_a_skipped_twin(monkeypatch):
     fetching_service = MagicMock()
     monkeypatch.setattr(orchestrator, "fetching_service", fetching_service)
     monkeypatch.setattr(orchestrator, "cleaning_service", MagicMock(
-        extract_links=MagicMock(return_value=["http://station.example/"])))
+        extract_links_with_text=MagicMock(
+            return_value=[("http://station.example/", "Zur Auffangstation")])))
     html = "<html>same</html>"
     digest, path = page_store.store(html)
     for url in ("http://a.com/one", "http://a.com/two"):

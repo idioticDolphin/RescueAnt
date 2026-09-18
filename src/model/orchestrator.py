@@ -134,23 +134,8 @@ def run():
         return False
 
     def _frontier_is_unproductive():
-        """True when nothing queued looks worth crawling.
-
-        Discovery used to fire only on a literally empty queue. Once
-        link-following reaches the open web the queue never empties, so
-        discovery never ran again and the crawl churned low-value pages
-        indefinitely. Exhaustion has to mean "no promising work left".
-        """
-        if pipeline is not None and pipeline.has_pending():
-            return False  # a batch is already claimed and being fetched
-        if not fetching_service.url_queue:
-            return True
-        threshold = config.discovery_when_below
-        if not isinstance(threshold, (int, float)):
-            return False
-        best = max((fetching_service.url_priorities.get(u, 0.0)
-                    for u in fetching_service.url_queue), default=0.0)
-        return best < threshold
+        return frontier_is_unproductive(
+            config, pipeline.pending_urls() if pipeline is not None else ())
 
     while True:
         if _frontier_is_unproductive():
@@ -221,6 +206,35 @@ def process_batch(urls:list[str]|None=None):
     monitor_service.round_end()
 
 
+def frontier_is_unproductive(config, pending_urls=()):
+    """
+    True when nothing worth crawling is left, so discovery should fire.
+
+    Discovery used to fire only on a literally empty queue. Once link-following
+    reaches the open web the queue never empties, so discovery never ran again
+    and the crawl churned low-value pages indefinitely. Exhaustion has to mean
+    "no promising work left", which is what discovery_when_below says.
+
+    :param pending_urls: URLs already claimed for prefetching. They are out of
+                          the queue but are still work in hand, so they count
+                          here. Treating a claimed batch as a reason not to
+                          judge the frontier at all was worse than either
+                          alternative: with prefetching on there is nearly
+                          always a batch in flight, and discovery never fired
+                          once in five rounds of a live crawl whose best queued
+                          score had fallen to -1.
+    """
+    queued = list(fetching_service.url_queue) + list(pending_urls)
+    if not queued:
+        return True
+    threshold = config.discovery_when_below
+    if not isinstance(threshold, (int, float)):
+        return False
+    best = max((fetching_service.url_priorities.get(url, 0.0) for url in queued),
+               default=0.0)
+    return best < threshold
+
+
 class _Pipeline:
     """
     Run one round's fetching while the previous round is analysed.
@@ -265,6 +279,10 @@ class _Pipeline:
 
     def has_pending(self):
         return self._pending is not None
+
+    def pending_urls(self):
+        """The URLs of a batch already claimed and being fetched."""
+        return list(self._pending[0]) if self._pending else []
 
     def close(self):
         self._pool.shutdown(wait=True)
@@ -411,7 +429,7 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
             logger.info("Reusing the analysis of crawl %d for %s (identical content)", twin_id, url)
             data_service.save_site_category(crawl_id, twin_category)
             data_service.delete_entries_for_crawl(crawl_id)
-            links = cleaning_service.extract_links(html, url)
+            links = cleaning_service.extract_links_with_text(html, url)
             _queue_links(links, _category_named(cfg, twin_category, None), cfg, url)
             monitor_service.page(url, twin_category, 0.0, 0.0)
             data_service.set_crawl_state(crawl_id, data_service.STATE_EXTRACTED)
@@ -456,7 +474,7 @@ def process_page(crawl_id:int, url:str, html:str, category=None):
             # The page's own links are still followed - a shelter's subpages
             # routinely link to other shelters, and parsing them costs an
             # HTML parse rather than an LLM call.
-            links = cleaning_service.extract_links(html, url) if category.process_links else []
+            links = cleaning_service.extract_links_with_text(html, url) if category.process_links else []
             logger.debug("Not extracting from %s - %s already yielded %d page(s) "
                          "of records; following %d link(s)",
                          url, site, already, len(links))
@@ -529,6 +547,10 @@ def _queue_links(links, category, cfg, page_url=None):
     station. Decay makes distance cost something, and leaves the frontier's
     best score as a signal of how far the crawl has strayed - which is what
     tells discovery to fire.
+
+    A link may arrive as a bare URL or as an (url, text) pair. The text is the
+    words a reader would have clicked, which say more about what is at the
+    other end than the URL does - see url_service.score_url.
     """
     weight = cfg.referrer_weights.get(category.name, 0.0)
     decay = getattr(cfg, "link_closeness_decay", 0.0) or 0.0
@@ -538,13 +560,19 @@ def _queue_links(links, category, cfg, page_url=None):
     exempt = weight >= getattr(cfg, "leaving_site_exempt_min_weight", 0.0)
     site = url_service.registrable_domain(page_url) if penalty and not exempt else None
     for link in links:
+        link, text = link if isinstance(link, (tuple, list)) else (link, "")
         leaving = site is not None and url_service.registrable_domain(link) != site
         fetching_service.queue_url(
             link,
             priority=url_service.score_url(
                 link, referrer_category_weight=weight,
                 identity_tokens=cfg.url_tokens_identity,
-                exclude_tokens=cfg.url_tokens_exclude)
+                exclude_tokens=cfg.url_tokens_exclude,
+                link_text=text,
+                anchor_identity_tokens=getattr(cfg, "anchor_tokens_identity", ()),
+                anchor_exclude_tokens=getattr(cfg, "anchor_tokens_exclude", ()),
+                anchor_identity_bonus=getattr(cfg, "anchor_identity_bonus", 2.0),
+                anchor_exclude_penalty=getattr(cfg, "anchor_exclude_penalty", 1.5))
             + closeness - (penalty if leaving else 0.0),
             closeness=closeness)
 

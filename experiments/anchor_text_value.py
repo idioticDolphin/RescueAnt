@@ -71,14 +71,15 @@ def build_links(db, cache_path, rebuild=False):
 
 
 def report(name, hits, wanted_hits, total, wanted_total):
-    """One row: how often the signal fires, and how right it is when it does."""
+    """One row: how often the signal fires, how right it is, how much it catches."""
     if not hits:
-        print(f"  {name:<34} never fires")
+        print(f"  {name:<30} never fires")
         return
     precision = wanted_hits / hits
     base = wanted_total / total
-    print(f"  {name:<34} fires on {hits:>6} links ({hits / total:>5.1%}), "
-          f"{precision:>5.1%} on target, lift {precision / base:>4.2f}x")
+    print(f"  {name:<30} fires on {hits:>6} ({hits / total:>5.1%}), "
+          f"{precision:>5.1%} on target, lift {precision / base:>4.2f}x, "
+          f"catches {wanted_hits / wanted_total:>5.1%} of them")
 
 
 def naive_bayes(train, test, wanted):
@@ -110,6 +111,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", default="crawl.db")
     parser.add_argument("--rebuild", action="store_true")
+    parser.add_argument("--tokens", default=None,
+                        help="comma-separated candidate link-text tokens to score "
+                             "as a rule, e.g. the ones a lexicon entry would hold")
     args = parser.parse_args()
 
     config_service.load_config()
@@ -123,9 +127,14 @@ def main():
     print(f"\n{total} links with text and a known target, "
           f"{wanted_total} of them to {sorted(wanted)} ({wanted_total / total:.1%})\n")
 
-    print("Configured tokens, matched against the link text:")
+    candidates = []
+    if args.tokens:
+        candidates.append(("candidate tokens", [t.strip() for t in args.tokens.split(",")]))
+    print("Tokens matched against the link text:")
     for label, tokens in (("url_tokens[identity]", config.url_tokens_identity),
-                          ("url_tokens[exclude]", config.url_tokens_exclude)):
+                          ("url_tokens[exclude]", config.url_tokens_exclude),
+                          ("anchor_tokens[identity]", config.anchor_tokens_identity),
+                          *candidates):
         tokens = [t.casefold() for t in tokens]
         hits = [(text, category) for _, text, category in links
                 if any(token in text.casefold() for token in tokens)]

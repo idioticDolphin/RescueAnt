@@ -1322,3 +1322,96 @@ def test_without_a_penalty_leaving_costs_nothing(monkeypatch):
     charged = fetching_service.url_priorities["https://sponsor.example/"]
 
     assert free - charged == pytest.approx(2.0)
+
+
+# ---------------------------------------------------------------------------
+# link text reaches the frontier
+# ---------------------------------------------------------------------------
+
+def test_queued_links_are_scored_by_their_own_text(monkeypatch):
+    from model.objects.category import Category, Relevancy
+    scored = {}
+
+    def fake_score(url, **kwargs):
+        scored[url] = kwargs.get("link_text", "")
+        return 1.0
+
+    monkeypatch.setattr(orchestrator.url_service, "score_url", fake_score)
+    monkeypatch.setattr(orchestrator.fetching_service, "queue_url", lambda *a, **k: None)
+    config = orchestrator.config_service.get_config().model_copy(update={
+        "referrer_weights": {"HUB": 1.0}, "anchor_tokens_identity": ["auffangstation"],
+        "link_closeness_decay": 0.0, "leaving_site_penalty": 0.0})
+
+    orchestrator._queue_links(
+        [("https://x.de/a", "Auffangstation Sachsen"), ("https://x.de/b", "")],
+        Category(name="HUB", relevancy=Relevancy.LINKS), config, "https://x.de/")
+
+    assert scored == {"https://x.de/a": "Auffangstation Sachsen", "https://x.de/b": ""}
+
+
+def test_plain_urls_are_still_accepted(monkeypatch):
+    from model.objects.category import Category, Relevancy
+    queued = []
+    monkeypatch.setattr(orchestrator.fetching_service, "queue_url",
+                        lambda url, **kwargs: queued.append(url))
+    config = orchestrator.config_service.get_config().model_copy(update={
+        "referrer_weights": {"HUB": 1.0}, "link_closeness_decay": 0.0,
+        "leaving_site_penalty": 0.0})
+
+    orchestrator._queue_links(["https://x.de/a"], Category(name="HUB", relevancy=Relevancy.LINKS),
+                              config, "https://x.de/")
+
+    assert queued == ["https://x.de/a"]
+
+
+# ---------------------------------------------------------------------------
+# when the frontier counts as strayed
+# ---------------------------------------------------------------------------
+
+def _frontier(monkeypatch, queue, priorities):
+    monkeypatch.setattr(orchestrator.fetching_service, "url_queue", list(queue))
+    monkeypatch.setattr(orchestrator.fetching_service, "url_priorities", dict(priorities))
+
+
+def test_a_frontier_of_poor_links_counts_as_strayed(monkeypatch):
+    _frontier(monkeypatch, ["http://a/"], {"http://a/": 0.1})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5})
+
+    assert orchestrator.frontier_is_unproductive(config)
+
+
+def test_one_promising_link_is_enough_to_keep_crawling(monkeypatch):
+    _frontier(monkeypatch, ["http://a/", "http://b/"], {"http://a/": 0.1, "http://b/": 9.0})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5})
+
+    assert not orchestrator.frontier_is_unproductive(config)
+
+
+def test_a_batch_already_claimed_for_prefetching_still_counts(monkeypatch):
+    # Prefetching takes the next batch out of the queue before the frontier is
+    # judged. Ignoring those URLs made every round look like a claimed batch
+    # was pending and discovery never fired at all; counting the queue alone
+    # would make a promising claimed batch look like a strayed frontier.
+    _frontier(monkeypatch, [], {"http://claimed/": 9.0})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5})
+
+    assert not orchestrator.frontier_is_unproductive(config, ["http://claimed/"])
+
+
+def test_a_claimed_batch_of_poor_links_does_not_hold_discovery_back(monkeypatch):
+    _frontier(monkeypatch, [], {"http://claimed/": 0.1})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5})
+
+    assert orchestrator.frontier_is_unproductive(config, ["http://claimed/"])
+
+
+def test_an_empty_frontier_with_nothing_claimed_is_strayed(monkeypatch):
+    _frontier(monkeypatch, [], {})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": None})
+
+    assert orchestrator.frontier_is_unproductive(config)

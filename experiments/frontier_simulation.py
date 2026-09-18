@@ -33,8 +33,13 @@ from model.analyzer import cleaning_service  # noqa: E402
 CACHE = Path(__file__).parent / "data" / "frontier_graph.json"
 
 
+def _links_of(entry):
+    """A cached page's links, as (url, text) pairs whichever way they were stored."""
+    return [(link, "") if isinstance(link, str) else tuple(link) for link in entry[1]]
+
+
 def build_graph(db, cache_path):
-    """url -> (category, [linked urls]) for every stored page, cached on disk."""
+    """url -> (category, [(linked url, link text)]) for every stored page, cached."""
     if cache_path.exists():
         return json.loads(cache_path.read_text(encoding="utf-8"))
     data_service.DATABASE_PATH = Path(db)
@@ -49,10 +54,10 @@ def build_graph(db, cache_path):
         if not html:
             continue
         links = []
-        for link in cleaning_service.extract_links(html, row["source_url"]):
+        for link, text in cleaning_service.extract_links_with_text(html, row["source_url"]):
             canonical = url_service.canonicalize(link)
             if canonical in known:
-                links.append(canonical)
+                links.append([canonical, text])
         graph[url_service.canonicalize(row["source_url"])] = [row["category"], links]
         if index % 1000 == 0:
             print(f"   read {index}/{len(rows)} pages", flush=True)
@@ -62,7 +67,8 @@ def build_graph(db, cache_path):
 
 
 def simulate(graph, seeds, config, decay, steps, wanted, prune_below=0.0,
-             leaving_site_costs=0.0, hub_categories=("LIST", "ADVICE")):
+             leaving_site_costs=0.0, hub_categories=("LIST", "ADVICE"),
+             use_link_text=False):
     """
     Walk the graph best-first under one policy.
 
@@ -96,7 +102,8 @@ def simulate(graph, seeds, config, decay, steps, wanted, prune_below=0.0,
         if url in seen or queued.get(url, (None,))[0] != -negative:
             continue
         seen.add(url)
-        category, links = graph.get(url, [None, []])
+        entry = graph.get(url, [None, []])
+        category, links = entry[0], _links_of(entry)
         if category in wanted:
             found += 1
         if category in off_target:
@@ -109,13 +116,18 @@ def simulate(graph, seeds, config, decay, steps, wanted, prune_below=0.0,
         if prune_below and child < prune_below:
             continue
         site = url_service.registrable_domain(url)
-        for link in links:
+        for link, text in links:
             leaving = (leaving_site_costs and category not in hub_categories
                        and url_service.registrable_domain(link) != site)
             offer(link, (-leaving_site_costs if leaving else 0.0) + url_service.score_url(
                 link, referrer_category_weight=weight,
                 identity_tokens=config.url_tokens_identity,
-                exclude_tokens=config.url_tokens_exclude) + child, child)
+                exclude_tokens=config.url_tokens_exclude,
+                link_text=text if use_link_text else "",
+                anchor_identity_tokens=config.anchor_tokens_identity,
+                anchor_exclude_tokens=config.anchor_tokens_exclude,
+                anchor_identity_bonus=config.anchor_identity_bonus,
+                anchor_exclude_penalty=config.anchor_exclude_penalty) + child, child)
     return curve, waste_curve
 
 
@@ -128,6 +140,8 @@ def main():
                     help="what it costs a link to leave its site, unless the page is a listing")
     ap.add_argument("--prune", default="0",
                     help="closeness floors to try: below this, links are not followed at all")
+    ap.add_argument("--link-text", default="0",
+                    help="0/1: whether the words on a link count towards its score")
     ap.add_argument("--rebuild", action="store_true")
     args = ap.parse_args()
 
@@ -153,17 +167,20 @@ def main():
     print(f"{len(seeds)} seed(s) present in the graph; counting {sorted(wanted)}")
 
     marks = [m for m in (250, 500, 1000, 2000, 4000) if m <= args.steps]
+    print("cells are: targets found / fetches wasted, after that many fetches")
     print("\n decay  prune | " + " | ".join(f"{m:>5} fetched" for m in marks) + " |  reached")
     for decay in (float(d) for d in args.decays.split(",")):
         for prune in (float(p) for p in args.prune.split(",")):
           for leaving in (float(v) for v in args.leaving.split(",")):
-            curve, waste = simulate(graph, seeds, config, decay, args.steps, wanted, prune, leaving)
+           for text in (bool(int(t)) for t in args.link_text.split(",")):
+            curve, waste = simulate(graph, seeds, config, decay, args.steps, wanted, prune,
+                                    leaving, use_link_text=text)
             cells = []
             for mark in marks:
                 cells.append(f"{curve[mark - 1]:>5} /{waste[mark - 1]:>6}" if len(curve) >= mark
                              else f"{'-':>13}")
-            print(f" {decay:4.2f} {prune:4.2f} {leaving:4.1f} | " + " | ".join(cells)
-                  + f" | {len(curve):>7}")
+            print(f" {decay:4.2f} {prune:4.2f} {leaving:4.1f} {int(text):>4} | "
+                  + " | ".join(cells) + f" | {len(curve):>7}")
 
 
 if __name__ == "__main__":

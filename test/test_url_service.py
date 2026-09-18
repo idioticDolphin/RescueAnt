@@ -175,3 +175,45 @@ def test_as_url_accepts_full_and_bare_addresses():
 def test_as_url_rejects_what_is_not_an_address():
     for value in ("info@station.de", "mailto:info@station.de", "see website", "", None, "Tel. 0621", "station"):
         assert url_service.as_url(value) is None
+
+
+# ---------------------------------------------------------------------------
+# link text in the frontier score
+# ---------------------------------------------------------------------------
+
+def test_link_text_with_an_identity_token_scores_higher():
+    plain = url_service.score_url("https://x.de/p", link_text="Weiter",
+                                  anchor_identity_tokens=["auffangstation"])
+    named = url_service.score_url("https://x.de/p", link_text="Auffangstation Sachsen",
+                                  anchor_identity_tokens=["auffangstation"])
+    assert named > plain
+
+
+def test_link_text_with_an_exclude_token_scores_lower():
+    plain = url_service.score_url("https://x.de/p", link_text="Weiter",
+                                  anchor_exclude_tokens=["tierheim"])
+    excluded = url_service.score_url("https://x.de/p", link_text="Tierheim Musterstadt",
+                                     anchor_exclude_tokens=["tierheim"])
+    assert excluded < plain
+
+
+def test_link_text_tokens_are_matched_case_insensitively_and_within_words():
+    # "Igelstationen" contains "igelstation", and a page may shout its links.
+    assert url_service.score_url("https://x.de/p", link_text="IGELSTATIONEN",
+                                 anchor_identity_tokens=["igelstation"]) > \
+        url_service.score_url("https://x.de/p", link_text="IGELSTATIONEN")
+
+
+def test_one_token_is_counted_once_however_often_it_appears():
+    once = url_service.score_url("https://x.de/p", link_text="Auffangstation",
+                                 anchor_identity_tokens=["auffangstation"])
+    twice = url_service.score_url("https://x.de/p",
+                                  link_text="Auffangstation und Auffangstation",
+                                  anchor_identity_tokens=["auffangstation"])
+    assert once == twice
+
+
+def test_a_link_without_text_scores_as_it_always_did():
+    assert url_service.score_url("https://x.de/p", link_text="",
+                                 anchor_identity_tokens=["auffangstation"]) == \
+        url_service.score_url("https://x.de/p")
