@@ -173,6 +173,7 @@ python experiments/model_sweep.py --only <name>
    | `database` | path to the sqlite database that gets created |
    | `page_store_path` | where fetched page bodies are kept, for resume and reprocessing |
    | `politeness` | minimum seconds between two requests to the same domain |
+   | `leaving_site_penalty`, `leaving_site_exempt_min_weight` | bot | what a link pays for leaving its site, and which pages are exempt |
    | `link_closeness_decay`, `closeness_source_min` | bot | how fast a link's priority decays with each hop away from a station or listing |
    | `fetch_timeout_seconds` | bot | deadline for one page's whole fetch, not just its navigation |
    | `queue_record_urls_at_start` | bot | begin a run by queueing websites named in earlier records that were never visited |

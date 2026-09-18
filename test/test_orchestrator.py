@@ -1275,3 +1275,50 @@ def test_without_decay_configured_nothing_changes(monkeypatch):
                               "http://station.example/")
     plain = url_service.score_url("http://next.example/a", referrer_category_weight=4.0)
     assert fetching_service.url_priorities["http://next.example/a"] == pytest.approx(plain)
+
+
+def _leaving_config(monkeypatch, penalty=2.0, exempt_min=5.0):
+    cfg = config_service.get_config().model_copy(update={
+        "referrer_weights": {"STATION": 4.0, "LIST": 6.0, "HUB": 1.0},
+        "leaving_site_penalty": penalty, "leaving_site_exempt_min_weight": exempt_min,
+        "link_closeness_decay": 0.0, "url_tokens_identity": [], "url_tokens_exclude": []})
+    monkeypatch.setattr(config_service, "_session_config", cfg)
+    monkeypatch.setattr(fetching_service, "url_priorities", {})
+    monkeypatch.setattr(fetching_service, "url_closeness", {})
+    return cfg
+
+
+def test_a_link_off_a_stations_site_is_worth_less_than_one_inside_it(monkeypatch):
+    # A station links to its sponsor, its CMS vendor and the local paper; a
+    # listing links to stations. Only the listing may leave for free.
+    cfg = _leaving_config(monkeypatch)
+    orchestrator._queue_links(["https://station.example/kontakt", "https://sponsor.example/kontakt"],
+                              _make_category("STATION"), cfg, "https://station.example/")
+
+    inside = fetching_service.url_priorities["https://station.example/kontakt"]
+    outside = fetching_service.url_priorities["https://sponsor.example/kontakt"]
+    assert inside - outside == pytest.approx(2.0)
+
+
+def test_a_listing_may_leave_its_site_for_free(monkeypatch):
+    cfg = _leaving_config(monkeypatch)
+    orchestrator._queue_links(["https://directory.example/next", "https://station.example/"],
+                              _make_category("LIST"), cfg, "https://directory.example/stations")
+
+    inside = fetching_service.url_priorities["https://directory.example/next"]
+    outside = fetching_service.url_priorities["https://station.example/"]
+    assert outside >= inside
+
+
+def test_without_a_penalty_leaving_costs_nothing(monkeypatch):
+    cfg = _leaving_config(monkeypatch, penalty=0.0)
+    orchestrator._queue_links(["https://sponsor.example/"], _make_category("STATION"),
+                              cfg, "https://station.example/")
+    free = fetching_service.url_priorities["https://sponsor.example/"]
+
+    cfg = _leaving_config(monkeypatch, penalty=2.0)
+    orchestrator._queue_links(["https://sponsor.example/"], _make_category("STATION"),
+                              cfg, "https://station.example/")
+    charged = fetching_service.url_priorities["https://sponsor.example/"]
+
+    assert free - charged == pytest.approx(2.0)

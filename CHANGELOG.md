@@ -78,13 +78,23 @@ Entries begin at the first release; earlier development is not itemised.
   only what follows the prefix. Five French rescue centres were stored that
   way; a rule that *rejected* such records instead would have thrown away
   three real stations whose names repeat their location.
-- **Link priority decays with distance from an interesting page.**
+- **Leaving a site costs a link priority**, unless the page offering it is a
+  listing or advice page (`leaving_site_penalty`,
+  `leaving_site_exempt_min_weight`). Replaying the crawl's own graph: 497
+  stations and listings found in the first 2,000 fetches instead of 437, with
+  689 wasted fetches instead of 765.
+- **`experiments/frontier_simulation.py`** replays the frontier over the pages
+  already crawled - their stored bodies give the links, their recorded
+  categories give the answers - so an ordering policy can be compared in
+  seconds instead of hours of live crawling.
+- **Link priority can decay with distance from an interesting page.**
   `link_closeness_decay` multiplies a link's inherited closeness at every hop;
   a category whose referrer weight reaches `closeness_source_min` starts the
   count again from that weight. Finding a shorter way to a page raises its
   priority, a longer way never lowers it. The frontier's best score therefore
   says how far the crawl has strayed, which is what `discovery_when_below`
-  reads.
+  reads. Measured and left off by default: on the replayed graph it changed
+  the order barely at all and never reduced wasted fetches.
 - **Query templates are grouped into blocks** separated by a line of dashes,
   each with its own locations, so a French template is not sent out against
   German cities. The shipped file now covers ten languages and 50 locations,
@@ -258,5 +268,5 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Testing
 
-178 → 587 tests. Each regression test names the failure it exists to
+178 → 590 tests. Each regression test names the failure it exists to
 prevent, so the suite doubles as a record of what has gone wrong before.

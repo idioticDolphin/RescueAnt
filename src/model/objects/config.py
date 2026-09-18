@@ -103,6 +103,12 @@ class Config(BaseModel):
     # closeness_source_min starts the count again from that weight.
     link_closeness_decay: float = 0.0
     closeness_source_min: float = 3.0
+    # Subtracted from a link that leaves its site, unless the page offering it
+    # belongs to a category whose referrer weight reaches
+    # leaving_site_exempt_min_weight - a listing exists to send you elsewhere,
+    # a station's own page mostly links to its sponsors and its CMS vendor.
+    leaving_site_penalty: float = 0.0
+    leaving_site_exempt_min_weight: float = 5.0
     reuse_max_age_days: float = 0
 
     # --- Boilerplate stripping (P8) --------------------------------------

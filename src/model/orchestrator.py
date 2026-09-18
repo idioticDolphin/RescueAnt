@@ -174,6 +174,7 @@ def run():
 
         (pipeline.round if pipeline else process_batch)()
         rounds += 1
+        _log_frontier(rounds)
         if _time_or_round_limit_reached():
             break
 
@@ -267,6 +268,24 @@ class _Pipeline:
 
     def close(self):
         self._pool.shutdown(wait=True)
+
+
+def _log_frontier(round_number):
+    """
+    Report what the frontier looks like after a round.
+
+    The best score says how far the crawl has strayed from anything worth
+    extracting - the number discovery_when_below is compared against - so it
+    belongs in the log beside the round it describes.
+    """
+    queue = fetching_service.url_queue
+    if not queue:
+        logger.info("Frontier after round %d: empty", round_number)
+        return
+    scores = sorted((fetching_service.url_priorities.get(u, 0.0) for u in queue), reverse=True)
+    middle = scores[len(scores) // 2]
+    logger.info("Frontier after round %d: %d URL(s), best %.2f, median %.2f",
+                round_number, len(scores), scores[0], middle)
 
 
 def _take_batch(config):
@@ -515,13 +534,18 @@ def _queue_links(links, category, cfg, page_url=None):
     decay = getattr(cfg, "link_closeness_decay", 0.0) or 0.0
     source = weight if weight >= getattr(cfg, "closeness_source_min", 0.0) else         fetching_service.closeness_of(page_url)
     closeness = source * decay
+    penalty = getattr(cfg, "leaving_site_penalty", 0.0) or 0.0
+    exempt = weight >= getattr(cfg, "leaving_site_exempt_min_weight", 0.0)
+    site = url_service.registrable_domain(page_url) if penalty and not exempt else None
     for link in links:
+        leaving = site is not None and url_service.registrable_domain(link) != site
         fetching_service.queue_url(
             link,
             priority=url_service.score_url(
                 link, referrer_category_weight=weight,
                 identity_tokens=cfg.url_tokens_identity,
-                exclude_tokens=cfg.url_tokens_exclude) + closeness,
+                exclude_tokens=cfg.url_tokens_exclude)
+            + closeness - (penalty if leaving else 0.0),
             closeness=closeness)
 
 
