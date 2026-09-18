@@ -194,6 +194,10 @@ plus any inherited closeness.
 | `referrer_weights` | JSON object | `{}` | Category name to weight, e.g. `{"LIST": 6.0, "COMMERCIAL": -10.0}`. Links from productive pages are crawled first. |
 | `url_tokens[identity]` | list | *(empty)* | Path tokens marking a page likely to carry the operator's own contact details. |
 | `url_tokens[exclude]` | list | *(empty)* | Path tokens marking a page not worth extracting from. Such a page is filed as `url_prior_category` without a model call. |
+| `anchor_tokens[identity]` | list | *(empty)* | Words in a link's own text that mark its target as worth fetching. The strongest of the cheap signals: over 221,930 links whose target had been crawled, this list fires on 2.1% of them and is right 40.2% of the time, against a 6.0% base rate. Matched as substrings of the casefolded text, once per token. |
+| `anchor_tokens[exclude]` | list | *(empty)* | ...and the words that mark it as not worth fetching. |
+| `anchor_identity_bonus` | float | `2.0` | Added per identity token found in the link text. |
+| `anchor_exclude_penalty` | float | `1.5` | Subtracted per exclude token found in the link text. |
 | `url_prior_category` | category | *(none)* | Where those pages go. Should name a links-only category, so their outbound links are still followed. |
 | `leaving_site_penalty` | float | `0.0` | Subtracted from a link that leaves its site. Measured on a 14,705-page replay: 497 targets found in the first 2,000 fetches instead of 437, with 689 wasted fetches instead of 765. |
 | `leaving_site_exempt_min_weight` | float | `5.0` | A page whose category's referrer weight reaches this is exempt: a listing exists to send you elsewhere. |

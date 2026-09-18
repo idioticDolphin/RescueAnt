@@ -10,6 +10,21 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Added
 
+- **Link text counts towards a link's frontier score.** `anchor_tokens[identity]`
+  and `anchor_tokens[exclude]`, with `anchor_identity_bonus` and
+  `anchor_exclude_penalty`, score a link by the words a reader would have
+  clicked. Measured over 221,930 links whose target had also been crawled, of
+  which 6.0% led to a station or a listing: the identity list fires on 2.1% of
+  links and is right 40.2% of the time, where the path lexicon on the same
+  text manages 9.2%. A naive Bayes model over link text, split by site, put
+  30.5% of its best 5% on target - a written list of words matches it without
+  the training.
+- **Name filters in forty languages.** `exclude_record_name_tokens` and
+  `keep_record_name_tokens` now cover shelters, vets, zoos, breeders and
+  rescue centres in the languages discovery reaches. Checked against the
+  existing database first: the added exclusions remove none of its 491
+  entities, and 19 of them carry one of the added keep words. (A bare "asiel"
+  was tried and removed - Dutch bird rescues call themselves Vogelasiel.)
 - **An `evidence` column in the export**, saying where a row's records came
   from: `own-page`, `listing+own-page` or `listing-only`. A listing entry is a
   wildlife station about two thirds of the time and an own-page record nearly
@@ -240,6 +255,13 @@ Entries begin at the first release; earlier development is not itemised.
   abrupt kill.
 
 ### Fixed
+
+- **Prefetching silently disabled search discovery.** Discovery fires when the
+  best queued score falls below `discovery_when_below`; a batch claimed for
+  prefetching had counted as proof that promising work remained, and with
+  prefetching on there is nearly always one in flight. A live crawl reached a
+  best queued score of -1.00 across five rounds without running a single
+  search. The claimed batch's own URLs now count towards the judgement.
 
 - **Reprocessing left old records behind.** Pages reprocessed from sites over
   the page budget were skipped with their records still attached, and a page
