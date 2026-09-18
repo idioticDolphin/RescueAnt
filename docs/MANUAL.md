@@ -171,6 +171,7 @@ refuses to start without it.
 | Key | Type | Default | Effect |
 | --- | --- | --- | --- |
 | `politeness` | seconds | required | Minimum delay between two requests to the same domain. |
+| `user_agent` | string | *(RescueAntBot)* | How the crawler names itself when asking a site for its `robots.txt`, and the name those rules are matched against. Pages themselves are fetched by a real browser, which sends its own. |
 | `fetch_timeout_seconds` | seconds | `90` | Deadline for one page's whole fetch, not just its navigation. `0` disables it. A wedged browser page once blocked an overnight run for eleven hours. |
 | `max_batch_size` | int | `0` | Pages fetched and analysed per round; `0` is unlimited. Fetching is orders of magnitude faster than analysis, so an uncapped round fetches thousands of pages and then grinds through them one at a time. |
 | `prefetch_next_batch` | bool | `False` | Fetch the next batch while this one is analysed. A quarter faster in measurement; the cost is that the next batch is chosen before this batch's links are known. |

@@ -112,6 +112,10 @@ class Config(BaseModel):
     queue_record_urls_at_start: bool = True
     # Deadline for one page's whole fetch, not just its navigation. 0 = none.
     fetch_timeout_seconds: float = 90
+    # How the crawler names itself when it asks a site for its robots.txt, and
+    # the name the rules there are matched against. A deployment that is not
+    # this project should say so.
+    user_agent: str = ""
     # Each hop away from an interesting page multiplies a link's closeness by
     # this; 0 disables the whole idea. A category whose referrer weight reaches
     # closeness_source_min starts the count again from that weight.

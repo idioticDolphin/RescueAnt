@@ -4,11 +4,20 @@ import logging
 import time
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
+import requests
 from playwright.async_api import async_playwright
 import model.tools.config_service as config_service
 from model.tools import data_service, page_store, url_service
 
 logger = logging.getLogger(__name__)
+
+# Sent when asking a site for its robots.txt, and matched against the rules
+# there. A crawler that will not say who it is cannot be told to go away.
+DEFAULT_USER_AGENT = "RescueAntBot/0.1 (+https://github.com/idioticDolphin/RescueAnt)"
+ROBOTS_TIMEOUT_SECONDS = 10
+# Sentinel: this site's robots.txt could not be served by a working server, so
+# nothing on it may be fetched (RFC 9309 s2.3.1.4).
+_DISALLOW_ALL = object()
 
 url_queue = [] # save all urls not yet crawled
 processed_urls = {}
@@ -35,24 +44,56 @@ politeness_delay = config.get_politeness()
 def _get_domain(url:str):
     return urlparse(url).netloc
 
-def _is_allowed(url, user_agent="*"):
-    """Check robots.txt for this URL's domain, caching parsers per domain."""
+def _user_agent():
+    return getattr(config, "user_agent", "") or DEFAULT_USER_AGENT
+
+
+def _read_robots(robots_url):
+    """
+    Fetch and parse one robots.txt, following RFC 9309 on what a status means.
+
+    RobotFileParser.read() is not used, because it fetches with urllib's
+    default user agent and turns a 401 or 403 into "disallow everything".
+    Bot protection answers 403 to anything that does not look like a browser,
+    so that read wildlife rescue sites as closed to crawlers: 480 distinct
+    hosts were skipped that way in a week of crawling. RFC 9309 s2.3.1.3 is
+    explicit that a 4xx robots.txt is *unavailable* - the crawler may access
+    the site - while a 5xx means the server is in trouble and should be left
+    alone (s2.3.1.4).
+
+    :return: a parser to consult, None to allow everything, or _DISALLOW_ALL.
+    """
+    try:
+        response = requests.get(robots_url, headers={"User-Agent": _user_agent()},
+                                timeout=ROBOTS_TIMEOUT_SECONDS)
+    except Exception:
+        # Unreachable host, bad certificate, timeout: the fetch itself will
+        # report it far more precisely than a guess here would.
+        return None
+    if 400 <= response.status_code < 500:
+        return None
+    if response.status_code >= 500:
+        logger.debug("robots.txt at %s answered %d - leaving the site alone",
+                     robots_url, response.status_code)
+        return _DISALLOW_ALL
+    parser = RobotFileParser()
+    parser.parse(response.text.splitlines())
+    return parser
+
+
+def _is_allowed(url, user_agent=None):
+    """Check robots.txt for this URL's domain, caching the answer per domain."""
     domain = _get_domain(url)
     if domain not in _robots_cache:
-        rp = RobotFileParser()
-        robots_url = f"{urlparse(url).scheme}://{domain}/robots.txt"
-        try:
-            rp.set_url(robots_url)
-            rp.read()
-        except Exception:
-            # If robots.txt is unreachable/missing, default to allow
-            rp = None
-        _robots_cache[domain] = rp
+        _robots_cache[domain] = _read_robots(
+            f"{urlparse(url).scheme}://{domain}/robots.txt")
 
-    rp = _robots_cache[domain]
-    if rp is None:
+    parser = _robots_cache[domain]
+    if parser is None:
         return True
-    return rp.can_fetch(user_agent, url)
+    if parser is _DISALLOW_ALL:
+        return False
+    return parser.can_fetch(user_agent or _user_agent(), url)
 
 async def _wait_politely(url):
     """Respect politeness_delay on a per-domain basis (not global)."""

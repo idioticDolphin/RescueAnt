@@ -56,50 +56,83 @@ def test_queue_url_does_not_re_add_already_processed_url():
 # _is_allowed (robots.txt)
 # ---------------------------------------------------------------------------
 
-def test_is_allowed_true_when_robots_parser_permits(monkeypatch):
-    fake_rp = MagicMock()
-    fake_rp.can_fetch.return_value = True
-    monkeypatch.setattr(fetching_service, "RobotFileParser", lambda: fake_rp)
+def _robots(monkeypatch, status=200, body="", boom=None):
+    """Answer the next robots.txt request with this status and body."""
+    calls = []
+
+    def fake_get(url, headers=None, timeout=None, **kwargs):
+        calls.append((url, (headers or {}).get("User-Agent")))
+        if boom:
+            raise boom
+        response = MagicMock()
+        response.status_code = status
+        response.text = body
+        return response
+
+    monkeypatch.setattr(fetching_service.requests, "get", fake_get)
+    return calls
+
+
+def test_a_disallow_rule_is_obeyed(monkeypatch):
+    _robots(monkeypatch, body="User-agent: *\nDisallow: /private\n")
+
+    assert fetching_service._is_allowed("http://example.com/private/page") is False
+    assert fetching_service._is_allowed("http://example.com/public") is True
+
+
+def test_an_empty_robots_file_allows_everything(monkeypatch):
+    _robots(monkeypatch, body="")
 
     assert fetching_service._is_allowed("http://example.com/page") is True
 
 
-def test_is_allowed_false_when_robots_parser_denies(monkeypatch):
-    fake_rp = MagicMock()
-    fake_rp.can_fetch.return_value = False
-    monkeypatch.setattr(fetching_service, "RobotFileParser", lambda: fake_rp)
+def test_a_forbidden_robots_file_does_not_mean_a_forbidden_site(monkeypatch):
+    # Bot protection answers 403 to anything that is not a browser, and the
+    # standard library reads that as "disallow everything". 480 hosts were
+    # skipped that way in one week of crawling, wildlife rescues among them.
+    # RFC 9309 is explicit: a 4xx robots.txt is unavailable, not restrictive.
+    _robots(monkeypatch, status=403)
+
+    assert fetching_service._is_allowed("http://example.com/page") is True
+
+
+def test_a_missing_robots_file_allows_everything(monkeypatch):
+    _robots(monkeypatch, status=404)
+
+    assert fetching_service._is_allowed("http://example.com/page") is True
+
+
+def test_a_server_error_is_treated_as_a_full_disallow(monkeypatch):
+    # RFC 9309: an unreachable robots.txt means the server is in trouble, and
+    # a crawler should stay off it until it can ask again.
+    _robots(monkeypatch, status=503)
 
     assert fetching_service._is_allowed("http://example.com/page") is False
 
 
-def test_is_allowed_defaults_to_true_when_robots_txt_unreachable(monkeypatch):
-    class ExplodingRobotFileParser:
-        def set_url(self, url):
-            pass
-
-        def read(self):
-            raise OSError("connection refused")
-
-    monkeypatch.setattr(fetching_service, "RobotFileParser", ExplodingRobotFileParser)
+def test_an_unreachable_host_is_left_to_the_fetch_to_report(monkeypatch):
+    _robots(monkeypatch, boom=OSError("connection refused"))
 
     assert fetching_service._is_allowed("http://example.com/page") is True
 
 
-def test_is_allowed_caches_parser_per_domain(monkeypatch):
-    call_count = {"n": 0}
-
-    def make_rp():
-        call_count["n"] += 1
-        rp = MagicMock()
-        rp.can_fetch.return_value = True
-        return rp
-
-    monkeypatch.setattr(fetching_service, "RobotFileParser", make_rp)
+def test_robots_is_asked_once_per_domain(monkeypatch):
+    calls = _robots(monkeypatch, body="")
 
     fetching_service._is_allowed("http://example.com/a")
     fetching_service._is_allowed("http://example.com/b")
 
-    assert call_count["n"] == 1  # second call reused the cached parser for the same domain
+    assert len(calls) == 1
+
+
+def test_the_crawler_names_itself_when_asking_for_robots(monkeypatch):
+    calls = _robots(monkeypatch, body="")
+
+    fetching_service._is_allowed("http://example.com/a")
+
+    url, agent = calls[0]
+    assert url == "http://example.com/robots.txt"
+    assert agent and "RescueAnt" in agent
 
 
 # ---------------------------------------------------------------------------

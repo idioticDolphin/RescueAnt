@@ -273,6 +273,15 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Fixed
 
+- **A 403 on `robots.txt` no longer means a forbidden site.** The standard
+  library's robots parser fetches with urllib's own user agent and reads a 401
+  or 403 as "disallow everything". Bot protection answers 403 to anything that
+  is not a browser, so sites that welcome crawlers were being skipped whole -
+  480 distinct hosts in a week of crawling, wildlife rescues among them.
+  `robots.txt` is now fetched by the crawler under its own name, and statuses
+  follow RFC 9309: a 4xx is unavailable (crawl allowed), a 5xx means the
+  server is in trouble (leave it alone). Real `Disallow` rules are obeyed as
+  before.
 - **A comment containing "=" swallowed the setting written under it.** The
   config parser reads a value from an `=` to the next `;`, and had no notion
   of comments - they survived only by rarely containing an `=`. Writing a

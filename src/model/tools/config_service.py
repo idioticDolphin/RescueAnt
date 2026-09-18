@@ -424,6 +424,7 @@ def load_config(configs:dict=None):
             prefetch_next_batch = prefetch_next_batch,
             queue_record_urls_at_start = queue_record_urls_at_start,
             fetch_timeout_seconds = fetch_timeout_seconds,
+            user_agent = (configs.get("user_agent") or "").strip().strip('"'),
             link_closeness_decay = link_closeness_decay,
             closeness_source_min = closeness_source_min,
             leaving_site_penalty = leaving_site_penalty,
