@@ -713,6 +713,26 @@ def test_a_record_filter_prompt_is_read_per_category(monkeypatch, tmp_path, samp
     assert config_service.get_config().get_category("STATION").record_filter_prompt == "Which are stations?"
 
 
+def test_the_record_filter_direction_is_read_per_category(monkeypatch, tmp_path, sample_config_text):
+    # The filter can be worded either way round - name what to keep, or name
+    # what to remove - and the two readings of the same answer are opposites.
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text
+                           + 'record_filter_prompt[STATION] = "Which are not stations?";\n'
+                           + 'record_filter_names_removals[STATION] = True;\n')
+    config_service.load_config(config_service._read_config(config_file))
+    assert config_service.get_config().get_category("STATION").record_filter_names_removals
+
+
+def test_the_record_filter_names_keepers_by_default(monkeypatch, tmp_path, sample_config_text):
+    monkeypatch.setattr("model.tools.llm_service.get_model_id", lambda path, context: 1)
+    config_file = tmp_path / "bot.config"
+    config_file.write_text(sample_config_text + 'record_filter_prompt[STATION] = "Which are stations?";\n')
+    config_service.load_config(config_service._read_config(config_file))
+    assert not config_service.get_config().get_category("STATION").record_filter_names_removals
+
+
 def test_keep_record_name_tokens_are_read():
     from model.tools import config_service
     configs = config_service._read_config()

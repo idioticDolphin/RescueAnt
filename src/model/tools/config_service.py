@@ -305,6 +305,8 @@ def load_config(configs:dict=None):
             follow_record_urls = configs.get(f"follow_record_urls[{category}]", "False") == "True"
             record_filter_prompt = (configs.get(f"record_filter_prompt[{category}]") or "").strip().strip('"') or None
             record_url_priority = _opt_float(configs, f"record_url_priority[{category}]", 60.0)
+            record_filter_names_removals = configs.get(
+                f"record_filter_names_removals[{category}]", "False") == "True"
             is_list_category = False
             try:
                 is_list_category = configs[f"is_list_category[{category}]"] == "True"
@@ -325,6 +327,7 @@ def load_config(configs:dict=None):
                     is_list_category=is_list_category,
                     follow_record_urls=follow_record_urls,
                     record_filter_prompt=record_filter_prompt,
+                    record_filter_names_removals=record_filter_names_removals,
                     record_url_priority=record_url_priority,
                     **confirm
                 )

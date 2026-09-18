@@ -26,6 +26,9 @@ Three properties are worth knowing up front:
   use Unicode case folding and character n-grams rather than English-specific
   tokenisation.
 
+Every run argument and every configuration setting is listed in
+**[the manual](docs/MANUAL.md)**; this README is the tour.
+
 > **Scope note.** The crawler collects contact details of organisations from
 > their own public websites. That is personal data in the GDPR sense, so
 > `experiments/data/` is gitignored and crawl databases are not committed.
@@ -303,7 +306,7 @@ whatever URLs they turn up, at `discovery_priority` - far above any
 link-derived score, because a search hit answers the configured query
 directly.
 
-The shipped `search_queries.csv` asks in 40 languages across 300 countries,
+The shipped `search_queries.csv` asks in 40 languages across 323 countries,
 states and regions. Its blocks - separated by a line of dashes - each pair
 their own templates with their own locations and declare the language they
 ask in, because a search engine ranks by the language of the page: asking for
@@ -707,6 +710,7 @@ models/                   GGUF models (gitignored)
 examples/                 small config + seed files to try the workflow with
 docker-compose.yml        runs the self-hosted SearXNG instance
 searxng/                  SearXNG configuration, bind-mounted into the container
+docs/MANUAL.md            every run argument and config setting, in one place
 experiments/              measurement scripts + CSV output
 notebooks/                analysis notebooks + exported figures
 sessions/                 per-run monitoring logs (gitignored)

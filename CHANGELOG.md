@@ -10,6 +10,10 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Added
 
+- **`docs/MANUAL.md`** - every run argument and every configuration setting in
+  one place, with its type, its default and what it does, plus the file
+  formats (taxonomy, schema, lexicon, query templates, seeds) and recipes for
+  retargeting, reprocessing and running two configurations side by side.
 - **Interruptible crawling.** Every fetched page body is written to a
   content-addressed store (SHA-256, gzipped) the moment its fetch succeeds,
   and each page carries an explicit lifecycle state. A killed run resumes
@@ -97,8 +101,8 @@ Entries begin at the first release; earlier development is not itemised.
   the order barely at all and never reduced wasted fetches.
 - **Query templates are grouped into blocks** separated by a line of dashes,
   each with its own locations, so a French template is not sent out against
-  German cities. The shipped file covers 37 languages and writing systems and
-  292 countries, states and regions - 1,553 queries in all, from US state
+  German cities. The shipped file covers 40 languages in 44 blocks and
+  323 countries, states and regions - 1,555 queries in all, from US state
   rehabilitator licences to Japanese, Thai, Arabic and Swahili.
 - **Blocks carry their own search settings.** `language: ja` is passed to the
   search provider with every query of that block, so a Japanese query is
