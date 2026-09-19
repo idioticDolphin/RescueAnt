@@ -825,6 +825,50 @@ Two scripts report where the gaps are:
 - `experiments/coverage_gap.py` counts the websites named in records that no
   crawl has visited - records the crawler knows of but has never seen
   first-hand.
+- `experiments/enrichment_value.py` sorts entities by where their records came
+  from - a listing, the organisation's own page, or both - and reports how
+  many of each carry a way to reach the organisation.
 - `experiments/record_filter_trial.py` and `list_confirmation_trial.py` score
   a candidate filtering prompt against judged records and labelled listing
   pages, before it is wired into the pipeline.
+
+### Setting the frontier from the crawl's own graph
+
+Three scripts read the recorded link graph - every stored page, its category,
+and the pages it linked to - so the numbers that steer the crawl can be
+measured rather than argued about. None of them needs the network or the model,
+and each prints what it cannot see alongside what it can.
+
+```bash
+python experiments/referrer_value.py       # what a link is worth, by the category offering it
+python experiments/frontier_threshold.py   # what a frontier score predicts, so discovery_when_below can be set
+python experiments/anchor_text_value.py    # whether the words on a link predict its target
+python experiments/frontier_simulation.py --link-text 1 --leaving 2.0   # a whole policy, replayed
+```
+
+`referrer_value.py` is the one to run first on a new corpus: `referrer_weights`
+is a number per category and every queued URL inherits one, so a single wrong
+entry can absorb a whole run. In this project's graph, `ADVICE` offered 31% of
+all links at a below-average hit rate while being weighted second-highest.
+
+`frontier_simulation.py` replays the frontier over the recorded graph under
+one policy after another - link text on or off, a penalty for leaving a site,
+a decay with distance, refusing or demoting an unproductive host - and reports
+targets found and fetches wasted at 250, 500, 1,000, 2,000 and 4,000 fetches.
+It compares orderings of a known graph; it cannot show what lies beyond it.
+
+### Watching a live run for drift
+
+A crawl can look healthy in every score it reports and still be lost. Two
+cheap checks catch it:
+
+```bash
+grep -oE "as [A-Z]+$" crawl.log | sort | uniq -c | sort -rn   # what the run is actually fetching
+python experiments/recategorize_sample.py --from ADVICE --n 40 --since 20000
+```
+
+The first is the category mix of the pages coming back - if the categories you
+extract from are not near the top, the run is spending itself elsewhere. The
+second re-classifies a sample of stored pages under the current taxonomy,
+which is how a taxonomy change is measured against the pages a run actually
+spent itself on, rather than against the labelled set alone.
