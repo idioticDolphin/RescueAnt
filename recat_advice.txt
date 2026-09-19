@@ -1,0 +1,47 @@
+4957 stored ADVICE page(s); re-classifying 40
+
+ > HUMAN       https://gersteincentre.org/contact-us
+ > HUMAN       https://mebank.com.au/support/security/latest-alerts
+ > HUMAN       https://strongheartshelpline.org/abuse/how-will-the-expansion-of-5g-impact-native-american-and-a
+ > HUMAN       http://katrinahelp.com/share-your-home.html
+ > HUMAN       https://techsafety.org/survivorscloud
+ > HUMAN       https://qstars.org.au/tenancies/minimum-housing-standards-in-queensland
+ > HUMAN       https://ncpgambling.org/help-treatment/faqs-what-is-problem-gambling
+ > HUMAN       https://espanol.thehotline.org/otros/maneras-apoyar
+ > HUMAN       https://staystifree.org.au/get-the-facts/urinary-tract-infections
+ > HUMAN       https://shorespace.org.uk/what-to-do-if/youve-shared-a-nude-or-been-sent-one
+ > HUMAN       https://mensadviceline.org.uk/
+ > HUMAN       https://qstars.org.au/
+ > HUMAN       https://suicidecallbackservice.org.au/mental-health/10-tips-to-help-make-positive-habits-stick
+ > HUMAN       https://fullstop.org.au/clientrecords
+ > HUMAN       https://callhelpline.org.uk/archebu-llenyddiaeth
+ > HUMAN       https://liver.org.au/living-well/mental-health
+ > HUMAN       https://sossen.org.uk/my-la-is-refusing-to-assess
+ > HUMAN       https://strumenticontrolaviolenza.org/service/violenza-donne-disabilita
+   ADVICE      https://a-z-animals.com/articles/how-scorpion-stingers-actually-work-and-why-most-wont-kill-you
+ > HUB         https://accessibe.com/blog/knowledgebase/screen-reader-guide
+ > HUMAN       https://wikihow.jp/%E5%89%8D%E3%81%AE%E4%BD%8F%E4%BA%BA%E5%AE%9B%E3%81%A6%E3%81%AE%E9%83%B5%E4%B
+ > HUMAN       https://linkabezpeci.cz/chat
+ > HUMAN       https://suicidecallbackservice.org.au/worried-about-someone/help-someone-create-a-suicide-safety
+ > HUMAN       https://uptodate.com/contents/serotonin-syndrome-serotonin-toxicity?source=related_link
+ > HUMAN       https://quit.org.au/staying-quit
+ > HUMAN       https://bbtrails.org/resources
+ > HUMAN       https://migrainepal.com/category/living-with-migraine
+ > HUMAN       https://findahelpline.com/countries/ad
+ > HUMAN       https://kidshelpphone.ca/get-info/breathing-balloon
+ > HUMAN       https://coramfamilylives.org.uk/advice/primary
+ > HUMAN       https://quitcentre.org.au/maternity
+ > HUMAN       https://ncadd.org/about-us/medical-advisors
+ > HUMAN       https://good2talk.ca/novascotia/what-to-expect-when-i-text
+ > HUMAN       https://intheknow.co.nz/talking-to-whanau
+ > HUMAN       https://lifelinewa.org.au/about-us/contact
+ > HUMAN       https://abm.me.uk/breastfeeding-information/expressing-breast-milk
+ > HUMAN       http://giftfromwithin.org/cortisol-belly-exercises
+ > HUMAN       https://locika.neziskovky.com/
+ > HUMAN       https://nationaldahelpline.org.uk/your-rights-and-options/domestic-abuse-services
+ > HUMAN       https://good2talk.ca/ontario/contact-us
+
+ADVICE pages now:
+  HUMAN          38    95%
+  ADVICE          1     2%
+  HUB             1     2%

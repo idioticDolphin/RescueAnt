@@ -242,6 +242,16 @@ Entries begin at the first release; earlier development is not itemised.
 
 ### Changed
 
+- **`referrer_weights` are fitted to the crawl's own graph**, not set by
+  argument. 646,250 links from 35,678 stored pages, scored by what the page at
+  the other end turned out to be (`experiments/referrer_value.py`): `LIST`
+  50.1%, `STATION` 38.0%, `SANCTUARY` 10.9%, `ANIMAL` 7.2%, `HUB` 3.5%,
+  `ADVICE` 1.0%, `ADVOCACY` 0.9%, `AUTHORITY` 0.5%, against a 2.6% average.
+  `ADVICE` fell from 5.0 to 1.0 and `STATION` rose from 4.0 to 5.0; `VET`,
+  `SHELTER`, `ADVOCACY` and `AUTHORITY` went to 0. Replayed over the recorded
+  graph: **146 targets found in the first 250 fetches instead of 121, 380
+  instead of 301 by 1,000, 605 instead of 536 by 2,000**, with fewer wasted
+  fetches at each.
 - **`discovery_when_below` is 3.0**, up from 0.5, and now set from data rather
   than guessed. Scoring all 15,048 links the crawl ever followed and reading
   off what their targets turned out to be
