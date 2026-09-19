@@ -704,3 +704,45 @@ def test_get_crawled_sites_lists_each_domain_once(monkeypatch):
     data_service.save_crawl_instance("https://b.de/", 1.0, False, site="b.de")
 
     assert data_service.get_crawled_sites() == {"a.de", "b.de"}
+
+
+# ---------------------------------------------------------------------------
+# the saved frontier
+# ---------------------------------------------------------------------------
+
+def test_a_saved_frontier_comes_back_in_order(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_service, "DATABASE_PATH", tmp_path / "crawl.sqlite3")
+    data_service.init_db()
+
+    data_service.save_frontier([("https://a.example/", 5.0, 1.0),
+                                ("https://b.example/", -2.0, 0.0)])
+
+    assert data_service.load_frontier() == [("https://a.example/", 5.0, 1.0),
+                                            ("https://b.example/", -2.0, 0.0)]
+
+
+def test_saving_the_frontier_replaces_the_last_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_service, "DATABASE_PATH", tmp_path / "crawl.sqlite3")
+    data_service.init_db()
+
+    data_service.save_frontier([("https://a.example/", 5.0, 0.0)])
+    data_service.save_frontier([("https://b.example/", 1.0, 0.0)])
+
+    assert [url for url, _, _ in data_service.load_frontier()] == ["https://b.example/"]
+
+
+def test_a_dropped_frontier_leaves_nothing_behind(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_service, "DATABASE_PATH", tmp_path / "crawl.sqlite3")
+    data_service.init_db()
+    data_service.save_frontier([("https://a.example/", 5.0, 0.0)])
+
+    data_service.clear_frontier()
+
+    assert data_service.load_frontier() == []
+
+
+def test_loading_a_frontier_from_a_database_that_never_saved_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_service, "DATABASE_PATH", tmp_path / "crawl.sqlite3")
+    data_service.init_db()
+
+    assert data_service.load_frontier() == []

@@ -40,10 +40,29 @@ def _parse_args():
              "to later crawls",
     )
     parser.add_argument(
+        "--keep-frontier", action="store_true",
+        help="Resume the queue this database's last run left behind, instead "
+             "of starting from the seeds (overrides persist_frontier)",
+    )
+    parser.add_argument(
+        "--drop-frontier", action="store_true",
+        help="Start from the seeds and forget any saved queue - the way back "
+             "when a run has strayed (overrides persist_frontier)",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Show debug-level logging (raw LLM outputs, per-field config details, ...)",
     )
     return parser.parse_args()
+
+
+def _persist_frontier(args, configured):
+    """Whether this run keeps its frontier: the flags win, then the config."""
+    if args.keep_frontier:
+        return True
+    if args.drop_frontier:
+        return False
+    return configured
 
 
 if __name__ == "__main__":
@@ -74,6 +93,10 @@ if __name__ == "__main__":
         logging.getLogger("main").info("Page store can now serve %d distinct URL(s)",
                                        page_store.indexed_count())
         raise SystemExit(0)
+
+    # The flags decide this run only; the config file is left alone.
+    _config = config_service.get_config()
+    _config.persist_frontier = _persist_frontier(args, _config.persist_frontier)
 
     import model.orchestrator as orchestrator
     if args.export:

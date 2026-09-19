@@ -363,6 +363,26 @@ def abandon_site(site:str):
                 site, _site_low_value.get(site, 0), dropped)
 
 
+def snapshot_frontier():
+    """The queue as (url, priority, closeness), in order, ready to be saved."""
+    return [(url, url_priorities.get(url, 0.0), url_closeness.get(url, 0.0))
+            for url in url_queue]
+
+
+def restore_frontier(rows):
+    """
+    Put a saved queue back, skipping anything since fetched.
+
+    Offered through queue_url() rather than written straight into the queue,
+    so a restored URL meets the same denylist, budget and abandonment rules as
+    a fresh one - the rules may have changed since it was saved, and the saved
+    queue is exactly where a bad night's decisions accumulate.
+    """
+    for url, priority, closeness in rows:
+        queue_url(url, priority=priority, closeness=closeness)
+    logger.info("Restored %d URL(s) from the saved frontier", len(url_queue))
+
+
 def closeness_of(url:str) -> float:
     """How close a URL is known to be to a page worth extracting."""
     if not url:

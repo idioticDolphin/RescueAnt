@@ -423,6 +423,7 @@ def load_config(configs:dict=None):
             skip_identical_content = skip_identical_content,
             prefetch_next_batch = prefetch_next_batch,
             queue_record_urls_at_start = queue_record_urls_at_start,
+            persist_frontier = configs.get("persist_frontier", "False") == "True",
             fetch_timeout_seconds = fetch_timeout_seconds,
             user_agent = (configs.get("user_agent") or "").strip().strip('"'),
             link_closeness_decay = link_closeness_decay,

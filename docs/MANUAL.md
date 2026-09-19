@@ -53,6 +53,8 @@ sees exactly the configuration named on the command line.
 | `--reprocess categorize` | Re-run classification (and the extraction that follows it) over stored pages. Use after a taxonomy or prompt change. |
 | `--site DOMAIN` | Limit `--reprocess` to one registrable domain, e.g. `--site wildtierhilfe.example`. |
 | `--category NAME` | Limit `--reprocess` to pages currently filed under that category. |
+| `--keep-frontier` | Resume the queue the last run left behind instead of starting from the seeds, whatever `persist_frontier` says. |
+| `--drop-frontier` | Start from the seeds and forget any saved queue. The way back when a run has strayed. |
 | `--index-store DB [DB ...]` | Record the pages stored by these crawl databases in the page store's URL index, then exit, so `reuse_stored_pages` can serve them to later runs. |
 | `-v`, `--verbose` | Debug-level logging: raw model output, per-field config parsing, per-URL frontier detail. `llama.cpp`'s own logging stays suppressed either way. |
 
@@ -252,6 +254,7 @@ plus any inherited closeness.
 | Key | Type | Default | Effect |
 | --- | --- | --- | --- |
 | `skip_identical_content` | bool | `True` | Take the category of an already-analysed page with byte-identical content instead of analysing this one again. |
+| `persist_frontier` | bool | `False` | Save the fetch queue after every round and put it back on the next run, so an interrupted run resumes where it was looking. Off by default: a frontier is a run's accumulated judgement about what to look at next, and a run that has strayed is better off starting from its seeds than resuming its own drift - one 20-hour run ended with 78,000 queued URLs, almost all of them human-health pages. `--keep-frontier` and `--drop-frontier` override it for one run. A run that is not keeping the frontier also deletes the saved one, so it cannot ambush a later run. |
 | `queue_record_urls_at_start` | bool | `True` | Begin a run by queueing the websites named in records that no crawl has visited - 26% of them, in this project's own database. |
 | `reuse_stored_pages` | bool | `False` | **Development only.** Serve pages from the store instead of fetching them; no request reaches the site, not even for robots.txt. Reproducible, and wrong for building a real directory. |
 | `reuse_max_age_days` | float | `0` | How old a stored page may be and still be served. `0` means any age. |

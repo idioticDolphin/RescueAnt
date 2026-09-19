@@ -1246,3 +1246,33 @@ def test_abandoning_a_site_still_drops_its_queue_without_a_penalty(monkeypatch):
     fetching_service.abandon_site("dull.example")
 
     assert fetching_service.url_queue == []
+
+
+# ---------------------------------------------------------------------------
+# taking the frontier out and putting it back
+# ---------------------------------------------------------------------------
+
+def test_a_snapshot_carries_each_url_with_its_score():
+    fetching_service.queue_url("https://a.example/", priority=5.0, closeness=1.5)
+    fetching_service.queue_url("https://b.example/", priority=-2.0)
+
+    assert fetching_service.snapshot_frontier() == [
+        ("https://a.example/", 5.0, 1.5), ("https://b.example/", -2.0, 0.0)]
+
+
+def test_a_restored_frontier_is_queued_with_its_scores():
+    fetching_service.restore_frontier([("https://a.example/", 5.0, 1.5),
+                                       ("https://b.example/", -2.0, 0.0)])
+
+    assert fetching_service.url_queue == ["https://a.example/", "https://b.example/"]
+    assert fetching_service.url_priorities["https://a.example/"] == 5.0
+    assert fetching_service.closeness_of("https://a.example/") == 1.5
+
+
+def test_restoring_does_not_requeue_what_has_already_been_processed():
+    fetching_service.processed_urls["https://done.example/"] = "<html></html>"
+
+    fetching_service.restore_frontier([("https://done.example/", 5.0, 0.0),
+                                       ("https://new.example/", 1.0, 0.0)])
+
+    assert fetching_service.url_queue == ["https://new.example/"]

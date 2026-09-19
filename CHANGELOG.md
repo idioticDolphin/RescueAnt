@@ -33,6 +33,15 @@ Entries begin at the first release; earlier development is not itemised.
   existing database first: the added exclusions remove none of its 491
   entities, and 19 of them carry one of the added keep words. (A bare "asiel"
   was tried and removed - Dutch bird rescues call themselves Vogelasiel.)
+- **The frontier can be carried across an interrupt** - `persist_frontier`,
+  with `--keep-frontier` and `--drop-frontier` to decide it for one run. The
+  queue is saved after every round, so an interrupt costs at most one round's
+  accumulated judgement about what to look at next. Off by default, and a run
+  that is not keeping the frontier deletes the saved one: a run that has
+  strayed is better off starting from its seeds than resuming its own drift.
+  A restored URL is offered through the normal queueing path, so it meets
+  whatever denylist, budget and abandonment rules apply now rather than the
+  ones in force when it was saved.
 - **An `evidence` column in the export**, saying where a row's records came
   from: `own-page`, `listing+own-page` or `listing-only`. A listing entry is a
   wildlife station about two thirds of the time and an own-page record nearly

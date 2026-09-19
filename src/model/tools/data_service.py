@@ -134,11 +134,62 @@ def _migrate(connection):
             END
             WHERE state IS NULL
         """)
+    connection.execute(FRONTIER_TABLE)
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_crawls_state ON crawls(state)")
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_crawls_site ON crawls(site)")
     connection.commit()
+
+FRONTIER_TABLE = """
+    CREATE TABLE IF NOT EXISTS frontier (
+        url TEXT PRIMARY KEY,
+        priority REAL,
+        closeness REAL,
+        position INTEGER
+    )
+"""
+
+
+def save_frontier(rows):
+    """
+    Write the queue out, replacing whatever was saved before.
+
+    A frontier is a run's accumulated judgement about what to look at next,
+    and losing it on an interrupt throws that away. Keeping it is not always
+    right either - a run that has strayed is better off starting again than
+    resuming its own drift - so whether this is called at all is a decision
+    for the caller (see persist_frontier).
+
+    :param rows: (url, priority, closeness) in queue order.
+    """
+    with get_connection() as connection:
+        connection.execute(FRONTIER_TABLE)
+        connection.execute("DELETE FROM frontier")
+        connection.executemany(
+            "INSERT OR REPLACE INTO frontier(url, priority, closeness, position) "
+            "VALUES (?, ?, ?, ?)",
+            [(url, priority, closeness, position)
+             for position, (url, priority, closeness) in enumerate(rows)])
+        connection.commit()
+
+
+def load_frontier():
+    """The saved queue as (url, priority, closeness), in the order it was saved."""
+    with get_connection() as connection:
+        connection.execute(FRONTIER_TABLE)
+        rows = connection.execute(
+            "SELECT url, priority, closeness FROM frontier ORDER BY position").fetchall()
+    return [(row["url"], row["priority"], row["closeness"]) for row in rows]
+
+
+def clear_frontier():
+    """Forget the saved queue, so the next run starts from its seeds."""
+    with get_connection() as connection:
+        connection.execute(FRONTIER_TABLE)
+        connection.execute("DELETE FROM frontier")
+        connection.commit()
+
 
 def init_entity_tables():
     """

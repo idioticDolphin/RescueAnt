@@ -478,6 +478,18 @@ Pages fetched but not yet classified are picked up from disk with no network
 traffic at all. Only a page whose stored body has gone missing is requeued
 for a refetch.
 
+The *frontier* - the queue of what to look at next - is a separate decision.
+By default a new run rebuilds it from the seeds, because a run that has
+strayed is better off starting again than resuming its own drift. To carry it
+across an interrupt instead:
+
+```bash
+python src/main.py bot.config --keep-frontier
+```
+
+or set `persist_frontier = True;` to make that the default, and
+`--drop-frontier` to start clean for one run.
+
 ### Reprocessing without recrawling
 
 Because the bodies are kept, analysis can be re-run against the exact same

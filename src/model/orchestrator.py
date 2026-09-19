@@ -35,6 +35,7 @@ def init():
         redo_failed_fetches=config.redo_failed_fetches,
         redo_all_fetches=config.redo_all_fetches
     )
+    recall_frontier(config)
     global discovery_queries
     discovery_queries = discovery_service.read_query_templates(config.get_search_query_path()) if config.discover_urls else []
     logger.info(
@@ -46,6 +47,37 @@ def init():
     # so an interruption never leaves a permanently growing tail of
     # fetched-but-unprocessed pages.
     resume_pending()
+
+def remember_frontier(config=None):
+    """
+    Save the queue, if this run is keeping it.
+
+    Called after every round, so an interrupt costs at most one round's
+    accumulated judgement about what to look at next.
+    """
+    config = config or config_service.get_config()
+    if not getattr(config, "persist_frontier", False):
+        return
+    data_service.save_frontier(fetching_service.snapshot_frontier())
+
+
+def recall_frontier(config=None):
+    """
+    Queue the frontier the last run left behind, if this run is keeping it.
+
+    A frontier is worth keeping when a run was interrupted mid-stride. It is
+    worth throwing away when the run had strayed - one 20-hour run ended with
+    78,000 queued URLs, almost all of them human-health pages reached from
+    misfiled advice pages, and resuming that queue would have resumed the
+    drift. So a run that is not keeping the frontier also deletes the saved
+    one rather than leaving it to ambush a later run.
+    """
+    config = config or config_service.get_config()
+    if not getattr(config, "persist_frontier", False):
+        data_service.clear_frontier()
+        return
+    fetching_service.restore_frontier(data_service.load_frontier())
+
 
 def run_discovery():
     """
@@ -160,11 +192,13 @@ def run():
         (pipeline.round if pipeline else process_batch)()
         rounds += 1
         _log_frontier(rounds)
+        remember_frontier(config)
         if _time_or_round_limit_reached():
             break
 
     if pipeline:
         pipeline.close()
+    remember_frontier(config)
 
     elapsed = time.monotonic() - start_time
     logger.info(

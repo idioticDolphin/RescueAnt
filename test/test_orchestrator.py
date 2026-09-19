@@ -1415,3 +1415,60 @@ def test_an_empty_frontier_with_nothing_claimed_is_strayed(monkeypatch):
         update={"discovery_when_below": None})
 
     assert orchestrator.frontier_is_unproductive(config)
+
+
+# ---------------------------------------------------------------------------
+# keeping (or dropping) the frontier between runs
+# ---------------------------------------------------------------------------
+
+def test_the_frontier_is_saved_after_a_round_when_asked(monkeypatch):
+    saved = []
+    monkeypatch.setattr(orchestrator.data_service, "save_frontier", saved.append)
+    monkeypatch.setattr(orchestrator.fetching_service, "snapshot_frontier",
+                        lambda: [("https://a.example/", 5.0, 0.0)])
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"persist_frontier": True})
+
+    orchestrator.remember_frontier(config)
+
+    assert saved == [[("https://a.example/", 5.0, 0.0)]]
+
+
+def test_nothing_is_saved_when_the_frontier_is_not_being_kept(monkeypatch):
+    saved = []
+    monkeypatch.setattr(orchestrator.data_service, "save_frontier", saved.append)
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"persist_frontier": False})
+
+    orchestrator.remember_frontier(config)
+
+    assert saved == []
+
+
+def test_a_kept_frontier_is_queued_at_the_start_of_the_next_run(monkeypatch):
+    restored = []
+    monkeypatch.setattr(orchestrator.data_service, "load_frontier",
+                        lambda: [("https://a.example/", 5.0, 1.0)])
+    monkeypatch.setattr(orchestrator.data_service, "clear_frontier",
+                        lambda: restored.append("cleared"))
+    monkeypatch.setattr(orchestrator.fetching_service, "restore_frontier", restored.append)
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"persist_frontier": True})
+
+    orchestrator.recall_frontier(config)
+
+    assert restored == [[("https://a.example/", 5.0, 1.0)]]
+
+
+def test_a_run_that_does_not_keep_the_frontier_throws_the_old_one_away(monkeypatch):
+    # Otherwise a frontier saved by a run that had strayed would be waiting
+    # for the run started to get away from it.
+    events = []
+    monkeypatch.setattr(orchestrator.data_service, "load_frontier", lambda: events.append("loaded"))
+    monkeypatch.setattr(orchestrator.data_service, "clear_frontier", lambda: events.append("cleared"))
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"persist_frontier": False})
+
+    orchestrator.recall_frontier(config)
+
+    assert events == ["cleared"]

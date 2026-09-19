@@ -110,6 +110,12 @@ class Config(BaseModel):
     # At the start of a run, queue the websites named in already-extracted
     # records that no crawl has visited yet.
     queue_record_urls_at_start: bool = True
+    # Save the fetch queue after every round and put it back on the next run,
+    # so an interrupted run resumes where it was looking rather than from its
+    # seeds. Off by default: a frontier is a run's accumulated judgement, and
+    # a run that has strayed is better off starting again than resuming its
+    # own drift. --keep-frontier / --drop-frontier override it per run.
+    persist_frontier: bool = False
     # Deadline for one page's whole fetch, not just its navigation. 0 = none.
     fetch_timeout_seconds: float = 90
     # How the crawler names itself when it asks a site for its robots.txt, and
