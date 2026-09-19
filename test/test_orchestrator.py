@@ -1472,3 +1472,51 @@ def test_a_run_that_does_not_keep_the_frontier_throws_the_old_one_away(monkeypat
     orchestrator.recall_frontier(config)
 
     assert events == ["cleared"]
+
+
+# ---------------------------------------------------------------------------
+# the drift alarm: judging the frontier by what it produced, not what it promised
+# ---------------------------------------------------------------------------
+
+def test_a_run_finding_nothing_counts_as_strayed(monkeypatch):
+    # The scores said the queue was full of promise for twenty hours; the
+    # pages coming back said otherwise. 19,675 fetched, 155 of them worth
+    # extracting. Outcomes are the check that a mis-set weight cannot fool.
+    _frontier(monkeypatch, ["http://a/"], {"http://a/": 9.0})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5, "discovery_when_yield_below": 0.02,
+                "yield_window_rounds": 3})
+
+    assert orchestrator.frontier_is_unproductive(
+        config, recent_yield=[(0, 60), (1, 60), (0, 60)])
+
+
+def test_a_productive_run_is_left_alone(monkeypatch):
+    _frontier(monkeypatch, ["http://a/"], {"http://a/": 9.0})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5, "discovery_when_yield_below": 0.02,
+                "yield_window_rounds": 3})
+
+    assert not orchestrator.frontier_is_unproductive(
+        config, recent_yield=[(4, 60), (2, 60), (3, 60)])
+
+
+def test_the_alarm_waits_for_a_full_window(monkeypatch):
+    # Two empty rounds at the start of a run are not a drift diagnosis.
+    _frontier(monkeypatch, ["http://a/"], {"http://a/": 9.0})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5, "discovery_when_yield_below": 0.02,
+                "yield_window_rounds": 5})
+
+    assert not orchestrator.frontier_is_unproductive(
+        config, recent_yield=[(0, 60), (0, 60)])
+
+
+def test_the_alarm_is_off_unless_configured(monkeypatch):
+    _frontier(monkeypatch, ["http://a/"], {"http://a/": 9.0})
+    config = orchestrator.config_service.get_config().model_copy(
+        update={"discovery_when_below": 0.5, "discovery_when_yield_below": 0.0,
+                "yield_window_rounds": 3})
+
+    assert not orchestrator.frontier_is_unproductive(
+        config, recent_yield=[(0, 60), (0, 60), (0, 60)])

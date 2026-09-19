@@ -182,6 +182,14 @@ class Config(BaseModel):
     # Run discovery once the best queued score falls below this (None = only
     # when the queue is literally empty).
     discovery_when_below: float | None = None
+    # ...or once the pages actually coming back stop being worth extracting:
+    # the share of fetched pages in a category worth extracting, measured over
+    # the last yield_window_rounds rounds. 0 turns the check off. Scores can be
+    # wrong in a way that feeds itself - a category the classifier overfills
+    # passes its weight to every link on the page - and this is the check that
+    # does not depend on them.
+    discovery_when_yield_below: float = 0.0
+    yield_window_rounds: int = 5
 
     def get_field_role(self, field_name: str) -> str | None:
         """Return the declared role of a field, or None if undeclared."""

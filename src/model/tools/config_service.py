@@ -447,6 +447,8 @@ def load_config(configs:dict=None):
             discovery_priority = _opt_float(configs, "discovery_priority", 50.0),
             discovery_when_below = (_opt_float(configs, "discovery_when_below", 0.0)
                                     if "discovery_when_below" in configs else None),
+            discovery_when_yield_below = _opt_float(configs, "discovery_when_yield_below", 0.0),
+            yield_window_rounds = _opt_int(configs, "yield_window_rounds", 5),
         )
         logger.info(
             "Config loaded: %d categories (%d relevant), discovery=%s",
