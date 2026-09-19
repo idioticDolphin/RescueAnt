@@ -62,6 +62,16 @@ def _schema_field_names(schema: dict) -> list[str]:
         schema = schema.get("items", {})
     return list(schema.get("properties", {}).keys())
 
+FRONTIER_TABLE = """
+    CREATE TABLE IF NOT EXISTS frontier (
+        url TEXT PRIMARY KEY,
+        priority REAL,
+        closeness REAL,
+        position INTEGER
+    )
+"""
+
+
 def init_db():
     """
     Create the crawls/entries tables if they don't exist yet, deriving
@@ -140,16 +150,6 @@ def _migrate(connection):
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_crawls_site ON crawls(site)")
     connection.commit()
-
-FRONTIER_TABLE = """
-    CREATE TABLE IF NOT EXISTS frontier (
-        url TEXT PRIMARY KEY,
-        priority REAL,
-        closeness REAL,
-        position INTEGER
-    )
-"""
-
 
 def save_frontier(rows):
     """
